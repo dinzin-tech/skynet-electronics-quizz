@@ -26,4 +26,6 @@ $commandManager->init();
 $commandManager->addCommand('config:cache', \App\Commands\ConfigCacheCommand::class);
 $commandManager->addCommand('config:clear', \App\Commands\ConfigClearCommand::class);
 $commandManager->addCommand('db:seed', \App\Commands\DbSeedCommand::class);
+$commandManager->addCommand('quiz:publish', \App\Commands\QuizPublishCommand::class);
+$commandManager->addCommand('quiz:warm', \App\Commands\QuizWarmCommand::class);
 $commandManager->run($argv);

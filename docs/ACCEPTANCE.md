@@ -5,9 +5,9 @@ This document tracks the acceptance criteria defined in §39 of the Client Speci
 | ID | Description / Area | Phase | Target Verification | Status | Evidence / Notes |
 |---|---|---|---|---|---|
 | **DEV-01** | Employee Auth & Pre-Window Access | Phase 2, 5 | Unit tests & SPA flow | PASS (Backend) | AuthProvider bcrypt + token verification + role escalation blocked + 2,500 seeded |
-| **DEV-02** | Employee CRUD & Validation | Phase 3 | Admin feature tests | PENDING | Unique code, email, name validation |
-| **DEV-03** | Quiz Creation & Configuration | Phase 3 | Admin feature tests | PENDING | Scoring & navigation JSON settings |
-| **DEV-04** | Quiz Publishing & Immutable Snapshot | Phase 3 | Bundle & roster tests | PENDING | Stripped answer bundle + 500-chunk roster |
+| **DEV-02** | Employee CRUD & Validation | Phase 3 | Admin feature tests | PASS | EmployeeServiceTest: unique code/email, bad format, soft-delete on attempts, hard-delete on none |
+| **DEV-03** | Quiz Creation & Configuration | Phase 3 | Admin feature tests | PASS | QuizServiceTest: duration, window validation, settings normalization, deep clone duplicate, archive |
+| **DEV-04** | Quiz Publishing & Immutable Snapshot | Phase 3 | Bundle & roster tests | PASS | QuizPublisherTest: zero correctness data in bundle (.json + .json.gz), snapshot answer key, 500-chunk roster |
 | **DEV-05** | Bulk Employee CSV Upload | Phase 6 | Job & upload tests | PENDING | Preview, skip duplicates, failed CSV |
 | **DEV-06** | Quiz Instructions & Entry Screen | Phase 5 | Playwright / e2e | PENDING | Sync server time, duration, count |
 | **DEV-07** | Fisher-Yates Randomization | Phase 4 | Engine unit tests | PENDING | Per-attempt shuffled layout, key decoupled |
@@ -24,6 +24,6 @@ This document tracks the acceptance criteria defined in §39 of the Client Speci
 | **DEV-18** | Real-time Dashboard (9 KPIs) | Phase 6 | Admin feature tests | PENDING | Live pull from Redis `qstat` |
 | **DEV-19** | Submissions & Results Keyset Pagination | Phase 6 | Admin feature tests | PENDING | Filter by quiz/status, no heavy offsets |
 | **DEV-20** | Asynchronous CSV / XLSX Reports | Phase 6 | Export job tests | PENDING | Streaming OpenSpout, formula injection safe |
-| **DEV-21** | Group-Based Eligibility & Roster | Phase 3 | Admin & roster tests | PENDING | Target groups selection on publish |
+| **DEV-21** | Group-Based Eligibility & Roster | Phase 3 | Admin & roster tests | PASS | QuizPublisher & QuizService handle group targeting or all-active roster materialization |
 | **DEV-22** | Security Audit & IDOR Protection | Phase 8 | Security test suite | PENDING | Ownership verification, token tamper check |
 | **DEV-23** | 2,000–3,000 Concurrent User Load Test | Phase 8 | k6 test runs | PENDING | Pass criteria in `docs/LOADTEST.md` |
