@@ -31,4 +31,5 @@ $commandManager->addCommand('quiz:warm', \App\Commands\QuizWarmCommand::class);
 $commandManager->addCommand('quiz:flusher', \App\Commands\QuizFlusherCommand::class);
 $commandManager->addCommand('quiz:scheduler', \App\Commands\QuizSchedulerCommand::class);
 $commandManager->addCommand('quiz:finalizer', \App\Commands\QuizFinalizerCommand::class);
+$commandManager->addCommand('jobs:worker', \App\Commands\JobsWorkerCommand::class);
 $commandManager->run($argv);

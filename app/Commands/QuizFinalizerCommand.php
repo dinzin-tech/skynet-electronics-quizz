@@ -145,6 +145,13 @@ class QuizFinalizerCommand
                 'graded' => '1',
             ]);
 
+            // Update qstat running sums if key exists
+            if (method_exists($redis, 'exists') && $redis->exists("qstat:{$quizId}")) {
+                $redis->hIncrByFloat("qstat:{$quizId}", 'sum_score', (float) $score);
+                $redis->hIncrByFloat("qstat:{$quizId}", 'sum_accuracy', (float) $accuracy);
+                $redis->hIncrBy("qstat:{$quizId}", 'sum_time_s', (int) $completionTimeS);
+            }
+
             // Mark attempt dirty for MySQL write-behind
             $redis->sAdd('dirty_att', $aid);
             $graded++;
