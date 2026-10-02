@@ -1,0 +1,88 @@
+{% extends "admin/layout.html.twig" %}
+
+{% block page_title %}Employee Directory{% endblock %}
+
+{% block content %}
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+    <div>
+        <h2 style="font-size: 1.15rem; font-weight: 600;">Employees ({{ total_count|number_format }})</h2>
+        <p style="font-size: 0.85rem; color: #64748b;">Manage active employee rosters and bulk imports</p>
+    </div>
+    <div style="display: flex; gap: 12px;">
+        <a href="/admin/employees/import" class="btn btn-secondary">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            Bulk Upload CSV
+        </a>
+    </div>
+</div>
+
+<div class="card" style="padding: 16px; margin-bottom: 20px;">
+    <form action="/admin/employees" method="GET" style="display: flex; gap: 12px; align-items: center;">
+        <input type="text" name="search" class="form-control" placeholder="Search by name or employee code..." value="{{ search|default('') }}" style="max-width: 380px;">
+        <button type="submit" class="btn btn-primary">Search</button>
+        {% if search %}
+            <a href="/admin/employees" class="btn btn-secondary">Clear</a>
+        {% endif %}
+    </form>
+</div>
+
+<div class="card" style="padding: 0;">
+    <div class="table-wrap">
+        <table>
+            <thead>
+                <tr>
+                    <th>Code</th>
+                    <th>Name</th>
+                    <th>Email</th>
+                    <th>Status</th>
+                    <th>Groups</th>
+                    <th>Created</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for emp in employees %}
+                <tr>
+                    <td><strong>{{ emp.employee_code }}</strong></td>
+                    <td>{{ emp.name }}</td>
+                    <td>{{ emp.email|default('—') }}</td>
+                    <td>
+                        {% if emp.status == 'active' %}
+                            <span class="badge badge-success">Active</span>
+                        {% else %}
+                            <span class="badge badge-danger">Inactive</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if emp.group_names %}
+                            <span style="font-size: 0.85rem; color: #475569;">{{ emp.group_names }}</span>
+                        {% else %}
+                            <span style="color: #94a3b8;">—</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ emp.created_at|date('Y-m-d H:i') }}</td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="6" style="text-align: center; color: #64748b; padding: 32px;">No employees found.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Pagination -->
+    <div style="padding: 16px 20px; display: flex; justify-content: space-between; align-items: center; border-top: 1px solid var(--border-color);">
+        <span style="font-size: 0.85rem; color: #64748b;">
+            Page {{ current_page }} of {{ total_pages }}
+        </span>
+        <div style="display: flex; gap: 8px;">
+            {% if current_page > 1 %}
+                <a href="/admin/employees?page={{ current_page - 1 }}{% if search %}&search={{ search }}{% endif %}" class="btn btn-secondary">Previous</a>
+            {% endif %}
+            {% if current_page < total_pages %}
+                <a href="/admin/employees?page={{ current_page + 1 }}{% if search %}&search={{ search }}{% endif %}" class="btn btn-secondary">Next</a>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

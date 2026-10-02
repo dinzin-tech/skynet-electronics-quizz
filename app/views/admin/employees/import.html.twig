@@ -1,0 +1,108 @@
+{% extends "admin/layout.html.twig" %}
+
+{% block page_title %}Bulk Employee CSV Upload{% endblock %}
+
+{% block content %}
+<div style="margin-bottom: 24px;">
+    <a href="/admin/employees" style="font-size: 0.875rem; color: #2563eb; text-decoration: none;">&larr; Back to Employees</a>
+</div>
+
+{% if error %}
+    <div class="alert alert-error">{{ error }}</div>
+{% endif %}
+
+{% if success %}
+    <div class="alert alert-success">{{ success }}</div>
+{% endif %}
+
+{% if result_summary %}
+<div class="card" style="border-left: 4px solid #16a34a;">
+    <h3 style="font-size: 1.15rem; font-weight: 600; margin-bottom: 12px; color: #166534;">Import Completed</h3>
+    <p style="margin-bottom: 16px; font-size: 0.95rem;">
+        Total Processed: <strong>{{ result_summary.total }}</strong> |
+        Successfully Imported: <strong style="color: #16a34a;">{{ result_summary.imported }}</strong> |
+        Failed / Skipped: <strong style="color: #dc2626;">{{ result_summary.failed }}</strong>
+    </p>
+    {% if result_summary.report_url %}
+    <div style="margin-top: 12px;">
+        <a href="{{ result_summary.report_url }}" class="btn btn-secondary">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            Download Failed Rows Report (CSV)
+        </a>
+    </div>
+    {% endif %}
+</div>
+{% endif %}
+
+{% if preview %}
+<div class="card">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+        <div>
+            <h3 style="font-size: 1.05rem; font-weight: 600;">CSV Validation Preview (First 10 Rows)</h3>
+            <p style="font-size: 0.85rem; color: #64748b;">
+                Found <strong>{{ preview.total_rows }}</strong> total rows:
+                <span style="color: #16a34a; font-weight: 600;">{{ preview.valid_count }} Valid</span>,
+                <span style="color: #dc2626; font-weight: 600;">{{ preview.duplicate_count }} Duplicates / Errors</span>
+            </p>
+        </div>
+        <form action="/admin/employees/import/execute" method="POST">
+            <input type="hidden" name="file_path" value="{{ file_path }}">
+            <button type="submit" class="btn btn-primary" {% if preview.valid_count == 0 %}disabled{% endif %}>
+                Confirm & Import {{ preview.valid_count }} Valid Employees
+            </button>
+        </form>
+    </div>
+
+    <div class="table-wrap">
+        <table>
+            <thead>
+                <tr>
+                    <th>Row</th>
+                    <th>Code</th>
+                    <th>Name</th>
+                    <th>Email</th>
+                    <th>Status</th>
+                    <th>Validation</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in preview.preview %}
+                <tr>
+                    <td>{{ row.row }}</td>
+                    <td><strong>{{ row.code }}</strong></td>
+                    <td>{{ row.name }}</td>
+                    <td>{{ row.email|default('—') }}</td>
+                    <td>{{ row.status }}</td>
+                    <td>
+                        {% if row.is_valid %}
+                            <span class="badge badge-success">Valid</span>
+                        {% else %}
+                            <span class="badge badge-danger">{{ row.reason }}</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% else %}
+<div class="card" style="max-width: 600px;">
+    <h3 style="font-size: 1.05rem; font-weight: 600; margin-bottom: 12px;">Upload CSV File</h3>
+    <p style="font-size: 0.85rem; color: #64748b; margin-bottom: 20px;">
+        Format: <code>employee_code, name, email, username, status</code>.<br>
+        Maximum 20,000 rows, 5 MB file size limit. Duplicate codes/emails will be flagged and skipped.
+    </p>
+
+    <form action="/admin/employees/import/preview" method="POST" enctype="multipart/form-data">
+        <div class="form-group">
+            <label class="form-label" for="csv_file">Select CSV File</label>
+            <input type="file" id="csv_file" name="csv_file" accept=".csv" required class="form-control">
+        </div>
+        <button type="submit" class="btn btn-primary">
+            Upload & Preview
+        </button>
+    </form>
+</div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,85 @@
+{% extends "admin/layout.html.twig" %}
+
+{% block page_title %}Submission Breakdown #{{ attempt.id }}{% endblock %}
+
+{% block content %}
+<div style="margin-bottom: 24px;">
+    <a href="/admin/submissions" style="font-size: 0.875rem; color: #2563eb; text-decoration: none;">&larr; Back to Submissions</a>
+</div>
+
+<div class="card" style="margin-bottom: 24px;">
+    <h3 style="font-size: 1.15rem; font-weight: 600; margin-bottom: 16px;">Candidate & Assessment Meta</h3>
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px;">
+        <div>
+            <div style="font-size: 0.8rem; color: #64748b; text-transform: uppercase;">Employee</div>
+            <strong style="font-size: 1rem;">{{ attempt.employee_name }}</strong>
+            <div style="font-size: 0.85rem; color: #64748b;">{{ attempt.employee_code }} | {{ attempt.employee_email }}</div>
+        </div>
+        <div>
+            <div style="font-size: 0.8rem; color: #64748b; text-transform: uppercase;">Quiz</div>
+            <strong style="font-size: 1rem;">{{ attempt.quiz_title }}</strong>
+            <div style="font-size: 0.85rem; color: #64748b;">Code: {{ attempt.quiz_code }}</div>
+        </div>
+        <div>
+            <div style="font-size: 0.8rem; color: #64748b; text-transform: uppercase;">Status</div>
+            <strong style="font-size: 1rem;">{{ attempt.status }}</strong>
+            <div style="font-size: 0.85rem; color: #64748b;">Graded: {{ attempt.graded_at|default('No') }}</div>
+        </div>
+        <div>
+            <div style="font-size: 0.8rem; color: #64748b; text-transform: uppercase;">Score / Accuracy</div>
+            <strong style="font-size: 1.25rem; color: #16a34a;">{{ attempt.score|default('—') }}</strong>
+            <span style="font-size: 0.95rem; color: #64748b;">({{ attempt.accuracy|default('0') }}%)</span>
+        </div>
+    </div>
+</div>
+
+<div class="card" style="padding: 0;">
+    <div style="padding: 16px 20px; border-bottom: 1px solid var(--border-color);">
+        <h3 style="font-size: 1.05rem; font-weight: 600;">Recorded Answers ({{ attempt.answers|length }})</h3>
+    </div>
+    <div class="table-wrap">
+        <table>
+            <thead>
+                <tr>
+                    <th>Question ID</th>
+                    <th>Selected Option ID</th>
+                    <th>Result</th>
+                    <th>Sequence #</th>
+                    <th>Answered At</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for ans in attempt.answers %}
+                <tr>
+                    <td><code>#{{ ans.question_id }}</code></td>
+                    <td>
+                        {% if ans.selected_option_id %}
+                            <code>#{{ ans.selected_option_id }}</code>
+                        {% else %}
+                            <span style="color: #94a3b8;">Unanswered</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if ans.is_correct is not null %}
+                            {% if ans.is_correct == 1 %}
+                                <span class="badge badge-success">Correct</span>
+                            {% else %}
+                                <span class="badge badge-danger">Wrong</span>
+                            {% endif %}
+                        {% else %}
+                            <span class="badge badge-warning">Ungraded</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ ans.seq }}</td>
+                    <td>{{ ans.answered_at }}</td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="5" style="text-align: center; color: #64748b; padding: 32px;">No answers recorded for this attempt.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

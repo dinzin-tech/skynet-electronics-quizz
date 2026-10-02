@@ -1,0 +1,18 @@
+[Unit]
+Description=CorpQuiz Deadlines & Window Scheduler Daemon
+After=network.target redis-server.service mysql.service
+Requires=redis-server.service mysql.service
+
+[Service]
+Type=simple
+User=www-data
+Group=www-data
+WorkingDirectory=/var/www/corpquiz
+ExecStart=/usr/bin/php bin/console quiz:scheduler
+Restart=always
+RestartSec=2s
+StandardOutput=append:/var/log/corpquiz/scheduler.log
+StandardError=append:/var/log/corpquiz/scheduler_error.log
+
+[Install]
+WantedBy=multi-user.target

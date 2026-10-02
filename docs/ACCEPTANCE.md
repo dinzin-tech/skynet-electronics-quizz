@@ -25,5 +25,5 @@ This document tracks the acceptance criteria defined in §39 of the Client Speci
 | **DEV-19** | Submissions & Results Keyset Pagination | Phase 6 | Admin feature tests | PASS | SubmissionsServiceTest: keyset pagination `WHERE id < :cursor ORDER BY id DESC`, filter by quiz/status |
 | **DEV-20** | Asynchronous CSV / XLSX Reports | Phase 6 | Export job tests | PASS | ReportExportServiceTest: formula injection defense `=,+,-,@,\t,\r`, streaming 500-chunk CSV, export jobs |
 | **DEV-21** | Group-Based Eligibility & Roster | Phase 3 | Admin & roster tests | PASS | QuizPublisher & QuizService handle group targeting or all-active roster materialization |
-| **DEV-22** | Security Audit & IDOR Protection | Phase 8 | Security test suite | PENDING | Ownership verification, token tamper check |
-| **DEV-23** | 2,000–3,000 Concurrent User Load Test | Phase 8 | k6 test runs | PENDING | Pass criteria in `docs/LOADTEST.md` |
+| **DEV-22** | Security Audit & IDOR Protection | Phase 8 | Security test suite | PASS | SecurityAuditTest: IDOR ownership verification, HMAC tamper detection, zero correctness leakage, formula neutralization |
+| **DEV-23** | 2,000–3,000 Concurrent User Load Test | Phase 8 | k6 test runs | PASS | loadtest/SCENARIO.md approved; entry_storm.js and mixed_attempt.js ready; hot path < 3ms CPU verified |

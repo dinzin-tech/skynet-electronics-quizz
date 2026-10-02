@@ -1,0 +1,112 @@
+{% extends "admin/layout.html.twig" %}
+
+{% block page_title %}Real-time Dashboard{% endblock %}
+
+{% block content %}
+<div style="margin-bottom: 24px; display: flex; justify-content: space-between; align-items: center;">
+    <div>
+        <h2 style="font-size: 1.15rem; font-weight: 600; color: #1e293b;">System Overview (9 Core KPIs)</h2>
+        <p style="font-size: 0.85rem; color: #64748b;">Live metrics from Redis during assessment windows & MySQL cache</p>
+    </div>
+    <div>
+        <button class="btn btn-secondary" onclick="window.location.reload()">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+            Refresh
+        </button>
+    </div>
+</div>
+
+<div class="kpi-grid">
+    <div class="kpi-card">
+        <div class="kpi-title">Total Active Employees</div>
+        <div class="kpi-val">{{ global_kpis.total_employees|number_format }}</div>
+    </div>
+    <div class="kpi-card">
+        <div class="kpi-title">Total Quizzes</div>
+        <div class="kpi-val">{{ global_kpis.total_quizzes }}</div>
+    </div>
+    <div class="kpi-card">
+        <div class="kpi-title">Published Quizzes</div>
+        <div class="kpi-val" style="color: #2563eb;">{{ global_kpis.published_quizzes }}</div>
+    </div>
+    <div class="kpi-card">
+        <div class="kpi-title">Completed Attempts</div>
+        <div class="kpi-val" style="color: #16a34a;">{{ global_kpis.completed_attempts|number_format }}</div>
+    </div>
+    <div class="kpi-card">
+        <div class="kpi-title">In-Progress Attempts</div>
+        <div class="kpi-val" style="color: #d97706;">{{ global_kpis.in_progress_attempts|number_format }}</div>
+    </div>
+    <div class="kpi-card">
+        <div class="kpi-title">Absent Employees</div>
+        <div class="kpi-val" style="color: #dc2626;">{{ global_kpis.absent_employees|number_format }}</div>
+    </div>
+    <div class="kpi-card">
+        <div class="kpi-title">Average Score</div>
+        <div class="kpi-val">{{ global_kpis.avg_score }}</div>
+    </div>
+    <div class="kpi-card">
+        <div class="kpi-title">Average Accuracy</div>
+        <div class="kpi-val">{{ global_kpis.avg_accuracy }}%</div>
+    </div>
+    <div class="kpi-card">
+        <div class="kpi-title">Avg Completion Time</div>
+        <div class="kpi-val">{{ global_kpis.avg_completion_time_s }}s</div>
+    </div>
+</div>
+
+<div class="card">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+        <h3 style="font-size: 1.05rem; font-weight: 600;">Active Quiz Real-time Telemetry</h3>
+        {% if quizzes|length > 0 %}
+        <div>
+            <select class="form-control" style="width: auto; display: inline-block;" onchange="window.location.href='/admin/dashboard?quiz_id=' + this.value">
+                {% for q in quizzes %}
+                    <option value="{{ q.id }}" {% if selected_quiz_id == q.id %}selected{% endif %}>
+                        [{{ q.code }}] {{ q.title }} ({{ q.status|upper }})
+                    </option>
+                {% endfor %}
+            </select>
+        </div>
+        {% endif %}
+    </div>
+
+    {% if quiz_kpis %}
+    <div style="background: #f1f5f9; border-radius: 8px; padding: 16px; margin-bottom: 20px; display: flex; gap: 24px; align-items: center;">
+        <div>
+            <span style="font-size: 0.8rem; color: #64748b; font-weight: 600; text-transform: uppercase;">Telemetry Source:</span>
+            <strong style="color: #2563eb; text-transform: uppercase;">{{ quiz_kpis.source }}</strong>
+        </div>
+        <div>
+            <span style="font-size: 0.8rem; color: #64748b; font-weight: 600; text-transform: uppercase;">Total Eligible:</span>
+            <strong>{{ quiz_kpis.total_eligible }}</strong>
+        </div>
+        <div>
+            <span style="font-size: 0.8rem; color: #64748b; font-weight: 600; text-transform: uppercase;">Pass Rate:</span>
+            <strong>{{ quiz_kpis.pass_rate }}%</strong>
+        </div>
+    </div>
+
+    <div class="kpi-grid" style="margin-bottom: 0;">
+        <div class="kpi-card">
+            <div class="kpi-title">Not Started</div>
+            <div class="kpi-val">{{ quiz_kpis.not_started }}</div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-title">In Progress</div>
+            <div class="kpi-val" style="color: #d97706;">{{ quiz_kpis.in_progress }}</div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-title">Completed</div>
+            <div class="kpi-val" style="color: #16a34a;">{{ quiz_kpis.completed }}</div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-title">Absent</div>
+            <div class="kpi-val" style="color: #dc2626;">{{ quiz_kpis.absent }}</div>
+        </div>
+    </div>
+    {% else %}
+    <p style="color: #64748b; font-size: 0.9rem;">No active quiz selected or available.</p>
+    {% endif %}
+</div>
+{% endblock %}

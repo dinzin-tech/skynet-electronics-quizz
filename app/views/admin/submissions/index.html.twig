@@ -1,0 +1,126 @@
+{% extends "admin/layout.html.twig" %}
+
+{% block page_title %}Submissions & Results{% endblock %}
+
+{% block content %}
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+    <div>
+        <h2 style="font-size: 1.15rem; font-weight: 600;">Attempts & Submissions ({{ total_count|number_format }})</h2>
+        <p style="font-size: 0.85rem; color: #64748b;">Keyset-paginated results, filtered without table scans</p>
+    </div>
+    <div>
+        <a href="/admin/reports" class="btn btn-secondary">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            Export to CSV
+        </a>
+    </div>
+</div>
+
+<div class="card" style="padding: 16px; margin-bottom: 20px;">
+    <form action="/admin/submissions" method="GET" style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
+        <select name="quiz_id" class="form-control" style="width: auto; min-width: 220px;">
+            <option value="">-- All Quizzes --</option>
+            {% for q in quizzes %}
+                <option value="{{ q.id }}" {% if filters.quiz_id == q.id %}selected{% endif %}>
+                    [{{ q.code }}] {{ q.title }}
+                </option>
+            {% endfor %}
+        </select>
+
+        <select name="status" class="form-control" style="width: auto; min-width: 160px;">
+            <option value="">-- All Statuses --</option>
+            <option value="COMPLETED" {% if filters.status == 'COMPLETED' %}selected{% endif %}>COMPLETED</option>
+            <option value="IN_PROGRESS" {% if filters.status == 'IN_PROGRESS' %}selected{% endif %}>IN_PROGRESS</option>
+            <option value="NOT_STARTED" {% if filters.status == 'NOT_STARTED' %}selected{% endif %}>NOT_STARTED</option>
+            <option value="ABSENT" {% if filters.status == 'ABSENT' %}selected{% endif %}>ABSENT</option>
+        </select>
+
+        <input type="text" name="search" class="form-control" placeholder="Search employee code/name..." value="{{ filters.search|default('') }}" style="max-width: 280px;">
+
+        <button type="submit" class="btn btn-primary">Filter</button>
+        <a href="/admin/submissions" class="btn btn-secondary">Reset</a>
+    </form>
+</div>
+
+<div class="card" style="padding: 0;">
+    <div class="table-wrap">
+        <table>
+            <thead>
+                <tr>
+                    <th>Attempt ID</th>
+                    <th>Employee</th>
+                    <th>Quiz</th>
+                    <th>Status</th>
+                    <th>Score</th>
+                    <th>Accuracy</th>
+                    <th>Time</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in items %}
+                <tr>
+                    <td><code>#{{ item.id }}</code></td>
+                    <td>
+                        <strong>{{ item.employee_name }}</strong>
+                        <div style="font-size: 0.8rem; color: #64748b;">{{ item.employee_code }}</div>
+                    </td>
+                    <td>
+                        <span style="font-size: 0.875rem;">{{ item.quiz_title }}</span>
+                        <div style="font-size: 0.775rem; color: #94a3b8;">{{ item.quiz_code }}</div>
+                    </td>
+                    <td>
+                        {% if item.status == 'COMPLETED' %}
+                            <span class="badge badge-success">Completed</span>
+                        {% elseif item.status == 'IN_PROGRESS' %}
+                            <span class="badge badge-warning">In Progress</span>
+                        {% elseif item.status == 'ABSENT' %}
+                            <span class="badge badge-danger">Absent</span>
+                        {% else %}
+                            <span class="badge badge-info">Not Started</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if item.score is not null %}
+                            <strong>{{ item.score }}</strong>
+                        {% else %}
+                            <span style="color: #94a3b8;">—</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if item.accuracy is not null %}
+                            {{ item.accuracy }}%
+                        {% else %}
+                            <span style="color: #94a3b8;">—</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if item.completion_time_s is not null %}
+                            {{ item.completion_time_s }}s
+                        {% else %}
+                            <span style="color: #94a3b8;">—</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <a href="/admin/submissions/{{ item.id }}" class="btn btn-secondary" style="padding: 4px 10px; font-size: 0.775rem;">Details</a>
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="8" style="text-align: center; color: #64748b; padding: 32px;">No submissions match the selected filters.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Keyset pagination navigation -->
+    <div style="padding: 16px 20px; display: flex; justify-content: flex-end; align-items: center; border-top: 1px solid var(--border-color); gap: 12px;">
+        {% if next_cursor %}
+            <a href="/admin/submissions?cursor={{ next_cursor }}{% if filters.quiz_id %}&quiz_id={{ filters.quiz_id }}{% endif %}{% if filters.status %}&status={{ filters.status }}{% endif %}{% if filters.search %}&search={{ filters.search }}{% endif %}" class="btn btn-secondary">
+                Next Page (Keyset) &rarr;
+            </a>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

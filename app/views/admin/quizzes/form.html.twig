@@ -1,0 +1,109 @@
+{% extends "admin/layout.html.twig" %}
+
+{% block page_title %}Create New Quiz{% endblock %}
+
+{% block content %}
+<div style="margin-bottom: 24px;">
+    <a href="/admin/quizzes" style="font-size: 0.875rem; color: #2563eb; text-decoration: none;">&larr; Back to Quizzes</a>
+</div>
+
+{% if error %}
+    <div class="alert alert-error">{{ error }}</div>
+{% endif %}
+
+<div class="card" style="max-width: 800px;">
+    <form action="/admin/quizzes/create" method="POST">
+        <h3 style="font-size: 1.1rem; font-weight: 600; margin-bottom: 16px; border-bottom: 1px solid var(--border-color); padding-bottom: 8px;">
+            Basic Details
+        </h3>
+
+        <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 16px;">
+            <div class="form-group">
+                <label class="form-label" for="title">Quiz Title *</label>
+                <input type="text" id="title" name="title" required class="form-control" placeholder="e.g. Q4 Compliance & Ethics Assessment">
+            </div>
+            <div class="form-group">
+                <label class="form-label" for="code">Unique Code *</label>
+                <input type="text" id="code" name="code" required class="form-control" placeholder="e.g. COMP-2026">
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label class="form-label" for="description">Instructions / Description</label>
+            <textarea id="description" name="description" rows="3" class="form-control" placeholder="Instructions shown on employee entry screen..."></textarea>
+        </div>
+
+        <h3 style="font-size: 1.1rem; font-weight: 600; margin: 24px 0 16px 0; border-bottom: 1px solid var(--border-color); padding-bottom: 8px;">
+            Window & Timing (Asia/Kolkata Display, Stored in UTC)
+        </h3>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px;">
+            <div class="form-group">
+                <label class="form-label" for="window_start">Window Start *</label>
+                <input type="datetime-local" id="window_start" name="window_start" required class="form-control">
+            </div>
+            <div class="form-group">
+                <label class="form-label" for="window_end">Window End *</label>
+                <input type="datetime-local" id="window_end" name="window_end" required class="form-control">
+            </div>
+            <div class="form-group">
+                <label class="form-label" for="duration_minutes">Duration (Minutes) *</label>
+                <input type="number" id="duration_minutes" name="duration_minutes" required min="1" value="30" class="form-control">
+            </div>
+        </div>
+
+        <h3 style="font-size: 1.1rem; font-weight: 600; margin: 24px 0 16px 0; border-bottom: 1px solid var(--border-color); padding-bottom: 8px;">
+            Scoring Configuration (Admin Configurable)
+        </h3>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 16px;">
+            <div class="form-group">
+                <label class="form-label" for="marks_per_correct">Marks / Correct</label>
+                <input type="number" step="0.5" id="marks_per_correct" name="marks_per_correct" value="1.0" class="form-control">
+            </div>
+            <div class="form-group">
+                <label class="form-label" for="negative_marks">Negative Marks</label>
+                <input type="number" step="0.25" id="negative_marks" name="negative_marks" value="0.0" class="form-control">
+            </div>
+            <div class="form-group">
+                <label class="form-label" for="unanswered_penalty">Unanswered Penalty</label>
+                <input type="number" step="0.25" id="unanswered_penalty" name="unanswered_penalty" value="0.0" class="form-control">
+            </div>
+            <div class="form-group">
+                <label class="form-label" for="pass_mark">Pass Mark</label>
+                <input type="number" step="0.5" id="pass_mark" name="pass_mark" value="20.0" class="form-control">
+            </div>
+        </div>
+
+        <h3 style="font-size: 1.1rem; font-weight: 600; margin: 24px 0 16px 0; border-bottom: 1px solid var(--border-color); padding-bottom: 8px;">
+            Navigation & Randomization
+        </h3>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 24px;">
+            <div>
+                <label style="display: flex; align-items: center; gap: 8px; font-size: 0.9rem; margin-bottom: 8px;">
+                    <input type="checkbox" name="allow_back" value="1" checked> Allow Back Navigation
+                </label>
+                <label style="display: flex; align-items: center; gap: 8px; font-size: 0.9rem; margin-bottom: 8px;">
+                    <input type="checkbox" name="allow_skip" value="1" checked> Allow Skip Questions
+                </label>
+                <label style="display: flex; align-items: center; gap: 8px; font-size: 0.9rem;">
+                    <input type="checkbox" name="allow_review_screen" value="1" checked> Allow Review Screen
+                </label>
+            </div>
+            <div>
+                <label style="display: flex; align-items: center; gap: 8px; font-size: 0.9rem; margin-bottom: 8px;">
+                    <input type="checkbox" name="randomize_questions" value="1" checked> Randomize Question Order (Fisher-Yates)
+                </label>
+                <label style="display: flex; align-items: center; gap: 8px; font-size: 0.9rem;">
+                    <input type="checkbox" name="randomize_options" value="1" checked> Randomize Option Order (Fisher-Yates)
+                </label>
+            </div>
+        </div>
+
+        <button type="submit" class="btn btn-primary" style="padding: 10px 24px; font-size: 0.95rem;">
+            Save Quiz as Draft
+        </button>
+    </form>
+</div>
+{% endblock %}

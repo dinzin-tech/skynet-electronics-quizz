@@ -1,0 +1,111 @@
+{% extends "admin/layout.html.twig" %}
+
+{% block page_title %}Export Reports & Telemetry{% endblock %}
+
+{% block content %}
+<div style="margin-bottom: 24px;">
+    <h2 style="font-size: 1.15rem; font-weight: 600;">Reports & Data Exports</h2>
+    <p style="font-size: 0.85rem; color: #64748b;">
+        Asynchronous, streaming CSV generation protected against spreadsheet formula injection (=, +, -, @)
+    </p>
+</div>
+
+{% if success %}
+    <div class="alert alert-success">{{ success }}</div>
+{% endif %}
+
+<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 32px;">
+    <div class="card">
+        <h3 style="font-size: 1.05rem; font-weight: 600; margin-bottom: 8px;">Submissions Report</h3>
+        <p style="font-size: 0.85rem; color: #64748b; margin-bottom: 20px;">
+            Full attempt log: Candidate details, status, timestamps, score, accuracy, completion time.
+        </p>
+
+        <form action="/admin/reports/export" method="POST">
+            <input type="hidden" name="report_type" value="submissions">
+            <div class="form-group">
+                <label class="form-label" for="sub_quiz_id">Target Quiz</label>
+                <select id="sub_quiz_id" name="quiz_id" class="form-control">
+                    <option value="">-- All Quizzes --</option>
+                    {% for q in quizzes %}
+                        <option value="{{ q.id }}">[{{ q.code }}] {{ q.title }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <button type="submit" class="btn btn-primary">Generate Submissions CSV</button>
+        </form>
+    </div>
+
+    <div class="card">
+        <h3 style="font-size: 1.05rem; font-weight: 600; margin-bottom: 8px;">Results Summary Report</h3>
+        <p style="font-size: 0.85rem; color: #64748b; margin-bottom: 20px;">
+            Aggregated results per candidate with Pass / Fail classification based on quiz pass mark.
+        </p>
+
+        <form action="/admin/reports/export" method="POST">
+            <input type="hidden" name="report_type" value="results">
+            <div class="form-group">
+                <label class="form-label" for="res_quiz_id">Target Quiz</label>
+                <select id="res_quiz_id" name="quiz_id" class="form-control">
+                    {% for q in quizzes %}
+                        <option value="{{ q.id }}">[{{ q.code }}] {{ q.title }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <button type="submit" class="btn btn-primary">Generate Results CSV</button>
+        </form>
+    </div>
+</div>
+
+<div class="card" style="padding: 0;">
+    <div style="padding: 16px 20px; border-bottom: 1px solid var(--border-color);">
+        <h3 style="font-size: 1.05rem; font-weight: 600;">Recent Export Jobs</h3>
+    </div>
+    <div class="table-wrap">
+        <table>
+            <thead>
+                <tr>
+                    <th>Job ID</th>
+                    <th>Report Type</th>
+                    <th>Status</th>
+                    <th>Row Count</th>
+                    <th>Expires At</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for job in jobs %}
+                <tr>
+                    <td><code>#{{ job.id }}</code></td>
+                    <td><strong>{{ job.report_type|upper }}</strong> ({{ job.format|upper }})</td>
+                    <td>
+                        {% if job.status == 'completed' %}
+                            <span class="badge badge-success">Completed</span>
+                        {% elseif job.status == 'processing' %}
+                            <span class="badge badge-warning">Processing</span>
+                        {% elseif job.status == 'pending' %}
+                            <span class="badge badge-info">Pending</span>
+                        {% else %}
+                            <span class="badge badge-danger">Failed</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ job.row_count|number_format }}</td>
+                    <td>{{ job.expires_at|date('Y-m-d H:i') }}</td>
+                    <td>
+                        {% if job.status == 'completed' %}
+                            <a href="/admin/reports/download/{{ job.id }}" class="btn btn-secondary" style="padding: 4px 10px; font-size: 0.775rem;">Download CSV</a>
+                        {% else %}
+                            <span style="color: #94a3b8; font-size: 0.85rem;">Unavailable</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="6" style="text-align: center; color: #64748b; padding: 32px;">No export jobs created yet.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

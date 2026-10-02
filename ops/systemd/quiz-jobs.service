@@ -1,0 +1,18 @@
+[Unit]
+Description=CorpQuiz Low-Priority Async Import and Export Jobs Worker
+After=network.target mysql.service
+Requires=mysql.service
+
+[Service]
+Type=simple
+User=www-data
+Group=www-data
+WorkingDirectory=/var/www/corpquiz
+ExecStart=/usr/bin/php bin/console jobs:worker
+Restart=always
+RestartSec=5s
+StandardOutput=append:/var/log/corpquiz/jobs.log
+StandardError=append:/var/log/corpquiz/jobs_error.log
+
+[Install]
+WantedBy=multi-user.target

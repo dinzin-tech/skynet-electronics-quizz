@@ -1,0 +1,87 @@
+{% extends "admin/layout.html.twig" %}
+
+{% block page_title %}Assessment Quizzes{% endblock %}
+
+{% block content %}
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+    <div>
+        <h2 style="font-size: 1.15rem; font-weight: 600;">All Quizzes ({{ quizzes|length }})</h2>
+        <p style="font-size: 0.85rem; color: #64748b;">Manage assessment configurations, publish to Redis, and trigger pre-warm</p>
+    </div>
+    <div>
+        <a href="/admin/quizzes/create" class="btn btn-primary">+ Create New Quiz</a>
+    </div>
+</div>
+
+{% if success %}
+    <div class="alert alert-success">{{ success }}</div>
+{% endif %}
+{% if error %}
+    <div class="alert alert-error">{{ error }}</div>
+{% endif %}
+
+<div class="card" style="padding: 0;">
+    <div class="table-wrap">
+        <table>
+            <thead>
+                <tr>
+                    <th>Code</th>
+                    <th>Title</th>
+                    <th>Window (Asia/Kolkata)</th>
+                    <th>Duration</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for q in quizzes %}
+                <tr>
+                    <td><code>{{ q.code }}</code></td>
+                    <td>
+                        <strong>{{ q.title }}</strong>
+                        <div style="font-size: 0.8rem; color: #64748b;">Version {{ q.version }}</div>
+                    </td>
+                    <td>
+                        <div style="font-size: 0.85rem;">
+                            Start: {{ q.window_start_at|date('Y-m-d H:i') }}<br>
+                            End: {{ q.window_end_at|date('Y-m-d H:i') }}
+                        </div>
+                    </td>
+                    <td>{{ q.duration_minutes }} mins</td>
+                    <td>
+                        {% if q.status == 'published' %}
+                            <span class="badge badge-success">Published</span>
+                        {% elseif q.status == 'draft' %}
+                            <span class="badge badge-warning">Draft</span>
+                        {% else %}
+                            <span class="badge badge-info">{{ q.status }}</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <div style="display: flex; gap: 6px; align-items: center;">
+                            {% if q.status == 'draft' %}
+                                <form action="/admin/quizzes/{{ q.id }}/publish" method="POST" style="display: inline;" onsubmit="return confirm('Publish this quiz? This will generate the immutable snapshot and materialize eligible attempts.');">
+                                    <button type="submit" class="btn btn-primary" style="padding: 4px 10px; font-size: 0.775rem;">Publish</button>
+                                </form>
+                            {% endif %}
+
+                            {% if q.status == 'published' %}
+                                <form action="/admin/quizzes/{{ q.id }}/warm" method="POST" style="display: inline;">
+                                    <button type="submit" class="btn btn-secondary" style="padding: 4px 10px; font-size: 0.775rem;">Pre-Warm Redis</button>
+                                </form>
+                            {% endif %}
+
+                            <a href="/admin/submissions?quiz_id={{ q.id }}" class="btn btn-secondary" style="padding: 4px 10px; font-size: 0.775rem;">Submissions</a>
+                        </div>
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="6" style="text-align: center; color: #64748b; padding: 32px;">No quizzes found.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
