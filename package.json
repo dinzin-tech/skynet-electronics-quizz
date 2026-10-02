@@ -4,7 +4,8 @@
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "sass": "npx sass --watch assets/scss:public/assets/css"
+    "sass": "npx sass --watch assets/scss:public/assets/css",
+    "build:spa": "npm --prefix spa run build"
   },
   "keywords": [],
   "author": "",

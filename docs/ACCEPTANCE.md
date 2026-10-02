@@ -9,11 +9,11 @@ This document tracks the acceptance criteria defined in §39 of the Client Speci
 | **DEV-03** | Quiz Creation & Configuration | Phase 3 | Admin feature tests | PASS | QuizServiceTest: duration, window validation, settings normalization, deep clone duplicate, archive |
 | **DEV-04** | Quiz Publishing & Immutable Snapshot | Phase 3 | Bundle & roster tests | PASS | QuizPublisherTest: zero correctness data in bundle (.json + .json.gz), snapshot answer key, 500-chunk roster |
 | **DEV-05** | Bulk Employee CSV Upload | Phase 6 | Job & upload tests | PENDING | Preview, skip duplicates, failed CSV |
-| **DEV-06** | Quiz Instructions & Entry Screen | Phase 5 | Playwright / e2e | PENDING | Sync server time, duration, count |
+| **DEV-06** | Quiz Instructions & Entry Screen | Phase 5 | Playwright / e2e | PASS | QuizEntryView: server time sync, duration, count, instructions, 0-8s thundering herd courtesy |
 | **DEV-07** | Fisher-Yates Randomization | Phase 4 | Engine unit tests | PASS | LayoutGenerator: cryptographically secure random_int shuffle for questions and options |
 | **DEV-08** | Timer Start on Explicit Click | Phase 4 | Engine unit tests | PASS | start.lua: server-side start timestamp, deadline calculation, overtime grace cap |
 | **DEV-09** | Hot Save Protocol (< 3ms CPU) | Phase 4 | Lua & Redis tests | PASS | save.lua: atomic monotonic `seq` LWW, deadline verification, dirty set write-behind |
-| **DEV-10** | IndexedDB Offline Save & Resync | Phase 5 | Frontend tests | PENDING | Queue in browser, resync on `max_seq` mismatch |
+| **DEV-10** | IndexedDB Offline Save & Resync | Phase 5 | Frontend tests | PASS | db.ts + syncManager.ts: IndexedDB local persistence, monotonic seq, debounced queue & resync |
 | **DEV-11** | Zero Acknowledged Answer Loss | Phase 4, 8 | Chaos & load test | PASS | Redis + MySQL write-behind via QuizFlusher ensures durability |
 | **DEV-12** | Overtime Allowance (up to 10 min) | Phase 4 | Engine unit tests | PASS | start.lua: capped deadline at min(now+duration, end_at+10m) |
 | **DEV-13** | Auto-Submit on Timer Expiry | Phase 4 | Scheduler tests | PASS | QuizSchedulerCommand: sweeps deadlines zset, auto-submits timeout attempts |

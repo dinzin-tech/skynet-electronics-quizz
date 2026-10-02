@@ -9,3 +9,5 @@ cache
 .env
 .phpunit.cache
 config/hot.php
+spa/node_modules
+spa/dist
