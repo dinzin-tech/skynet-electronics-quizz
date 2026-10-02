@@ -14,4 +14,5 @@
     <exclude-pattern>vendor/*</exclude-pattern>
     <exclude-pattern>storage/*</exclude-pattern>
     <exclude-pattern>cache/*</exclude-pattern>
+    <exclude-pattern>tests/bootstrap.php</exclude-pattern>
 </ruleset>

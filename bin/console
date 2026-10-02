@@ -15,6 +15,14 @@ if ($argc < 2) {
     exit(1);
 }
 
-$commandManager = new CommandManager();
+$commandManager = new class extends CommandManager {
+    public function addCommand(string $name, string $className): void
+    {
+        $this->commands[$name] = $className;
+    }
+};
+
 $commandManager->init();
+$commandManager->addCommand('config:cache', \App\Commands\ConfigCacheCommand::class);
+$commandManager->addCommand('config:clear', \App\Commands\ConfigClearCommand::class);
 $commandManager->run($argv);

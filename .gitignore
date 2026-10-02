@@ -8,3 +8,4 @@ public/assets/js
 cache
 .env
 .phpunit.cache
+config/hot.php
