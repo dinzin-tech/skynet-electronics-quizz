@@ -117,13 +117,17 @@ class QuizWarmer
         ];
         $redis->hMSet("quiz:{$quiz['code']}", $quizMeta);
 
-        // 2. Warm key:{quizId}:{ver}
+        // 2. Warm key:{quizId}:{ver} and struct:{quizId}:{ver}
         if (!empty($answerKey)) {
             $keyMap = [];
             foreach ($answerKey as $qId => $optId) {
                 $keyMap[(string) $qId] = (string) $optId;
             }
             $redis->hMSet("key:{$quizId}:{$version}", $keyMap);
+        }
+
+        if (!empty($snapshot['structure'])) {
+            $redis->set("struct:{$quizId}:{$version}", (string) $snapshot['structure']);
         }
 
         // 3. Warm qstat:{quizId} if not exists
@@ -141,7 +145,7 @@ class QuizWarmer
 
         // 4. Warm qa:{quizId} and att:{aid}
         $attStmt = $this->db->prepare(
-            'SELECT public_id, employee_id, status, started_at, deadline_at, submitted_at, ' .
+            'SELECT id, public_id, employee_id, status, started_at, deadline_at, submitted_at, ' .
             'submit_reason, layout, max_seq, total_questions, correct_count, score, accuracy, completion_time_s ' .
             'FROM attempts WHERE quiz_id = :qid AND quiz_version = :ver'
         );
@@ -174,6 +178,7 @@ class QuizWarmer
                     : 0;
 
                 $attData = [
+                    'id' => (string) $att['id'],
                     'eid' => $eid,
                     'quiz_id' => (string) $quizId,
                     'ver' => (string) $version,

@@ -28,4 +28,7 @@ $commandManager->addCommand('config:clear', \App\Commands\ConfigClearCommand::cl
 $commandManager->addCommand('db:seed', \App\Commands\DbSeedCommand::class);
 $commandManager->addCommand('quiz:publish', \App\Commands\QuizPublishCommand::class);
 $commandManager->addCommand('quiz:warm', \App\Commands\QuizWarmCommand::class);
+$commandManager->addCommand('quiz:flusher', \App\Commands\QuizFlusherCommand::class);
+$commandManager->addCommand('quiz:scheduler', \App\Commands\QuizSchedulerCommand::class);
+$commandManager->addCommand('quiz:finalizer', \App\Commands\QuizFinalizerCommand::class);
 $commandManager->run($argv);
