@@ -13,24 +13,53 @@ use RuntimeException;
  */
 class Redis
 {
-    private static ?PhpRedis $instance = null;
+    /** @var mixed */
+    private static mixed $instance = null;
+
+    /**
+     * Get default connection using config/hot.php or environment.
+     */
+    public static function connection(): mixed
+    {
+        $configFile = dirname(__DIR__, 2) . '/config/hot.php';
+        $config = file_exists($configFile) ? require $configFile : [
+            'redis_host' => $_ENV['REDIS_HOST'] ?? '127.0.0.1',
+            'redis_port' => (int) ($_ENV['REDIS_PORT'] ?? 6379),
+            'redis_password' => $_ENV['REDIS_PASSWORD'] ?? '',
+            'redis_socket' => $_ENV['REDIS_SOCKET'] ?? '',
+            'redis_timeout' => 1.5,
+        ];
+        return self::getConnection($config);
+    }
 
     /**
      * Get or establish the persistent Redis connection.
      *
      * @param array<string, mixed> $config
-     * @return PhpRedis
+     * @return mixed
      */
-    public static function getConnection(array $config): PhpRedis
+    public static function getConnection(array $config): mixed
     {
         if (self::$instance !== null) {
             return self::$instance;
         }
 
-        $redis = new PhpRedis();
+        $host = $config['redis_host'] ?? '127.0.0.1';
+        $port = (int) ($config['redis_port'] ?? 6379);
         $socket = $config['redis_socket'] ?? '';
         $timeout = (float) ($config['redis_timeout'] ?? 1.5);
+        $password = $config['redis_password'] ?? '';
 
+        if (!class_exists('Redis')) {
+            $client = new RedisSocketClient($host, $port, $timeout);
+            if ($password !== '') {
+                $client->auth($password);
+            }
+            self::$instance = $client;
+            return self::$instance;
+        }
+
+        $redis = new PhpRedis();
         $connected = false;
 
         // 1. Try persistent unix socket connection first (production hot path)
@@ -40,8 +69,6 @@ class Redis
 
         // 2. Fall back to TCP connection (local dev / test / docker)
         if (!$connected) {
-            $host = $config['redis_host'] ?? '127.0.0.1';
-            $port = (int) ($config['redis_port'] ?? 6379);
             $connected = $redis->pconnect($host, $port, $timeout);
         }
 
@@ -66,7 +93,7 @@ class Redis
     /**
      * Set a custom Redis instance (useful for unit testing with mocks).
      */
-    public static function setInstance(?PhpRedis $redis): void
+    public static function setInstance(mixed $redis): void
     {
         self::$instance = $redis;
     }

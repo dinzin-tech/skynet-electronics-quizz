@@ -13,7 +13,25 @@ if (preg_match('#^/api/(quiz|attempts|time)#', $uri)) {
 // 2. Direct access to static files in public/
 $publicFile = __DIR__ . '/public' . $uri;
 if (file_exists($publicFile) && !is_dir($publicFile)) {
-    return false;
+    $ext = strtolower(pathinfo($publicFile, PATHINFO_EXTENSION));
+    $mimes = [
+        'js' => 'application/javascript',
+        'css' => 'text/css',
+        'json' => 'application/json',
+        'png' => 'image/png',
+        'jpg' => 'image/jpeg',
+        'jpeg' => 'image/jpeg',
+        'gif' => 'image/gif',
+        'svg' => 'image/svg+xml',
+        'ico' => 'image/x-icon',
+        'woff' => 'font/woff',
+        'woff2' => 'font/woff2',
+        'ttf' => 'font/ttf',
+    ];
+    $mime = $mimes[$ext] ?? (mime_content_type($publicFile) ?: 'application/octet-stream');
+    header('Content-Type: ' . $mime);
+    readfile($publicFile);
+    exit;
 }
 
 // 3. Employee SPA routing

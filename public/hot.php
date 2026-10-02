@@ -60,7 +60,7 @@ function getHotAuth(array $config, int $nowMs): ?array
     }
 
     $token = substr($header, 7);
-    $secret = (string) ($config['app']['key'] ?? '');
+    $secret = (string) ($config['token_secret'] ?? $config['app']['key'] ?? '');
     $claims = Token::verify($token, $secret);
 
     if (!$claims) {

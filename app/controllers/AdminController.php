@@ -37,7 +37,7 @@ class AdminController extends Controller
     {
         parent::__construct();
         $this->db = Database::getInstance()->getConnection();
-        $this->authService = new AuthService($this->db);
+        $this->authService = new AuthService();
         $this->dashboardService = new DashboardService($this->db);
         $this->employeeService = new EmployeeService($this->db);
         $this->importService = new EmployeeImportService($this->db);
@@ -92,7 +92,7 @@ class AdminController extends Controller
             } else {
                 $result = $this->authService->loginAdmin($username, $password);
                 if ($result) {
-                    Session::set('admin_user', $result['user']);
+                    Session::set('admin_user', $result['admin'] ?? $result['user'] ?? $result);
                     return $this->redirect('/admin/dashboard');
                 }
                 $error = 'Invalid credentials or access denied';
@@ -161,7 +161,7 @@ class AdminController extends Controller
         $limit = 20;
 
         $result = $this->employeeService->list(
-            $search !== '' ? $search : null,
+            $search,
             null,
             $page,
             $limit

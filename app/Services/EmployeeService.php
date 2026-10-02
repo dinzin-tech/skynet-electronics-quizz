@@ -24,8 +24,9 @@ class EmployeeService
      *
      * @return array{data: array, total: int, page: int, per_page: int, total_pages: int}
      */
-    public function list(string $search = '', ?string $status = null, int $page = 1, int $perPage = 20): array
+    public function list(?string $search = '', ?string $status = null, int $page = 1, int $perPage = 20): array
     {
+        $search = trim((string) ($search ?? ''));
         $page = max(1, $page);
         $perPage = max(1, min(100, $perPage));
         $offset = ($page - 1) * $perPage;
