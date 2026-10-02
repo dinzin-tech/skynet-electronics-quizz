@@ -1,0 +1,24 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Home{% endblock %}
+
+{% block content %}
+
+<h1>Hello world!</h1>
+<p>Welcome to your new simple-mvc application {{ name }}.</p>
+<!-- <div>
+    {# {{- form|raw -}} #}
+    {% autoescape false %}
+        {{ form }}
+    {% endautoescape %}
+
+</div> -->
+
+<div>
+    <button hx-get="{{ route('greeetings') }}" hx-target="#content" hx-swap="innerHTML">Load </button>
+</div>
+<div id="content">
+    <p>Click the button to load content.</p>
+</div>
+
+{% endblock %}

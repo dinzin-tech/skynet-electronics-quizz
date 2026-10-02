@@ -1,0 +1,63 @@
+{
+    "name": "dinzin-tech/simple-mvc-app",
+    "description": "Repo to create Simple MVC App",
+    "type": "project",
+    "minimum-stability": "dev",
+    "prefer-stable": true,
+    "authors": [
+        {
+            "name": "Mallikarjun",
+            "email": "mallikarjun016.rymec@gmail.com"
+        }
+    ],
+    "repositories": [
+        {
+            "type": "vcs",
+            "url": "https://github.com/dinzin-tech/simple-mvc"
+        }
+    ],
+    "require": {
+        "dinzin-tech/simple-mvc": "dev-release"
+    },
+    "require-dev": {
+        "symfony/var-dumper": "^6.3",
+        "phpunit/phpunit": "^10.0",
+        "squizlabs/php_codesniffer": "^4.0"
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Tests\\": "tests/"
+        }
+    },
+    "autoload": {
+        "psr-4": {
+            "App\\": "app/",
+            "App\\Commands\\": "commands/"
+        }
+    },
+    "scripts": {
+        "serve": "php -S localhost:8000 -t public",
+        "serve:dev": "php -S localhost:8000 dev-router.php",
+        "test": "phpunit",
+        "lint": "phpcs",
+        "lint-fix": "phpcbf app/",
+        "lint-fix-all": "phpcbf app/ tests/",
+        "gulp": "npx gulp",
+        "gulp:watch": "npx gulp watch",
+        "post-install-cmd": [
+            "composer dump-autoload",
+            "App\\Commands\\Composer::postInstall"
+        ],
+        "post-update-cmd": [
+            "composer dump-autoload",
+            "App\\Commands\\Composer::postUpdate"
+        ],
+        "post-create-project-cmd": [
+            "composer dump-autoload",
+            "App\\Commands\\Composer::postCreateProject"
+        ]
+    },
+    "config": {
+        "process-timeout": 9000
+    }
+}
