@@ -4,6 +4,11 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../vendor/autoload.php';
 
+// Load .env variables safely for testing
+if (class_exists(Dotenv\Dotenv::class)) {
+    Dotenv\Dotenv::createImmutable(__DIR__ . '/../')->safeLoad();
+}
+
 // Stub Redis class if ext-redis is not installed in the current PHP CLI environment
 if (!class_exists('Redis')) {
     class Redis
@@ -42,6 +47,16 @@ if (!class_exists('Redis')) {
         }
 
         public function del(string ...$keys): int|false
+        {
+            return 1;
+        }
+
+        public function setex(string $key, int $ttl, mixed $value): bool
+        {
+            return true;
+        }
+
+        public function exists(string ...$keys): int|bool
         {
             return 1;
         }

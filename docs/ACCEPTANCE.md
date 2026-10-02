@@ -4,7 +4,7 @@ This document tracks the acceptance criteria defined in §39 of the Client Speci
 
 | ID | Description / Area | Phase | Target Verification | Status | Evidence / Notes |
 |---|---|---|---|---|---|
-| **DEV-01** | Employee Auth & Pre-Window Access | Phase 2, 5 | Unit tests & SPA flow | PENDING | AuthProvider bcrypt + pre-window login |
+| **DEV-01** | Employee Auth & Pre-Window Access | Phase 2, 5 | Unit tests & SPA flow | PASS (Backend) | AuthProvider bcrypt + token verification + role escalation blocked + 2,500 seeded |
 | **DEV-02** | Employee CRUD & Validation | Phase 3 | Admin feature tests | PENDING | Unique code, email, name validation |
 | **DEV-03** | Quiz Creation & Configuration | Phase 3 | Admin feature tests | PENDING | Scoring & navigation JSON settings |
 | **DEV-04** | Quiz Publishing & Immutable Snapshot | Phase 3 | Bundle & roster tests | PENDING | Stripped answer bundle + 500-chunk roster |
