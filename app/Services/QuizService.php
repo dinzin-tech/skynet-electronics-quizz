@@ -136,13 +136,18 @@ class QuizService
             throw new InvalidArgumentException('Quiz title is required');
         }
 
+        // Support either duration_seconds or duration_minutes
         $durationSeconds = (int) ($data['duration_seconds'] ?? 0);
+        if ($durationSeconds <= 0 && isset($data['duration_minutes'])) {
+            $durationSeconds = ((int) $data['duration_minutes']) * 60;
+        }
+
         if ($durationSeconds <= 0) {
             throw new InvalidArgumentException('Duration must be greater than 0 seconds');
         }
 
-        $startAt = $this->validateAndFormatDateTime((string) ($data['start_at'] ?? ''));
-        $endAt = $this->validateAndFormatDateTime((string) ($data['end_at'] ?? ''));
+        $startAt = $this->validateAndFormatDateTime((string) ($data['start_at'] ?? $data['window_start_at'] ?? ''));
+        $endAt = $this->validateAndFormatDateTime((string) ($data['end_at'] ?? $data['window_end_at'] ?? ''));
 
         if ($endAt <= $startAt) {
             throw new InvalidArgumentException('Quiz end time must be after start time');

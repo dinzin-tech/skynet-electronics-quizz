@@ -315,12 +315,17 @@ class AdminController extends Controller
         $stmt = $this->db->query('SELECT * FROM quizzes ORDER BY id DESC');
         $quizzes = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
+        $success = Session::get('flash_success');
+        $error = Session::get('flash_error');
+        Session::delete('flash_success');
+        Session::delete('flash_error');
+
         return $this->render('admin/quizzes/index.html.twig', [
             'admin' => $this->getAdminUser(),
             'current_route' => 'quizzes',
             'quizzes' => $quizzes,
-            'success' => Session::get('flash_success'),
-            'error' => Session::get('flash_error'),
+            'success' => $success,
+            'error' => $error,
         ]);
     }
 
@@ -332,6 +337,9 @@ class AdminController extends Controller
         if ($authRedirect = $this->requireAdmin()) {
             return $authRedirect;
         }
+
+        $admin = $this->getAdminUser();
+        $adminId = (int) ($admin['id'] ?? 1);
 
         if ($request->getMethod() === 'POST') {
             try {
@@ -365,20 +373,25 @@ class AdminController extends Controller
                     'code' => $code,
                     'description' => $desc,
                     'duration_minutes' => $duration,
+                    'duration_seconds' => $duration * 60,
+                    'start_at' => $startUtc,
+                    'end_at' => $endUtc,
                     'window_start_at' => $startUtc,
                     'window_end_at' => $endUtc,
                     'settings' => [
                         'scoring' => $scoring,
                         'navigation' => $nav,
                     ],
-                ]);
+                ], $adminId);
 
+                Session::set('flash_success', 'Quiz created successfully.');
                 return $this->redirect('/admin/quizzes');
             } catch (\Throwable $e) {
                 return $this->render('admin/quizzes/form.html.twig', [
                     'admin' => $this->getAdminUser(),
                     'current_route' => 'quizzes',
                     'error' => $e->getMessage(),
+                    'old' => $request->getPostData(),
                 ]);
             }
         }
@@ -386,6 +399,7 @@ class AdminController extends Controller
         return $this->render('admin/quizzes/form.html.twig', [
             'admin' => $this->getAdminUser(),
             'current_route' => 'quizzes',
+            'old' => null,
         ]);
     }
 
@@ -401,8 +415,10 @@ class AdminController extends Controller
         $quizId = (int) $id;
         try {
             $this->quizPublisher->publish($quizId);
+            Session::set('flash_success', 'Quiz published successfully.');
             return $this->redirect('/admin/quizzes');
         } catch (\Throwable $e) {
+            Session::set('flash_error', $e->getMessage());
             return $this->redirect('/admin/quizzes');
         }
     }
@@ -419,8 +435,9 @@ class AdminController extends Controller
         $quizId = (int) $id;
         try {
             $this->quizWarmer->warm($quizId);
+            Session::set('flash_success', 'Quiz warmed in Redis cache.');
         } catch (\Throwable $e) {
-            // Ignore
+            Session::set('flash_error', 'Failed to warm quiz: ' . $e->getMessage());
         }
         return $this->redirect('/admin/quizzes');
     }

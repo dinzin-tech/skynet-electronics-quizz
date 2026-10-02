@@ -20,17 +20,17 @@
         <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 16px;">
             <div class="form-group">
                 <label class="form-label" for="title">Quiz Title *</label>
-                <input type="text" id="title" name="title" required class="form-control" placeholder="e.g. Q4 Compliance & Ethics Assessment">
+                <input type="text" id="title" name="title" required class="form-control" placeholder="e.g. Q4 Compliance & Ethics Assessment" value="{{ old.title|default('') }}">
             </div>
             <div class="form-group">
                 <label class="form-label" for="code">Unique Code *</label>
-                <input type="text" id="code" name="code" required class="form-control" placeholder="e.g. COMP-2026">
+                <input type="text" id="code" name="code" required class="form-control" placeholder="e.g. COMP-2026" value="{{ old.code|default('') }}">
             </div>
         </div>
 
         <div class="form-group">
             <label class="form-label" for="description">Instructions / Description</label>
-            <textarea id="description" name="description" rows="3" class="form-control" placeholder="Instructions shown on employee entry screen..."></textarea>
+            <textarea id="description" name="description" rows="3" class="form-control" placeholder="Instructions shown on employee entry screen...">{{ old.description|default('') }}</textarea>
         </div>
 
         <h3 style="font-size: 1.1rem; font-weight: 600; margin: 24px 0 16px 0; border-bottom: 1px solid var(--border-color); padding-bottom: 8px;">
@@ -40,15 +40,15 @@
         <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px;">
             <div class="form-group">
                 <label class="form-label" for="window_start">Window Start *</label>
-                <input type="datetime-local" id="window_start" name="window_start" required class="form-control">
+                <input type="datetime-local" id="window_start" name="window_start" required class="form-control" value="{{ old.window_start|default('') }}">
             </div>
             <div class="form-group">
                 <label class="form-label" for="window_end">Window End *</label>
-                <input type="datetime-local" id="window_end" name="window_end" required class="form-control">
+                <input type="datetime-local" id="window_end" name="window_end" required class="form-control" value="{{ old.window_end|default('') }}">
             </div>
             <div class="form-group">
                 <label class="form-label" for="duration_minutes">Duration (Minutes) *</label>
-                <input type="number" id="duration_minutes" name="duration_minutes" required min="1" value="30" class="form-control">
+                <input type="number" id="duration_minutes" name="duration_minutes" required min="1" value="{{ old.duration_minutes|default(30) }}" class="form-control">
             </div>
         </div>
 
@@ -59,19 +59,19 @@
         <div style="display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 16px;">
             <div class="form-group">
                 <label class="form-label" for="marks_per_correct">Marks / Correct</label>
-                <input type="number" step="0.5" id="marks_per_correct" name="marks_per_correct" value="1.0" class="form-control">
+                <input type="number" step="0.5" id="marks_per_correct" name="marks_per_correct" value="{{ old.marks_per_correct|default('1.0') }}" class="form-control">
             </div>
             <div class="form-group">
                 <label class="form-label" for="negative_marks">Negative Marks</label>
-                <input type="number" step="0.25" id="negative_marks" name="negative_marks" value="0.0" class="form-control">
+                <input type="number" step="0.25" id="negative_marks" name="negative_marks" value="{{ old.negative_marks|default('0.0') }}" class="form-control">
             </div>
             <div class="form-group">
                 <label class="form-label" for="unanswered_penalty">Unanswered Penalty</label>
-                <input type="number" step="0.25" id="unanswered_penalty" name="unanswered_penalty" value="0.0" class="form-control">
+                <input type="number" step="0.25" id="unanswered_penalty" name="unanswered_penalty" value="{{ old.unanswered_penalty|default('0.0') }}" class="form-control">
             </div>
             <div class="form-group">
                 <label class="form-label" for="pass_mark">Pass Mark</label>
-                <input type="number" step="0.5" id="pass_mark" name="pass_mark" value="20.0" class="form-control">
+                <input type="number" step="0.5" id="pass_mark" name="pass_mark" value="{{ old.pass_mark|default('20.0') }}" class="form-control">
             </div>
         </div>
 
@@ -82,21 +82,21 @@
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 24px;">
             <div>
                 <label style="display: flex; align-items: center; gap: 8px; font-size: 0.9rem; margin-bottom: 8px;">
-                    <input type="checkbox" name="allow_back" value="1" checked> Allow Back Navigation
+                    <input type="checkbox" name="allow_back" value="1" {% if old is null or old.allow_back is defined %}checked{% endif %}> Allow Back Navigation
                 </label>
                 <label style="display: flex; align-items: center; gap: 8px; font-size: 0.9rem; margin-bottom: 8px;">
-                    <input type="checkbox" name="allow_skip" value="1" checked> Allow Skip Questions
+                    <input type="checkbox" name="allow_skip" value="1" {% if old is null or old.allow_skip is defined %}checked{% endif %}> Allow Skip Questions
                 </label>
                 <label style="display: flex; align-items: center; gap: 8px; font-size: 0.9rem;">
-                    <input type="checkbox" name="allow_review_screen" value="1" checked> Allow Review Screen
+                    <input type="checkbox" name="allow_review_screen" value="1" {% if old is null or old.allow_review_screen is defined %}checked{% endif %}> Allow Review Screen
                 </label>
             </div>
             <div>
                 <label style="display: flex; align-items: center; gap: 8px; font-size: 0.9rem; margin-bottom: 8px;">
-                    <input type="checkbox" name="randomize_questions" value="1" checked> Randomize Question Order (Fisher-Yates)
+                    <input type="checkbox" name="randomize_questions" value="1" {% if old is null or old.randomize_questions is defined %}checked{% endif %}> Randomize Question Order (Fisher-Yates)
                 </label>
                 <label style="display: flex; align-items: center; gap: 8px; font-size: 0.9rem;">
-                    <input type="checkbox" name="randomize_options" value="1" checked> Randomize Option Order (Fisher-Yates)
+                    <input type="checkbox" name="randomize_options" value="1" {% if old is null or old.randomize_options is defined %}checked{% endif %}> Randomize Option Order (Fisher-Yates)
                 </label>
             </div>
         </div>

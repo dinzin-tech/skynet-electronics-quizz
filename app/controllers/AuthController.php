@@ -28,7 +28,7 @@ class AuthController extends Controller
     {
         $input = $this->parseInput($request);
         $identifier = (string) (
-            $input['identifier'] ?? $input['employee_code'] ?? $input['email'] ?? $input['username'] ?? ''
+            $input['identifier'] ?? $input['login'] ?? $input['employee_code'] ?? $input['email'] ?? $input['username'] ?? ''
         );
         $password = (string) ($input['password'] ?? '');
 
