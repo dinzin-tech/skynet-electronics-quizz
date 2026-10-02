@@ -1,0 +1,399 @@
+{% extends "admin/layout.html.twig" %}
+
+{% block page_title %}Manage Questions - {{ quiz.title }}{% endblock %}
+
+{% block content %}
+<div style="margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center;">
+    <a href="/admin/quizzes" style="font-size: 0.875rem; color: #2563eb; text-decoration: none;">&larr; Back to Quizzes</a>
+    <div>
+        {% if quiz.status == 'draft' and questions|length > 0 %}
+            <form action="/admin/quizzes/{{ quiz.id }}/publish" method="POST" style="display: inline;" onsubmit="return confirm('Ready to publish this quiz? This will freeze questions, create the immutable snapshot, and materialize the employee roster.');">
+                <button type="submit" class="btn btn-primary" style="padding: 6px 14px; font-size: 0.85rem;">Publish Quiz Now</button>
+            </form>
+        {% endif %}
+    </div>
+</div>
+
+{% if success %}
+    <div class="alert alert-success">{{ success }}</div>
+{% endif %}
+{% if error %}
+    <div class="alert alert-error">{{ error }}</div>
+{% endif %}
+
+<!-- Quiz Header Card -->
+<div class="card" style="margin-bottom: 24px;">
+    <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 12px;">
+        <div>
+            <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 6px;">
+                <h2 style="font-size: 1.25rem; font-weight: 700; margin: 0;">{{ quiz.title }}</h2>
+                <code>{{ quiz.code }}</code>
+                {% if quiz.status == 'published' %}
+                    <span class="badge badge-success">Published (v{{ quiz.current_version }})</span>
+                {% elseif quiz.status == 'draft' %}
+                    <span class="badge badge-warning">Draft</span>
+                {% else %}
+                    <span class="badge badge-info">{{ quiz.status }}</span>
+                {% endif %}
+            </div>
+            <p style="font-size: 0.875rem; color: #64748b; margin: 0 0 6px 0;">
+                Duration: {{ (quiz.duration_seconds / 60)|round }} mins &bull; 
+                Window: {{ quiz.start_at|date('Y-m-d H:i') }} to {{ quiz.end_at|date('Y-m-d H:i') }} UTC &bull; 
+                Total Questions: <strong id="total-questions-count">{{ questions|length }}</strong>
+            </p>
+            <p style="font-size: 0.85rem; color: #475569; margin: 0;">
+                Target Audience: 
+                <strong>
+                    {% if quiz.settings.target_groups is empty or 'all' in quiz.settings.target_groups %}
+                        All Active Employees
+                    {% else %}
+                        {% set groupNames = [] %}
+                        {% for g in groups %}
+                            {% if g.id in quiz.settings.target_groups %}
+                                {% set groupNames = groupNames|merge([g.name]) %}
+                            {% endif %}
+                        {% endfor %}
+                        {{ groupNames|join(', ') }}
+                    {% endif %}
+                </strong>
+            </p>
+        </div>
+    </div>
+</div>
+
+<!-- Target Audience Configuration Card (Only when draft) -->
+{% if quiz.status == 'draft' %}
+<div class="card" style="margin-bottom: 24px; border-left: 4px solid #2563eb;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+        <div>
+            <h3 style="font-size: 1.05rem; font-weight: 600; margin: 0; display: flex; align-items: center; gap: 8px;">
+                <span>👥 Target Audience (Eligible Employees)</span>
+                <span class="badge badge-info" style="font-size: 0.75rem;">
+                    {% if quiz.settings.target_groups is empty or 'all' in quiz.settings.target_groups %}
+                        All Active Employees
+                    {% else %}
+                        Specific Groups
+                    {% endif %}
+                </span>
+            </h3>
+            <p style="font-size: 0.825rem; color: #64748b; margin: 4px 0 0 0;">
+                Choose which employees or departments will be enrolled in this quiz when published.
+            </p>
+        </div>
+        <button type="button" class="btn btn-secondary" style="font-size: 0.8rem; padding: 4px 12px;" onclick="var box = document.getElementById('audience-edit-box'); box.style.display = box.style.display === 'none' ? 'block' : 'none';">
+            Edit Audience
+        </button>
+    </div>
+
+    <div id="audience-edit-box" style="display: none; border-top: 1px solid var(--border-color); padding-top: 16px; margin-top: 12px;">
+        <form action="/admin/quizzes/{{ quiz.id }}/audience" method="POST">
+            <div style="display: flex; gap: 24px; margin-bottom: 14px;">
+                <label style="display: flex; align-items: center; gap: 8px; font-size: 0.9rem; cursor: pointer;">
+                    <input type="radio" name="target_audience" value="all" {% if quiz.settings.target_groups is empty or 'all' in quiz.settings.target_groups %}checked{% endif %} onchange="document.getElementById('edit-groups-selector').style.display = 'none';">
+                    <strong>All Active Employees</strong>
+                </label>
+                <label style="display: flex; align-items: center; gap: 8px; font-size: 0.9rem; cursor: pointer;">
+                    <input type="radio" name="target_audience" value="groups" {% if quiz.settings.target_groups is not empty and 'all' not in quiz.settings.target_groups %}checked{% endif %} onchange="document.getElementById('edit-groups-selector').style.display = 'block';">
+                    <strong>Specific Groups / Departments</strong>
+                </label>
+            </div>
+
+            <div id="edit-groups-selector" style="display: {% if quiz.settings.target_groups is not empty and 'all' not in quiz.settings.target_groups %}block{% else %}none{% endif %}; background: #f8fafc; border: 1px solid var(--border-color); border-radius: 6px; padding: 14px; margin-bottom: 14px;">
+                <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px;">
+                    {% for group in groups %}
+                        <label style="display: flex; align-items: center; gap: 8px; font-size: 0.875rem; cursor: pointer;">
+                            <input type="checkbox" name="target_groups[]" value="{{ group.id }}" {% if group.id in quiz.settings.target_groups|default([]) %}checked{% endif %}>
+                            <span>{{ group.name }}</span>
+                        </label>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <button type="submit" class="btn btn-primary" style="padding: 6px 16px; font-size: 0.85rem;">
+                Update Target Audience
+            </button>
+        </form>
+    </div>
+</div>
+{% endif %}
+
+{% if questions|length == 0 %}
+    <div class="alert alert-info" style="margin-bottom: 24px;">
+        <strong>No questions added yet.</strong> This quiz cannot be published until at least one question is added. Each question requires at least two options and exactly one correct answer.
+    </div>
+{% endif %}
+
+<!-- Add Questions Form (Only when draft) -->
+{% if quiz.status == 'draft' %}
+<div class="card" style="margin-bottom: 30px;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; border-bottom: 1px solid var(--border-color); padding-bottom: 12px;">
+        <h3 style="font-size: 1.15rem; font-weight: 600; margin: 0;">
+            Add Questions to Quiz
+        </h3>
+        <span style="font-size: 0.825rem; color: #64748b;">Fill in questions below, add more if needed, and save all at once.</span>
+    </div>
+
+    <form id="multi-question-form" action="/admin/quizzes/{{ quiz.id }}/questions" method="POST" enctype="multipart/form-data">
+        <!-- Container for dynamically added questions -->
+        <div id="questions-container" style="display: flex; flex-direction: column; gap: 24px;">
+            <!-- Question 0 (Default Initial Block) -->
+            <div class="question-block" data-index="0" style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 20px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
+                    <span class="question-num-badge" style="font-weight: 700; font-size: 0.95rem; color: #2563eb;">Question #1</span>
+                    <button type="button" class="btn-remove-q btn" style="display: none; background: #fee2e2; color: #dc2626; border: none; padding: 3px 10px; font-size: 0.775rem; border-radius: 4px; cursor: pointer;" onclick="removeQuestionBlock(this)">✕ Remove</button>
+                </div>
+
+                <div class="form-group" style="margin-bottom: 16px;">
+                    <label class="form-label" style="font-weight: 500;">Question Prompt *</label>
+                    <textarea name="questions[0][text]" rows="2" required class="form-control" placeholder="Type the question prompt here..."></textarea>
+                </div>
+
+                <!-- Optional Question Image -->
+                <div class="form-group" style="margin-bottom: 18px;">
+                    <label class="form-label" style="font-weight: 500; display: flex; align-items: center; gap: 6px;">
+                        <span>Question Image</span>
+                        <small style="color: #64748b; font-weight: normal;">(Optional - PNG, JPG, WEBP, GIF)</small>
+                    </label>
+                    <div style="display: flex; align-items: center; gap: 16px;">
+                        <input type="file" name="question_image_0" accept="image/*" class="form-control" style="max-width: 380px; padding: 6px 12px; font-size: 0.85rem;" onchange="handleImagePreview(this, 0)">
+                        <div id="img-preview-0" style="display: none; align-items: center; gap: 8px;">
+                            <img src="" alt="Preview" style="max-height: 48px; border-radius: 4px; border: 1px solid #cbd5e1; object-fit: contain;">
+                            <button type="button" style="background: transparent; border: none; color: #ef4444; font-size: 0.775rem; cursor: pointer;" onclick="clearImagePreview(0)">Remove</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Options -->
+                <div>
+                    <label class="form-label" style="margin-bottom: 10px; font-weight: 500;">
+                        Answer Options <small style="color: #64748b; font-weight: normal;">(select the radio button next to the correct answer) *</small>
+                    </label>
+                    <div style="display: flex; flex-direction: column; gap: 10px;">
+                        {% for optIdx in 0..3 %}
+                        <div style="display: flex; align-items: center; gap: 12px;">
+                            <div style="display: flex; align-items: center; gap: 8px; min-width: 140px;">
+                                <input type="radio" id="q_0_opt_{{ optIdx }}" name="questions[0][correct_option]" value="{{ optIdx }}" {% if optIdx == 0 %}checked{% endif %}>
+                                <label for="q_0_opt_{{ optIdx }}" style="font-size: 0.85rem; cursor: pointer; color: #475569; font-weight: 500;">
+                                    {% if optIdx == 0 %}Option A{% elseif optIdx == 1 %}Option B{% elseif optIdx == 2 %}Option C{% else %}Option D{% endif %}
+                                    <span style="font-size: 0.75rem; color: #16a34a;">(Correct)</span>
+                                </label>
+                            </div>
+                            <input type="text" name="questions[0][options][]" class="form-control" placeholder="Option {{ loop.index }} text..." {% if optIdx < 2 %}required{% endif %} style="flex: 1;">
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Action Bar: Add Question button & Save Questions button -->
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 24px; padding-top: 16px; border-top: 1px solid #e2e8f0;">
+            <button type="button" id="btn-add-another" class="btn btn-secondary" style="padding: 9px 18px; font-size: 0.875rem; display: flex; align-items: center; gap: 6px;">
+                <span style="font-size: 1.1rem; font-weight: bold; line-height: 1;">+</span> Add Question
+            </button>
+
+            <button type="submit" id="btn-save-questions" class="btn btn-primary" style="padding: 10px 24px; font-size: 0.95rem; font-weight: 600;">
+                Save Questions
+            </button>
+        </div>
+    </form>
+</div>
+{% endif %}
+
+<!-- Existing Questions List -->
+<div class="card" style="padding: 0;">
+    <div style="padding: 16px 20px; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center;">
+        <h3 style="font-size: 1.05rem; font-weight: 600; margin: 0;">
+            Questions in Quiz ({{ questions|length }})
+        </h3>
+    </div>
+
+    {% if questions|length > 0 %}
+        <div style="display: flex; flex-direction: column;">
+            {% for q in questions %}
+            <div style="padding: 18px 20px; border-bottom: 1px solid var(--border-color); {% if loop.last %}border-bottom: none;{% endif %}">
+                <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; margin-bottom: 12px;">
+                    <div>
+                        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
+                            <span style="font-weight: 700; color: #2563eb;">Q{{ loop.index }}.</span>
+                            <span style="font-weight: 600; font-size: 0.95rem; color: #1e293b;">{{ q.question_text }}</span>
+                        </div>
+                        {% if q.image_path %}
+                        <div style="margin: 8px 0 12px 24px;">
+                            <a href="{{ q.image_path }}" target="_blank" title="Click to view full image">
+                                <img src="{{ q.image_path }}" alt="Question illustration" style="max-height: 140px; max-width: 320px; border-radius: 6px; border: 1px solid #cbd5e1; object-fit: contain; background: #fff; padding: 4px;">
+                            </a>
+                        </div>
+                        {% endif %}
+                    </div>
+                    {% if quiz.status == 'draft' %}
+                    <form action="/admin/quizzes/{{ quiz.id }}/questions/{{ q.id }}/delete" method="POST" onsubmit="return confirm('Are you sure you want to delete Question {{ loop.index }}?');">
+                        <button type="submit" class="btn" style="background: #fee2e2; color: #dc2626; border: none; padding: 4px 10px; font-size: 0.775rem; border-radius: 4px; cursor: pointer;">Delete</button>
+                    </form>
+                    {% endif %}
+                </div>
+
+                <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 8px; margin-left: 24px;">
+                    {% for opt in q.options %}
+                    <div style="display: flex; align-items: center; gap: 8px; padding: 6px 12px; border-radius: 6px; font-size: 0.875rem; border: 1px solid {% if opt.is_correct %}#86efac{% else %}#e2e8f0{% endif %}; background: {% if opt.is_correct %}#f0fdf4{% else %}#f8fafc{% endif %};">
+                        {% if opt.is_correct %}
+                            <span style="color: #16a34a; font-weight: 700;">&#10003;</span>
+                            <strong style="color: #166534;">{{ opt.option_text }}</strong>
+                            <span style="font-size: 0.7rem; background: #bbf7d0; color: #15803d; padding: 1px 6px; border-radius: 10px; margin-left: auto;">Correct</span>
+                        {% else %}
+                            <span style="color: #94a3b8;">&bull;</span>
+                            <span style="color: #475569;">{{ opt.option_text }}</span>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    {% else %}
+        <div style="padding: 36px 20px; text-align: center; color: #64748b;">
+            No questions have been added to this quiz yet. Use the form above to add questions.
+        </div>
+    {% endif %}
+</div>
+
+<script>
+let questionCount = 1;
+
+function updateQuestionBadges() {
+    const blocks = document.querySelectorAll('.question-block');
+    blocks.forEach((block, idx) => {
+        const badge = block.querySelector('.question-num-badge');
+        if (badge) {
+            badge.textContent = `Question #${idx + 1}`;
+        }
+        const removeBtn = block.querySelector('.btn-remove-q');
+        if (removeBtn) {
+            removeBtn.style.display = blocks.length > 1 ? 'inline-block' : 'none';
+        }
+    });
+
+    const saveBtn = document.getElementById('btn-save-questions');
+    if (saveBtn) {
+        saveBtn.textContent = blocks.length > 1 ? `Save All Questions (${blocks.length})` : 'Save Question';
+    }
+}
+
+function handleImagePreview(input, index) {
+    const previewContainer = document.getElementById(`img-preview-${index}`);
+    if (!previewContainer) return;
+
+    if (input.files && input.files[0]) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            const img = previewContainer.querySelector('img');
+            if (img) img.src = e.target.result;
+            previewContainer.style.display = 'flex';
+        };
+        reader.readAsDataURL(input.files[0]);
+    } else {
+        previewContainer.style.display = 'none';
+    }
+}
+
+function clearImagePreview(index) {
+    const input = document.querySelector(`input[name="question_image_${index}"]`);
+    if (input) input.value = '';
+    const previewContainer = document.getElementById(`img-preview-${index}`);
+    if (previewContainer) {
+        previewContainer.style.display = 'none';
+        const img = previewContainer.querySelector('img');
+        if (img) img.src = '';
+    }
+}
+
+function removeQuestionBlock(btn) {
+    const block = btn.closest('.question-block');
+    if (block) {
+        block.remove();
+        updateQuestionBadges();
+    }
+}
+
+document.getElementById('btn-add-another')?.addEventListener('click', function() {
+    const container = document.getElementById('questions-container');
+    const newIndex = questionCount++;
+
+    const blockHtml = `
+        <div class="question-block" data-index="${newIndex}" style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 20px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
+                <span class="question-num-badge" style="font-weight: 700; font-size: 0.95rem; color: #2563eb;">Question #${newIndex + 1}</span>
+                <button type="button" class="btn-remove-q btn" style="background: #fee2e2; color: #dc2626; border: none; padding: 3px 10px; font-size: 0.775rem; border-radius: 4px; cursor: pointer;" onclick="removeQuestionBlock(this)">✕ Remove</button>
+            </div>
+
+            <div class="form-group" style="margin-bottom: 16px;">
+                <label class="form-label" style="font-weight: 500;">Question Prompt *</label>
+                <textarea name="questions[${newIndex}][text]" rows="2" required class="form-control" placeholder="Type the question prompt here..."></textarea>
+            </div>
+
+            <div class="form-group" style="margin-bottom: 18px;">
+                <label class="form-label" style="font-weight: 500; display: flex; align-items: center; gap: 6px;">
+                    <span>Question Image</span>
+                    <small style="color: #64748b; font-weight: normal;">(Optional - PNG, JPG, WEBP, GIF)</small>
+                </label>
+                <div style="display: flex; align-items: center; gap: 16px;">
+                    <input type="file" name="question_image_${newIndex}" accept="image/*" class="form-control" style="max-width: 380px; padding: 6px 12px; font-size: 0.85rem;" onchange="handleImagePreview(this, ${newIndex})">
+                    <div id="img-preview-${newIndex}" style="display: none; align-items: center; gap: 8px;">
+                        <img src="" alt="Preview" style="max-height: 48px; border-radius: 4px; border: 1px solid #cbd5e1; object-fit: contain;">
+                        <button type="button" style="background: transparent; border: none; color: #ef4444; font-size: 0.775rem; cursor: pointer;" onclick="clearImagePreview(${newIndex})">Remove</button>
+                    </div>
+                </div>
+            </div>
+
+            <div>
+                <label class="form-label" style="margin-bottom: 10px; font-weight: 500;">
+                    Answer Options <small style="color: #64748b; font-weight: normal;">(select the radio button next to the correct answer) *</small>
+                </label>
+                <div style="display: flex; flex-direction: column; gap: 10px;">
+                    <div style="display: flex; align-items: center; gap: 12px;">
+                        <div style="display: flex; align-items: center; gap: 8px; min-width: 140px;">
+                            <input type="radio" id="q_${newIndex}_opt_0" name="questions[${newIndex}][correct_option]" value="0" checked>
+                            <label for="q_${newIndex}_opt_0" style="font-size: 0.85rem; cursor: pointer; color: #475569; font-weight: 500;">Option A <span style="font-size: 0.75rem; color: #16a34a;">(Correct)</span></label>
+                        </div>
+                        <input type="text" name="questions[${newIndex}][options][]" class="form-control" placeholder="Option 1 text..." required style="flex: 1;">
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 12px;">
+                        <div style="display: flex; align-items: center; gap: 8px; min-width: 140px;">
+                            <input type="radio" id="q_${newIndex}_opt_1" name="questions[${newIndex}][correct_option]" value="1">
+                            <label for="q_${newIndex}_opt_1" style="font-size: 0.85rem; cursor: pointer; color: #475569; font-weight: 500;">Option B <span style="font-size: 0.75rem; color: #16a34a;">(Correct)</span></label>
+                        </div>
+                        <input type="text" name="questions[${newIndex}][options][]" class="form-control" placeholder="Option 2 text..." required style="flex: 1;">
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 12px;">
+                        <div style="display: flex; align-items: center; gap: 8px; min-width: 140px;">
+                            <input type="radio" id="q_${newIndex}_opt_2" name="questions[${newIndex}][correct_option]" value="2">
+                            <label for="q_${newIndex}_opt_2" style="font-size: 0.85rem; cursor: pointer; color: #475569; font-weight: 500;">Option C <span style="font-size: 0.75rem; color: #16a34a;">(Correct)</span></label>
+                        </div>
+                        <input type="text" name="questions[${newIndex}][options][]" class="form-control" placeholder="Option 3 text..." style="flex: 1;">
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 12px;">
+                        <div style="display: flex; align-items: center; gap: 8px; min-width: 140px;">
+                            <input type="radio" id="q_${newIndex}_opt_3" name="questions[${newIndex}][correct_option]" value="3">
+                            <label for="q_${newIndex}_opt_3" style="font-size: 0.85rem; cursor: pointer; color: #475569; font-weight: 500;">Option D <span style="font-size: 0.75rem; color: #16a34a;">(Correct)</span></label>
+                        </div>
+                        <input type="text" name="questions[${newIndex}][options][]" class="form-control" placeholder="Option 4 text..." style="flex: 1;">
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+
+    container.insertAdjacentHTML('beforeend', blockHtml);
+    updateQuestionBadges();
+
+    // Scroll newly added question block into view smoothly
+    const newBlock = container.lastElementChild;
+    newBlock.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    const textarea = newBlock.querySelector('textarea');
+    if (textarea) textarea.focus();
+});
+
+// Initial update
+updateQuestionBadges();
+</script>
+{% endblock %}

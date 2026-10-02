@@ -11,11 +11,33 @@ use PHPUnit\Framework\TestCase;
 class ConfigCacheTest extends TestCase
 {
     private string $targetFile;
+    private ?string $origAppSecret = null;
+    private ?string $origTokenKid = null;
+    private ?string $origGraceMs = null;
 
     protected function setUp(): void
     {
         $basePath = defined('BASE_PATH') ? BASE_PATH : dirname(__DIR__, 2);
         $this->targetFile = $basePath . '/config/hot.php';
+        $this->origAppSecret = $_ENV['APP_SECRET'] ?? null;
+        $this->origTokenKid = $_ENV['TOKEN_KID'] ?? null;
+        $this->origGraceMs = $_ENV['GRACE_MS'] ?? null;
+    }
+
+    protected function tearDown(): void
+    {
+        $basePath = defined('BASE_PATH') ? BASE_PATH : dirname(__DIR__, 2);
+        if (file_exists($basePath . '/.env')) {
+            $parsed = \Dotenv\Dotenv::parse(file_get_contents($basePath . '/.env'));
+            foreach ($parsed as $key => $val) {
+                $_ENV[$key] = $val;
+            }
+        }
+
+        ob_start();
+        $cacheCmd = new ConfigCacheCommand();
+        $cacheCmd->execute();
+        ob_end_clean();
     }
 
     public function test_caches_and_clears_hot_configuration(): void
@@ -46,10 +68,5 @@ class ConfigCacheTest extends TestCase
         ob_end_clean();
 
         $this->assertFileDoesNotExist($this->targetFile);
-
-        // Re-cache for standard environment
-        ob_start();
-        $cacheCmd->execute();
-        ob_end_clean();
     }
 }

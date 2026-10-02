@@ -40,7 +40,7 @@ class HotRouter
     /**
      * Dispatch the current hot request.
      */
-    public function dispatch(string $method, string $path, array $config, PhpRedis $redis): void
+    public function dispatch(string $method, string $path, array $config, mixed $redis): void
     {
         $nowMs = Clock::nowMs();
         $path = ($path !== '/') ? rtrim($path, '/') : $path;

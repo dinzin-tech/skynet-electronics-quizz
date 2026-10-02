@@ -27,6 +27,7 @@
                 <tr>
                     <th>Code</th>
                     <th>Title</th>
+                    <th>Target Audience</th>
                     <th>Window (Asia/Kolkata)</th>
                     <th>Duration</th>
                     <th>Status</th>
@@ -42,9 +43,14 @@
                         <div style="font-size: 0.8rem; color: #64748b;">Version {{ q.version }}</div>
                     </td>
                     <td>
+                        <span style="font-size: 0.825rem; font-weight: 500; color: #334155; background: #f1f5f9; padding: 3px 8px; border-radius: 4px; display: inline-block;">
+                            {{ q.audience_label|default('All Active Employees') }}
+                        </span>
+                    </td>
+                    <td>
                         <div style="font-size: 0.85rem;">
-                            Start: {{ q.window_start_at|date('Y-m-d H:i') }}<br>
-                            End: {{ q.window_end_at|date('Y-m-d H:i') }}
+                            <strong>Start:</strong> {{ q.start_at|date('d M Y h:i A') }}<br>
+                            <strong>End:</strong> {{ q.end_at|date('d M Y h:i A') }}
                         </div>
                     </td>
                     <td>{{ q.duration_minutes }} mins</td>
@@ -59,9 +65,13 @@
                     </td>
                     <td>
                         <div style="display: flex; gap: 6px; align-items: center;">
+                            <a href="/admin/quizzes/{{ q.id }}/questions" class="btn btn-secondary" style="padding: 4px 10px; font-size: 0.775rem;">
+                                Questions ({{ q.question_count|default(0) }})
+                            </a>
+
                             {% if q.status == 'draft' %}
                                 <form action="/admin/quizzes/{{ q.id }}/publish" method="POST" style="display: inline;" onsubmit="return confirm('Publish this quiz? This will generate the immutable snapshot and materialize eligible attempts.');">
-                                    <button type="submit" class="btn btn-primary" style="padding: 4px 10px; font-size: 0.775rem;">Publish</button>
+                                    <button type="submit" class="btn btn-primary" style="padding: 4px 10px; font-size: 0.775rem;" {% if q.question_count|default(0) == 0 %}title="Add questions before publishing"{% endif %}>Publish</button>
                                 </form>
                             {% endif %}
 
@@ -77,7 +87,7 @@
                 </tr>
                 {% else %}
                 <tr>
-                    <td colspan="6" style="text-align: center; color: #64748b; padding: 32px;">No quizzes found.</td>
+                    <td colspan="7" style="text-align: center; color: #64748b; padding: 32px;">No quizzes found.</td>
                 </tr>
                 {% endfor %}
             </tbody>

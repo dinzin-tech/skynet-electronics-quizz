@@ -23,11 +23,13 @@ class AuthServiceTest extends TestCase
     private PDO $db;
     private AuthService $authService;
     private string $secret = 'test_secret_for_auth_testing_1234567890';
+    private ?string $origAppSecret = null;
 
     protected function setUp(): void
     {
         // Use real database connection for integration checks
         $this->db = Database::getInstance()->getConnection();
+        $this->origAppSecret = $_ENV['APP_SECRET'] ?? null;
         $this->authService = new AuthService(
             new PasswordAuthProvider($this->db),
             new AdminAuthProvider($this->db),
@@ -40,6 +42,11 @@ class AuthServiceTest extends TestCase
     {
         Clock::setMockNowMs(null);
         unset($_SERVER['HTTP_AUTHORIZATION'], $_SERVER['AUTH_USER']);
+        if ($this->origAppSecret !== null) {
+            $_ENV['APP_SECRET'] = $this->origAppSecret;
+        } else {
+            unset($_ENV['APP_SECRET']);
+        }
     }
 
     public function test_employee_can_login_with_code_email_or_username(): void

@@ -74,7 +74,7 @@ function getHotAuth(array $config, int $nowMs): ?array
 $router = new HotRouter();
 
 // 1. GET /api/time (Client clock offset synchronization)
-$router->get('/api/time', function (array $params, array $config, \Redis $redis, int $nowMs): void {
+$router->get('/api/time', function (array $params, array $config, mixed $redis, int $nowMs): void {
     HotRouter::json(200, [
         'server_now_ms' => $nowMs,
         'iso' => Clock::formatIsoMs($nowMs),
@@ -82,7 +82,7 @@ $router->get('/api/time', function (array $params, array $config, \Redis $redis,
 });
 
 // 2. GET /api/quiz/{code} (Quiz metadata and employee attempt status)
-$router->get('/api/quiz/{code}', function (array $params, array $config, \Redis $redis, int $nowMs): void {
+$router->get('/api/quiz/{code}', function (array $params, array $config, mixed $redis, int $nowMs): void {
     $claims = getHotAuth($config, $nowMs);
     if (!$claims) {
         return;
@@ -184,7 +184,7 @@ $router->get('/api/quiz/{code}', function (array $params, array $config, \Redis 
 });
 
 // 3. POST /api/quiz/{code}/start (Atomic attempt start and deadline assignment)
-$router->post('/api/quiz/{code}/start', function (array $params, array $config, \Redis $redis, int $nowMs): void {
+$router->post('/api/quiz/{code}/start', function (array $params, array $config, mixed $redis, int $nowMs): void {
     $claims = getHotAuth($config, $nowMs);
     if (!$claims) {
         return;
@@ -293,7 +293,7 @@ $router->post('/api/quiz/{code}/start', function (array $params, array $config, 
 });
 
 // 4. GET /api/attempts/{aid} (Resume / State inspection)
-$router->get('/api/attempts/{aid}', function (array $params, array $config, \Redis $redis, int $nowMs): void {
+$router->get('/api/attempts/{aid}', function (array $params, array $config, mixed $redis, int $nowMs): void {
     $claims = getHotAuth($config, $nowMs);
     if (!$claims) {
         return;
@@ -345,7 +345,7 @@ $router->get('/api/attempts/{aid}', function (array $params, array $config, \Red
 });
 
 // 5. GET /api/attempts/{aid}/bundle (Static bundle retrieval with ETag / 304)
-$router->get('/api/attempts/{aid}/bundle', function (array $params, array $config, \Redis $redis, int $nowMs): void {
+$router->get('/api/attempts/{aid}/bundle', function (array $params, array $config, mixed $redis, int $nowMs): void {
     $claims = getHotAuth($config, $nowMs);
     if (!$claims) {
         return;
@@ -390,7 +390,7 @@ $router->get('/api/attempts/{aid}/bundle', function (array $params, array $confi
 });
 
 // 6. PUT /api/attempts/{aid}/answers (Hot save protocol, monotonic seq LWW)
-$router->put('/api/attempts/{aid}/answers', function (array $params, array $config, \Redis $redis, int $nowMs): void {
+$router->put('/api/attempts/{aid}/answers', function (array $params, array $config, mixed $redis, int $nowMs): void {
     $claims = getHotAuth($config, $nowMs);
     if (!$claims) {
         return;
@@ -458,7 +458,7 @@ $router->put('/api/attempts/{aid}/answers', function (array $params, array $conf
 });
 
 // 7. POST /api/attempts/{aid}/submit (Atomic submit with deduplication)
-$router->post('/api/attempts/{aid}/submit', function (array $params, array $config, \Redis $redis, int $nowMs): void {
+$router->post('/api/attempts/{aid}/submit', function (array $params, array $config, mixed $redis, int $nowMs): void {
     $claims = getHotAuth($config, $nowMs);
     if (!$claims) {
         return;

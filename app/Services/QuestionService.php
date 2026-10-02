@@ -24,7 +24,7 @@ class QuestionService
      *
      * @param array<int, array{text: string, is_correct: bool}> $options
      */
-    public function addQuestion(int $quizId, string $questionText, array $options, int $displayOrder = 0): array
+    public function addQuestion(int $quizId, string $questionText, array $options, int $displayOrder = 0, ?string $imagePath = null): array
     {
         $questionText = trim($questionText);
         if ($questionText === '') {
@@ -46,11 +46,12 @@ class QuestionService
         $this->db->beginTransaction();
         try {
             $qStmt = $this->db->prepare(
-                'INSERT INTO questions (quiz_id, question_text, display_order) VALUES (:qid, :text, :ord)'
+                'INSERT INTO questions (quiz_id, question_text, image_path, display_order) VALUES (:qid, :text, :img, :ord)'
             );
             $qStmt->execute([
                 'qid' => $quizId,
                 'text' => $questionText,
+                'img' => $imagePath,
                 'ord' => $displayOrder,
             ]);
             $questionId = (int) $this->db->lastInsertId();
@@ -232,6 +233,37 @@ class QuestionService
         $q['options'] = $optStmt->fetchAll(PDO::FETCH_ASSOC);
 
         return $q;
+    }
+
+    /**
+     * Get all questions with options for a given quiz.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    public function getQuestionsByQuiz(int $quizId): array
+    {
+        $qStmt = $this->db->prepare(
+            'SELECT id, question_text, image_path, display_order FROM questions WHERE quiz_id = :qid ORDER BY display_order ASC, id ASC'
+        );
+        $qStmt->execute(['qid' => $quizId]);
+        $questions = $qStmt->fetchAll(PDO::FETCH_ASSOC);
+
+        if (empty($questions)) {
+            return [];
+        }
+
+        $optStmt = $this->db->prepare(
+            'SELECT id, option_text, is_correct, display_order FROM answer_options ' .
+            'WHERE question_id = :qid ORDER BY display_order ASC, id ASC'
+        );
+
+        foreach ($questions as &$q) {
+            $optStmt->execute(['qid' => $q['id']]);
+            $q['options'] = $optStmt->fetchAll(PDO::FETCH_ASSOC);
+        }
+        unset($q);
+
+        return $questions;
     }
 
     private function validateOptions(array $options): void

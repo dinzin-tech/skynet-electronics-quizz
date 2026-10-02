@@ -101,6 +101,55 @@
             </div>
         </div>
 
+        <h3 style="font-size: 1.1rem; font-weight: 600; margin: 24px 0 16px 0; border-bottom: 1px solid var(--border-color); padding-bottom: 8px;">
+            Target Audience (Eligible Employees)
+        </h3>
+
+        <div style="margin-bottom: 24px;">
+            <p style="font-size: 0.85rem; color: #64748b; margin-bottom: 14px;">
+                Choose which employees are authorized and will have attempts generated for this assessment upon publishing.
+            </p>
+            <div style="display: flex; gap: 24px; margin-bottom: 16px;">
+                <label style="display: flex; align-items: center; gap: 8px; font-size: 0.95rem; cursor: pointer;">
+                    <input type="radio" name="target_audience" value="all" id="audience_all" {% if old is null or old.target_audience|default('all') == 'all' %}checked{% endif %} onchange="toggleAudienceGroups(false)">
+                    <strong>All Active Employees</strong>
+                </label>
+                <label style="display: flex; align-items: center; gap: 8px; font-size: 0.95rem; cursor: pointer;">
+                    <input type="radio" name="target_audience" value="groups" id="audience_groups" {% if old is not null and old.target_audience|default('') == 'groups' %}checked{% endif %} onchange="toggleAudienceGroups(true)">
+                    <strong>Specific Groups / Departments</strong>
+                </label>
+            </div>
+
+            <div id="groups-selector" style="display: {% if old is not null and old.target_audience|default('') == 'groups' %}block{% else %}none{% endif %}; background: #f8fafc; border: 1px solid var(--border-color); border-radius: 8px; padding: 18px; margin-top: 12px;">
+                <div style="font-weight: 600; font-size: 0.9rem; margin-bottom: 10px; color: #1e293b;">Select Employee Groups / Departments:</div>
+                <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px;">
+                    {% for group in groups %}
+                        <label style="display: flex; align-items: center; gap: 10px; font-size: 0.9rem; cursor: pointer; padding: 6px 10px; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 6px;">
+                            <input type="checkbox" name="target_groups[]" value="{{ group.id }}" {% if old is not null and group.id in old.target_groups|default([]) %}checked{% endif %}>
+                            <div>
+                                <span style="font-weight: 500;">{{ group.name }}</span>
+                                {% if group.description %}
+                                <div style="font-size: 0.75rem; color: #64748b;">{{ group.description }}</div>
+                                {% endif %}
+                            </div>
+                        </label>
+                    {% endfor %}
+                </div>
+                <div style="font-size: 0.8rem; color: #64748b; margin-top: 12px;">
+                    When published, only active employees belonging to the selected groups will be enrolled.
+                </div>
+            </div>
+        </div>
+
+        <script>
+            function toggleAudienceGroups(show) {
+                var el = document.getElementById('groups-selector');
+                if (el) {
+                    el.style.display = show ? 'block' : 'none';
+                }
+            }
+        </script>
+
         <button type="submit" class="btn btn-primary" style="padding: 10px 24px; font-size: 0.95rem;">
             Save Quiz as Draft
         </button>

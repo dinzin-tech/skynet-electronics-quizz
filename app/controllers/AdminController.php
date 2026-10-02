@@ -8,6 +8,7 @@ use App\Services\Auth\AuthService;
 use App\Services\DashboardService;
 use App\Services\EmployeeImportService;
 use App\Services\EmployeeService;
+use App\Services\QuestionService;
 use App\Services\QuizPublisher;
 use App\Services\QuizService;
 use App\Services\QuizWarmer;
@@ -27,6 +28,7 @@ class AdminController extends Controller
     private DashboardService $dashboardService;
     private EmployeeService $employeeService;
     private EmployeeImportService $importService;
+    private QuestionService $questionService;
     private QuizService $quizService;
     private QuizPublisher $quizPublisher;
     private QuizWarmer $quizWarmer;
@@ -41,6 +43,7 @@ class AdminController extends Controller
         $this->dashboardService = new DashboardService($this->db);
         $this->employeeService = new EmployeeService($this->db);
         $this->importService = new EmployeeImportService($this->db);
+        $this->questionService = new QuestionService($this->db);
         $this->quizService = new QuizService($this->db);
         $this->quizPublisher = new QuizPublisher($this->db);
         $this->quizWarmer = new QuizWarmer($this->db);
@@ -312,8 +315,31 @@ class AdminController extends Controller
             return $authRedirect;
         }
 
-        $stmt = $this->db->query('SELECT * FROM quizzes ORDER BY id DESC');
+        $stmt = $this->db->query(
+            'SELECT q.*, (SELECT COUNT(*) FROM questions WHERE quiz_id = q.id) AS question_count ' .
+            'FROM quizzes q ORDER BY q.id DESC'
+        );
         $quizzes = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        $groupsStmt = $this->db->query('SELECT id, name FROM `groups`');
+        $groupNames = $groupsStmt->fetchAll(PDO::FETCH_KEY_PAIR) ?: [];
+
+        foreach ($quizzes as &$q) {
+            $settings = json_decode((string) ($q['settings'] ?? ''), true) ?: [];
+            $targetGroups = $settings['target_groups'] ?? [];
+            if (empty($targetGroups) || in_array('all', $targetGroups, true)) {
+                $q['audience_label'] = 'All Active Employees';
+            } else {
+                $names = [];
+                foreach ($targetGroups as $gid) {
+                    if (isset($groupNames[$gid])) {
+                        $names[] = $groupNames[$gid];
+                    }
+                }
+                $q['audience_label'] = !empty($names) ? implode(', ', $names) : 'Specific Groups';
+            }
+        }
+        unset($q);
 
         $success = Session::get('flash_success');
         $error = Session::get('flash_error');
@@ -368,6 +394,13 @@ class AdminController extends Controller
                 $startUtc = gmdate('Y-m-d H:i:s', strtotime($windowStart));
                 $endUtc = gmdate('Y-m-d H:i:s', strtotime($windowEnd));
 
+                $targetAudience = (string) $request->get('target_audience', 'all');
+                $selectedGroups = (array) $request->get('target_groups', []);
+                $targetGroups = [];
+                if ($targetAudience === 'groups' && !empty($selectedGroups)) {
+                    $targetGroups = array_values(array_filter(array_map('intval', $selectedGroups), fn($g) => $g > 0));
+                }
+
                 $created = $this->quizService->create([
                     'title' => $title,
                     'code' => $code,
@@ -381,26 +414,234 @@ class AdminController extends Controller
                     'settings' => [
                         'scoring' => $scoring,
                         'navigation' => $nav,
+                        'target_groups' => $targetGroups,
                     ],
                 ], $adminId);
 
-                Session::set('flash_success', 'Quiz created successfully.');
-                return $this->redirect('/admin/quizzes');
+                Session::set('flash_success', 'Quiz created successfully. Now add questions below before publishing.');
+                return $this->redirect("/admin/quizzes/{$created['id']}/questions");
             } catch (\Throwable $e) {
+                $groups = $this->db->query('SELECT id, name, description FROM `groups` ORDER BY name ASC')->fetchAll(PDO::FETCH_ASSOC);
                 return $this->render('admin/quizzes/form.html.twig', [
                     'admin' => $this->getAdminUser(),
                     'current_route' => 'quizzes',
+                    'groups' => $groups,
                     'error' => $e->getMessage(),
                     'old' => $request->getPostData(),
                 ]);
             }
         }
 
+        $groups = $this->db->query('SELECT id, name, description FROM `groups` ORDER BY name ASC')->fetchAll(PDO::FETCH_ASSOC);
         return $this->render('admin/quizzes/form.html.twig', [
             'admin' => $this->getAdminUser(),
             'current_route' => 'quizzes',
+            'groups' => $groups,
             'old' => null,
         ]);
+    }
+
+    /**
+     * @Route(path="/admin/quizzes/{id}/questions", methods="GET,POST", name="admin.quizzes.questions")
+     */
+    public function quizQuestions(Request $request, string $id): Response
+    {
+        if ($authRedirect = $this->requireAdmin()) {
+            return $authRedirect;
+        }
+
+        $quizId = (int) $id;
+        $quiz = $this->quizService->getById($quizId);
+        if (!$quiz) {
+            Session::set('flash_error', 'Quiz not found');
+            return $this->redirect('/admin/quizzes');
+        }
+
+        if ($request->getMethod() === 'POST') {
+            try {
+                $targetDir = dirname(__DIR__, 2) . '/public/uploads/questions';
+                if (!is_dir($targetDir)) {
+                    mkdir($targetDir, 0755, true);
+                }
+
+                $rawQuestions = $request->get('questions');
+                $addedCount = 0;
+
+                if (is_array($rawQuestions) && !empty($rawQuestions)) {
+                    foreach ($rawQuestions as $i => $qData) {
+                        $qText = trim((string) ($qData['text'] ?? ''));
+                        if ($qText === '') {
+                            continue;
+                        }
+
+                        $correctIndex = (int) ($qData['correct_option'] ?? 0);
+                        $rawOptions = (array) ($qData['options'] ?? []);
+
+                        $options = [];
+                        foreach ($rawOptions as $idx => $optText) {
+                            $optText = trim((string) $optText);
+                            if ($optText !== '') {
+                                $options[] = [
+                                    'text' => $optText,
+                                    'is_correct' => ($idx === $correctIndex),
+                                ];
+                            }
+                        }
+
+                        // Process optional uploaded image for question $i
+                        $imagePath = null;
+                        $fileKey = "question_image_{$i}";
+                        if (!empty($_FILES[$fileKey]['tmp_name']) && is_uploaded_file($_FILES[$fileKey]['tmp_name'])) {
+                            $file = $_FILES[$fileKey];
+                            $allowedExts = ['jpg', 'jpeg', 'png', 'webp', 'gif'];
+                            $ext = strtolower(pathinfo((string) $file['name'], PATHINFO_EXTENSION));
+                            if (in_array($ext, $allowedExts, true)) {
+                                $fileName = 'q_' . $quizId . '_' . time() . '_' . bin2hex(random_bytes(4)) . '.' . $ext;
+                                $dest = $targetDir . '/' . $fileName;
+                                if (move_uploaded_file($file['tmp_name'], $dest)) {
+                                    $imagePath = '/uploads/questions/' . $fileName;
+                                }
+                            }
+                        }
+
+                        $this->questionService->addQuestion($quizId, $qText, $options, 0, $imagePath);
+                        $addedCount++;
+                    }
+
+                    if ($addedCount === 0) {
+                        throw new InvalidArgumentException('Please fill in at least one question before saving.');
+                    }
+
+                    $msg = $addedCount === 1 ? '1 question added successfully.' : "{$addedCount} questions added successfully.";
+                    Session::set('flash_success', $msg);
+                    return $this->redirect("/admin/quizzes/{$quizId}/questions");
+                }
+
+                // Fallback for single question submission format
+                $questionText = trim((string) $request->get('question_text', ''));
+                if ($questionText !== '') {
+                    $correctIndex = (int) $request->get('correct_option', -1);
+                    $rawOptions = (array) $request->get('options', []);
+
+                    $options = [];
+                    foreach ($rawOptions as $idx => $optText) {
+                        $optText = trim((string) $optText);
+                        if ($optText !== '') {
+                            $options[] = [
+                                'text' => $optText,
+                                'is_correct' => ($idx === $correctIndex),
+                            ];
+                        }
+                    }
+
+                    $imagePath = null;
+                    if (!empty($_FILES['question_image']['tmp_name']) && is_uploaded_file($_FILES['question_image']['tmp_name'])) {
+                        $file = $_FILES['question_image'];
+                        $allowedExts = ['jpg', 'jpeg', 'png', 'webp', 'gif'];
+                        $ext = strtolower(pathinfo((string) $file['name'], PATHINFO_EXTENSION));
+                        if (in_array($ext, $allowedExts, true)) {
+                            $fileName = 'q_' . $quizId . '_' . time() . '_' . bin2hex(random_bytes(4)) . '.' . $ext;
+                            $dest = $targetDir . '/' . $fileName;
+                            if (move_uploaded_file($file['tmp_name'], $dest)) {
+                                $imagePath = '/uploads/questions/' . $fileName;
+                            }
+                        }
+                    }
+
+                    $this->questionService->addQuestion($quizId, $questionText, $options, 0, $imagePath);
+                    Session::set('flash_success', 'Question added successfully.');
+                    return $this->redirect("/admin/quizzes/{$quizId}/questions");
+                }
+
+                throw new InvalidArgumentException('Please provide question text and at least 2 options.');
+            } catch (\Throwable $e) {
+                $questions = $this->questionService->getQuestionsByQuiz($quizId);
+                $groups = $this->db->query('SELECT id, name, description FROM `groups` ORDER BY name ASC')->fetchAll(PDO::FETCH_ASSOC);
+                return $this->render('admin/quizzes/questions.html.twig', [
+                    'admin' => $this->getAdminUser(),
+                    'current_route' => 'quizzes',
+                    'quiz' => $quiz,
+                    'questions' => $questions,
+                    'groups' => $groups,
+                    'error' => $e->getMessage(),
+                    'old' => $request->getPostData(),
+                ]);
+            }
+        }
+
+        $questions = $this->questionService->getQuestionsByQuiz($quizId);
+        $groups = $this->db->query('SELECT id, name, description FROM `groups` ORDER BY name ASC')->fetchAll(PDO::FETCH_ASSOC);
+        $success = Session::get('flash_success');
+        $error = Session::get('flash_error');
+        Session::delete('flash_success');
+        Session::delete('flash_error');
+
+        return $this->render('admin/quizzes/questions.html.twig', [
+            'admin' => $this->getAdminUser(),
+            'current_route' => 'quizzes',
+            'quiz' => $quiz,
+            'questions' => $questions,
+            'groups' => $groups,
+            'success' => $success,
+            'error' => $error,
+            'old' => null,
+        ]);
+    }
+
+    /**
+     * @Route(path="/admin/quizzes/{id}/audience", methods="POST", name="admin.quizzes.audience")
+     */
+    public function quizAudience(Request $request, string $id): Response
+    {
+        if ($authRedirect = $this->requireAdmin()) {
+            return $authRedirect;
+        }
+
+        $admin = $this->getAdminUser();
+        $adminId = (int) ($admin['id'] ?? 1);
+        $quizId = (int) $id;
+
+        $targetAudience = (string) $request->get('target_audience', 'all');
+        $selectedGroups = (array) $request->get('target_groups', []);
+        $targetGroups = [];
+        if ($targetAudience === 'groups' && !empty($selectedGroups)) {
+            $targetGroups = array_values(array_filter(array_map('intval', $selectedGroups), fn($g) => $g > 0));
+        }
+
+        try {
+            $this->quizService->update($quizId, [
+                'settings' => [
+                    'target_groups' => $targetGroups,
+                ],
+            ], $adminId);
+            Session::set('flash_success', 'Target audience updated successfully.');
+        } catch (\Throwable $e) {
+            Session::set('flash_error', 'Failed to update audience: ' . $e->getMessage());
+        }
+
+        return $this->redirect("/admin/quizzes/{$quizId}/questions");
+    }
+
+    /**
+     * @Route(path="/admin/quizzes/{id}/questions/{qid}/delete", methods="POST", name="admin.quizzes.questions.delete")
+     */
+    public function quizQuestionDelete(Request $request, string $id, string $qid): Response
+    {
+        if ($authRedirect = $this->requireAdmin()) {
+            return $authRedirect;
+        }
+
+        $quizId = (int) $id;
+        $questionId = (int) $qid;
+
+        try {
+            $this->questionService->deleteQuestion($questionId);
+            Session::set('flash_success', 'Question deleted successfully.');
+        } catch (\Throwable $e) {
+            Session::set('flash_error', 'Failed to delete question: ' . $e->getMessage());
+        }
+
+        return $this->redirect("/admin/quizzes/{$quizId}/questions");
     }
 
     /**
@@ -412,10 +653,14 @@ class AdminController extends Controller
             return $authRedirect;
         }
 
+        $admin = $this->getAdminUser();
+        $adminId = (int) ($admin['id'] ?? 1);
+
         $quizId = (int) $id;
         try {
-            $this->quizPublisher->publish($quizId);
-            Session::set('flash_success', 'Quiz published successfully.');
+            $result = $this->quizPublisher->publish($quizId, $adminId);
+            $rosterCount = (int) ($result['roster_count'] ?? 0);
+            Session::set('flash_success', "Quiz published successfully! Materialized {$rosterCount} eligible employee attempts into roster.");
             return $this->redirect('/admin/quizzes');
         } catch (\Throwable $e) {
             Session::set('flash_error', $e->getMessage());

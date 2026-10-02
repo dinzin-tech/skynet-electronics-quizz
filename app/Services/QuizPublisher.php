@@ -44,7 +44,7 @@ class QuizPublisher
      *     shareable_url: string
      * }
      */
-    public function publish(int $quizId, int $adminId, ?string $storageDir = null): array
+    public function publish(int $quizId, int $adminId = 0, ?string $storageDir = null): array
     {
         // 1. Fetch quiz
         $qStmt = $this->db->prepare('SELECT * FROM quizzes WHERE id = :id');
@@ -81,7 +81,7 @@ class QuizPublisher
 
         // 3. Fetch Questions and Options
         $questionsStmt = $this->db->prepare(
-            'SELECT id, question_text, display_order FROM questions ' .
+            'SELECT id, question_text, image_path, display_order FROM questions ' .
             'WHERE quiz_id = :qid ORDER BY display_order ASC, id ASC'
         );
         $questionsStmt->execute(['qid' => $quizId]);
@@ -128,6 +128,7 @@ class QuizPublisher
             $bundleQuestions[] = [
                 'id' => $qid,
                 'text' => $q['question_text'],
+                'image_url' => $q['image_path'] ?? null,
                 'display_order' => (int) $q['display_order'],
                 'options' => $cleanOptions,
             ];

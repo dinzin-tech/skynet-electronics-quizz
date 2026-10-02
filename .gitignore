@@ -11,3 +11,4 @@ cache
 config/hot.php
 spa/node_modules
 spa/dist
+public/uploads
