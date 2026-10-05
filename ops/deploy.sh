@@ -14,7 +14,11 @@ echo ">>> [2/7] Installing production PHP dependencies..."
 composer install --no-dev --optimize-autoloader --no-interaction
 
 echo ">>> [3/7] Compiling Employee SPA production bundle..."
-npm --prefix spa ci
+if [ -f spa/package-lock.json ]; then
+    npm --prefix spa ci
+else
+    npm --prefix spa install
+fi
 npm --prefix spa run build
 
 echo ">>> [4/7] Caching configuration..."
