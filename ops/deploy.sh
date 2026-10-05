@@ -26,7 +26,7 @@ php bin/console config:cache
 
 echo ">>> [5/7] Executing database migrations..."
 # Run any pending migrations
-php -r "require 'vendor/autoload.php'; Dotenv\Dotenv::createImmutable('.')->load(); (new Core\MigrationManager())->migrate();"
+php -r "require 'vendor/autoload.php'; Dotenv\Dotenv::createImmutable('.')->load(); (new Core\Migration())->run();"
 
 echo ">>> [6/7] Reloading PHP-FPM and restarting background workers..."
 systemctl reload php8.2-fpm
