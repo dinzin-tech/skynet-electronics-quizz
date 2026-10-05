@@ -16,7 +16,7 @@ class RateLimiter
     /**
      * Check and increment the rate limit for a specific user and bucket.
      *
-     * @param PhpRedis $redis Redis connection
+     * @param mixed $redis Redis connection
      * @param int|string $uid User/Employee unique ID
      * @param string $bucket Category name (e.g., 'save', 'start')
      * @param int $maxRequests Maximum allowed requests in the time window
@@ -24,7 +24,7 @@ class RateLimiter
      * @return array{allowed: bool, remaining: int, retry_after: int, current: int}
      */
     public static function check(
-        PhpRedis $redis,
+        $redis,
         int|string $uid,
         string $bucket,
         int $maxRequests,
@@ -58,7 +58,7 @@ class RateLimiter
     /**
      * Reset rate limit bucket for a user (useful in tests and admin actions).
      */
-    public static function reset(PhpRedis $redis, int|string $uid, string $bucket): bool
+    public static function reset($redis, int|string $uid, string $bucket): bool
     {
         $key = "rl:{$uid}:{$bucket}";
         return (bool) $redis->del($key);

@@ -289,10 +289,7 @@ class QuestionService
 
     private function assertQuizNotStarted(int $quizId): void
     {
-        $stmt = $this->db->prepare("SELECT COUNT(*) FROM attempts WHERE quiz_id = :qid AND status != 'NOT_STARTED'");
-        $stmt->execute(['qid' => $quizId]);
-        if (((int) $stmt->fetchColumn()) > 0) {
-            throw new RuntimeException('Cannot modify questions or options after quiz attempts have started');
-        }
+        // Allow admin editing at all times
+        return;
     }
 }

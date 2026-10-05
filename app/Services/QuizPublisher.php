@@ -253,6 +253,12 @@ class QuizPublisher
 
         $targetGroups = $settings['target_groups'] ?? [];
 
+        // Update existing NOT_STARTED attempts to current version and question count
+        $upStmt = $this->db->prepare(
+            "UPDATE attempts SET quiz_version = :ver, total_questions = :tq WHERE quiz_id = :qid AND status = 'NOT_STARTED'"
+        );
+        $upStmt->execute(['ver' => $version, 'tq' => $totalQuestions, 'qid' => $quizId]);
+
         // Determine eligible employees
         if (empty($targetGroups) || in_array('all', $targetGroups, true)) {
             $empStmt = $this->db->query("SELECT id FROM employees WHERE status = 'active' ORDER BY id ASC");

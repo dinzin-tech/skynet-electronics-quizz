@@ -64,9 +64,13 @@
                         {% endif %}
                     </td>
                     <td>
-                        <div style="display: flex; gap: 6px; align-items: center;">
+                        <div style="display: flex; gap: 6px; align-items: center; flex-wrap: wrap;">
                             <a href="/admin/quizzes/{{ q.id }}/questions" class="btn btn-secondary" style="padding: 4px 10px; font-size: 0.775rem;">
                                 Questions ({{ q.question_count|default(0) }})
+                            </a>
+
+                            <a href="/admin/quizzes/{{ q.id }}/edit" class="btn btn-secondary" style="padding: 4px 10px; font-size: 0.775rem; background: #f1f5f9; color: #1e293b; border: 1px solid #cbd5e1;">
+                                Edit
                             </a>
 
                             {% if q.status == 'draft' %}
@@ -81,7 +85,15 @@
                                 </form>
                             {% endif %}
 
+                            <button type="button" class="btn btn-secondary" style="padding: 4px 10px; font-size: 0.775rem; background: #e0f2fe; color: #0369a1; border: 1px solid #bae6fd; font-weight: 500;" onclick="copyQuizLink('{{ q.code }}', this)">
+                                🔗 Share Link
+                            </button>
+
                             <a href="/admin/submissions?quiz_id={{ q.id }}" class="btn btn-secondary" style="padding: 4px 10px; font-size: 0.775rem;">Submissions</a>
+
+                            <form action="/admin/quizzes/{{ q.id }}/delete" method="POST" style="display: inline;" onsubmit="return confirm('Are you sure you want to delete quiz ({{ q.title }})? This action cannot be undone.');">
+                                <button type="submit" class="btn" style="padding: 4px 10px; font-size: 0.775rem; background: #fee2e2; color: #991b1b; border: 1px solid #fecaca; cursor: pointer;">Delete</button>
+                            </form>
                         </div>
                     </td>
                 </tr>
@@ -94,4 +106,35 @@
         </table>
     </div>
 </div>
+
+<script>
+function copyQuizLink(code, btnElement) {
+    const origin = window.location.origin;
+    const url = `${origin}/quiz/${code}`;
+    
+    if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(url);
+    } else {
+        const textArea = document.createElement("textarea");
+        textArea.value = url;
+        document.body.appendChild(textArea);
+        textArea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textArea);
+    }
+
+    const originalText = btnElement.innerHTML;
+    btnElement.innerHTML = "✓ Copied Link!";
+    btnElement.style.background = "#dcfce7";
+    btnElement.style.color = "#166534";
+    btnElement.style.borderColor = "#bbf7d0";
+    
+    setTimeout(() => {
+        btnElement.innerHTML = originalText;
+        btnElement.style.background = "#e0f2fe";
+        btnElement.style.color = "#0369a1";
+        btnElement.style.borderColor = "#bae6fd";
+    }, 2000);
+}
+</script>
 {% endblock %}

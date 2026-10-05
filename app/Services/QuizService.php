@@ -206,15 +206,17 @@ class QuizService
             throw new InvalidArgumentException("Quiz ID {$id} not found");
         }
 
-        if ($existing['status'] === 'archived') {
-            throw new RuntimeException('Cannot update an archived quiz');
-        }
-
-        // Check if any attempts have started
-        $hasStartedAttempts = $this->hasStartedAttempts($id);
-
         $fields = [];
         $params = ['id' => $id];
+
+        if (isset($data['code'])) {
+            $code = strtoupper(trim((string) $data['code']));
+            if ($code !== '' && $code !== $existing['code']) {
+                $this->assertCodeAvailable($code);
+                $fields[] = 'code = :code';
+                $params['code'] = $code;
+            }
+        }
 
         if (isset($data['title'])) {
             $title = trim((string) $data['title']);
@@ -236,9 +238,6 @@ class QuizService
         }
 
         if (isset($data['duration_seconds'])) {
-            if ($hasStartedAttempts) {
-                throw new RuntimeException('Cannot change duration after attempts have started');
-            }
             $dur = (int) $data['duration_seconds'];
             if ($dur <= 0) {
                 throw new InvalidArgumentException('Duration must be greater than 0');
@@ -260,9 +259,6 @@ class QuizService
             }
 
             if (isset($data['start_at'])) {
-                if ($hasStartedAttempts) {
-                    throw new RuntimeException('Cannot change start time after attempts have started');
-                }
                 $fields[] = 'start_at = :start_at';
                 $params['start_at'] = $startAt;
             }
@@ -274,25 +270,30 @@ class QuizService
         }
 
         if (isset($data['settings'])) {
-            if ($hasStartedAttempts) {
-                throw new RuntimeException('Cannot change quiz settings after attempts have started');
-            }
             $mergedSettings = array_replace_recursive($existing['settings'], $data['settings']);
             $normalized = $this->normalizeSettings($mergedSettings);
             $fields[] = 'settings = :settings';
             $params['settings'] = json_encode($normalized, JSON_THROW_ON_ERROR);
         }
 
-        if ($fields === []) {
-            return $existing;
+        if (!empty($fields)) {
+            $fields[] = 'updated_at = :uat';
+            $params['uat'] = gmdate('Y-m-d H:i:s');
+
+            $setSql = implode(', ', $fields);
+            $stmt = $this->db->prepare("UPDATE quizzes SET {$setSql} WHERE id = :id");
+            $stmt->execute($params);
         }
 
-        $fields[] = 'updated_at = :uat';
-        $params['uat'] = gmdate('Y-m-d H:i:s');
-
-        $setSql = implode(', ', $fields);
-        $stmt = $this->db->prepare("UPDATE quizzes SET {$setSql} WHERE id = :id");
-        $stmt->execute($params);
+        // If quiz is published, re-publish to update immutable snapshot & Redis cache automatically
+        if ($existing['status'] === 'published') {
+            try {
+                $publisher = new QuizPublisher($this->db);
+                $publisher->publish($id, $adminId);
+            } catch (\Throwable $e) {
+                // Ignore if snapshot cannot be re-published (e.g. no questions yet)
+            }
+        }
 
         return $this->getById($id) ?? [];
     }
@@ -415,27 +416,42 @@ class QuizService
     }
 
     /**
-     * Delete a draft quiz with 0 attempts.
+     * Delete a quiz and its associated data (options, questions, snapshots, attempts).
      */
-    public function delete(int $id): bool
+    public function delete(int $id, bool $force = true): bool
     {
         $existing = $this->getById($id);
         if (!$existing) {
             return false;
         }
 
-        if ($existing['status'] !== 'draft') {
-            throw new RuntimeException('Only draft quizzes can be deleted. Use archive instead.');
-        }
+        if (!$force) {
+            if ($existing['status'] !== 'draft') {
+                throw new RuntimeException('Only draft quizzes can be deleted.');
+            }
 
-        $attemptCountStmt = $this->db->prepare('SELECT COUNT(*) FROM attempts WHERE quiz_id = :id');
-        $attemptCountStmt->execute(['id' => $id]);
-        if ((int) $attemptCountStmt->fetchColumn() > 0) {
-            throw new RuntimeException('Cannot delete quiz with existing attempts');
+            $attemptCountStmt = $this->db->prepare('SELECT COUNT(*) FROM attempts WHERE quiz_id = :id');
+            $attemptCountStmt->execute(['id' => $id]);
+            if ((int) $attemptCountStmt->fetchColumn() > 0) {
+                throw new RuntimeException('Cannot delete quiz with existing attempts');
+            }
         }
 
         $this->db->beginTransaction();
         try {
+            // Delete attempt answers
+            $this->db->prepare(
+                'DELETE aa FROM attempt_answers aa ' .
+                'INNER JOIN attempts a ON aa.attempt_id = a.id ' .
+                'WHERE a.quiz_id = :qid'
+            )->execute(['qid' => $id]);
+
+            // Delete attempts
+            $this->db->prepare('DELETE FROM attempts WHERE quiz_id = :qid')->execute(['qid' => $id]);
+
+            // Delete quiz snapshots
+            $this->db->prepare('DELETE FROM quiz_snapshots WHERE quiz_id = :qid')->execute(['qid' => $id]);
+
             // Delete answer options
             $this->db->prepare(
                 'DELETE ao FROM answer_options ao ' .

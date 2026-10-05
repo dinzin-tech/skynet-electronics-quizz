@@ -57,12 +57,21 @@
                     {% endif %}
                 </strong>
             </p>
+
+            <div style="margin-top: 14px; padding: 10px 14px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;">
+                <div style="display: flex; align-items: center; gap: 8px; font-size: 0.85rem; color: #334155;">
+                    <strong>Shareable Quiz Link:</strong>
+                    <code style="background: #fff; padding: 4px 10px; border: 1px solid #cbd5e1; border-radius: 4px; color: #2563eb; font-size: 0.875rem;">http://localhost:8000/quiz/{{ quiz.code }}</code>
+                </div>
+                <button type="button" class="btn btn-primary" style="padding: 5px 14px; font-size: 0.8rem; font-weight: 600;" onclick="copyQuizLink('{{ quiz.code }}', this)">
+                    🔗 Copy Shareable Link
+                </button>
+            </div>
         </div>
     </div>
 </div>
 
-<!-- Target Audience Configuration Card (Only when draft) -->
-{% if quiz.status == 'draft' %}
+<!-- Target Audience Configuration Card -->
 <div class="card" style="margin-bottom: 24px; border-left: 4px solid #2563eb;">
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
         <div>
@@ -77,7 +86,7 @@
                 </span>
             </h3>
             <p style="font-size: 0.825rem; color: #64748b; margin: 4px 0 0 0;">
-                Choose which employees or departments will be enrolled in this quiz when published.
+                Choose which employees or departments will be enrolled in this quiz.
             </p>
         </div>
         <button type="button" class="btn btn-secondary" style="font-size: 0.8rem; padding: 4px 12px;" onclick="var box = document.getElementById('audience-edit-box'); box.style.display = box.style.display === 'none' ? 'block' : 'none';">
@@ -115,16 +124,14 @@
         </form>
     </div>
 </div>
-{% endif %}
 
 {% if questions|length == 0 %}
     <div class="alert alert-info" style="margin-bottom: 24px;">
-        <strong>No questions added yet.</strong> This quiz cannot be published until at least one question is added. Each question requires at least two options and exactly one correct answer.
+        <strong>No questions added yet.</strong> Add questions below. Each question requires at least two options and exactly one correct answer.
     </div>
 {% endif %}
 
-<!-- Add Questions Form (Only when draft) -->
-{% if quiz.status == 'draft' %}
+<!-- Add Questions Form -->
 <div class="card" style="margin-bottom: 30px;">
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; border-bottom: 1px solid var(--border-color); padding-bottom: 12px;">
         <h3 style="font-size: 1.15rem; font-weight: 600; margin: 0;">
@@ -198,7 +205,6 @@
         </div>
     </form>
 </div>
-{% endif %}
 
 <!-- Existing Questions List -->
 <div class="card" style="padding: 0;">
@@ -226,11 +232,41 @@
                         </div>
                         {% endif %}
                     </div>
-                    {% if quiz.status == 'draft' %}
-                    <form action="/admin/quizzes/{{ quiz.id }}/questions/{{ q.id }}/delete" method="POST" onsubmit="return confirm('Are you sure you want to delete Question {{ loop.index }}?');">
-                        <button type="submit" class="btn" style="background: #fee2e2; color: #dc2626; border: none; padding: 4px 10px; font-size: 0.775rem; border-radius: 4px; cursor: pointer;">Delete</button>
+                    <div style="display: flex; gap: 8px; align-items: center;">
+                        <button type="button" class="btn btn-secondary" style="padding: 4px 10px; font-size: 0.775rem; background: #f1f5f9; color: #1e293b; border: 1px solid #cbd5e1; cursor: pointer;" onclick="toggleEditQuestion('{{ q.id }}')">
+                            Edit Question
+                        </button>
+                        <form action="/admin/quizzes/{{ quiz.id }}/questions/{{ q.id }}/delete" method="POST" onsubmit="return confirm('Are you sure you want to delete Question {{ loop.index }}?');" style="display: inline;">
+                            <button type="submit" class="btn" style="background: #fee2e2; color: #dc2626; border: none; padding: 4px 10px; font-size: 0.775rem; border-radius: 4px; cursor: pointer;">Delete</button>
+                        </form>
+                    </div>
+                </div>
+
+                <!-- Inline Edit Form -->
+                <div id="edit-q-box-{{ q.id }}" style="display: none; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 8px; padding: 18px; margin: 12px 0 16px 24px;">
+                    <form action="/admin/quizzes/{{ quiz.id }}/questions/{{ q.id }}/edit" method="POST">
+                        <div class="form-group" style="margin-bottom: 14px;">
+                            <label class="form-label" style="font-weight: 600;">Question Prompt *</label>
+                            <textarea name="question_text" rows="2" required class="form-control">{{ q.question_text }}</textarea>
+                        </div>
+                        <div style="margin-bottom: 14px;">
+                            <label class="form-label" style="font-weight: 600; margin-bottom: 8px;">
+                                Answer Options <small style="color: #64748b; font-weight: normal;">(select radio button for correct option) *</small>
+                            </label>
+                            <div style="display: flex; flex-direction: column; gap: 8px;">
+                                {% for opt in q.options %}
+                                <div style="display: flex; align-items: center; gap: 10px;">
+                                    <input type="radio" name="correct_option" value="{{ loop.index0 }}" {% if opt.is_correct %}checked{% endif %}>
+                                    <input type="text" name="options[]" class="form-control" value="{{ opt.option_text }}" required style="flex: 1;">
+                                </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                        <div style="display: flex; gap: 10px;">
+                            <button type="submit" class="btn btn-primary" style="padding: 6px 16px; font-size: 0.85rem;">Save Changes</button>
+                            <button type="button" class="btn btn-secondary" style="padding: 6px 16px; font-size: 0.85rem;" onclick="toggleEditQuestion('{{ q.id }}')">Cancel</button>
+                        </div>
                     </form>
-                    {% endif %}
                 </div>
 
                 <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 8px; margin-left: 24px;">
@@ -392,6 +428,42 @@ document.getElementById('btn-add-another')?.addEventListener('click', function()
     const textarea = newBlock.querySelector('textarea');
     if (textarea) textarea.focus();
 });
+
+function toggleEditQuestion(qid) {
+    var box = document.getElementById('edit-q-box-' + qid);
+    if (box) {
+        box.style.display = box.style.display === 'none' ? 'block' : 'none';
+    }
+}
+
+function copyQuizLink(code, btnElement) {
+    const origin = window.location.origin;
+    const url = `${origin}/quiz/${code}`;
+    
+    if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(url);
+    } else {
+        const textArea = document.createElement("textarea");
+        textArea.value = url;
+        document.body.appendChild(textArea);
+        textArea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textArea);
+    }
+
+    const originalText = btnElement.innerHTML;
+    btnElement.innerHTML = "✓ Copied Link!";
+    btnElement.style.background = "#dcfce7";
+    btnElement.style.color = "#166534";
+    btnElement.style.borderColor = "#bbf7d0";
+    
+    setTimeout(() => {
+        btnElement.innerHTML = originalText;
+        btnElement.style.background = "";
+        btnElement.style.color = "";
+        btnElement.style.borderColor = "";
+    }, 2000);
+}
 
 // Initial update
 updateQuestionBadges();

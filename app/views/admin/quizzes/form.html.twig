@@ -1,10 +1,15 @@
 {% extends "admin/layout.html.twig" %}
 
-{% block page_title %}Create New Quiz{% endblock %}
+{% block page_title %}{% if is_edit %}Edit Quiz{% else %}Create New Quiz{% endif %}{% endblock %}
 
 {% block content %}
-<div style="margin-bottom: 24px;">
+<div style="margin-bottom: 24px; display: flex; justify-content: space-between; align-items: center;">
     <a href="/admin/quizzes" style="font-size: 0.875rem; color: #2563eb; text-decoration: none;">&larr; Back to Quizzes</a>
+    {% if is_edit %}
+        <a href="/admin/quizzes/{{ quiz_id }}/questions" class="btn btn-primary" style="padding: 8px 18px; font-size: 0.875rem; text-decoration: none;">
+            ✏️ Manage & Edit Questions
+        </a>
+    {% endif %}
 </div>
 
 {% if error %}
@@ -12,7 +17,31 @@
 {% endif %}
 
 <div class="card" style="max-width: 800px;">
-    <form action="/admin/quizzes/create" method="POST">
+    {% if is_edit %}
+        <div style="margin-bottom: 20px; padding: 14px 18px; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+            <div>
+                <strong style="color: #166534; font-size: 0.925rem;">Shareable Employee Quiz Link:</strong>
+                <div style="font-size: 0.85rem; color: #15803d; margin-top: 2px;">
+                    <code>http://localhost:8000/quiz/{{ old.code|default('') }}</code>
+                </div>
+            </div>
+            <button type="button" class="btn btn-primary" style="padding: 7px 16px; font-size: 0.85rem; font-weight: 600; background: #16a34a; border-color: #16a34a;" onclick="copyQuizLink('{{ old.code|default('') }}', this)">
+                🔗 Copy Shareable Link
+            </button>
+        </div>
+
+        <div style="margin-bottom: 24px; padding: 16px; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; display: flex; justify-content: space-between; align-items: center;">
+            <div>
+                <strong style="color: #1e40af; font-size: 0.975rem;">Quiz Questions & Options</strong>
+                <p style="font-size: 0.825rem; color: #3b82f6; margin: 2px 0 0 0;">Add new questions, edit prompts, change correct options, or delete questions.</p>
+            </div>
+            <a href="/admin/quizzes/{{ quiz_id }}/questions" class="btn btn-primary" style="padding: 7px 16px; font-size: 0.85rem; text-decoration: none; font-weight: 600;">
+                ✏️ Edit Questions
+            </a>
+        </div>
+    {% endif %}
+
+    <form action="{% if is_edit %}/admin/quizzes/{{ quiz_id }}/edit{% else %}/admin/quizzes/create{% endif %}" method="POST">
         <h3 style="font-size: 1.1rem; font-weight: 600; margin-bottom: 16px; border-bottom: 1px solid var(--border-color); padding-bottom: 8px;">
             Basic Details
         </h3>
@@ -148,10 +177,33 @@
                     el.style.display = show ? 'block' : 'none';
                 }
             }
+
+            function copyQuizLink(code, btnElement) {
+                const origin = window.location.origin;
+                const url = `${origin}/quiz/${code}`;
+                
+                if (navigator.clipboard && window.isSecureContext) {
+                    navigator.clipboard.writeText(url);
+                } else {
+                    const textArea = document.createElement("textarea");
+                    textArea.value = url;
+                    document.body.appendChild(textArea);
+                    textArea.select();
+                    document.execCommand('copy');
+                    document.body.removeChild(textArea);
+                }
+
+                const originalText = btnElement.innerHTML;
+                btnElement.innerHTML = "✓ Copied Link!";
+                
+                setTimeout(() => {
+                    btnElement.innerHTML = originalText;
+                }, 2000);
+            }
         </script>
 
         <button type="submit" class="btn btn-primary" style="padding: 10px 24px; font-size: 0.95rem;">
-            Save Quiz as Draft
+            {% if is_edit %}Save Changes{% else %}Save Quiz as Draft{% endif %}
         </button>
     </form>
 </div>

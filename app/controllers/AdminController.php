@@ -68,6 +68,30 @@ class AdminController extends Controller
         return null;
     }
 
+    private function convertLocalToUtc(string $datetimeLocal): string
+    {
+        $datetimeLocal = trim($datetimeLocal);
+        if ($datetimeLocal === '') {
+            return gmdate('Y-m-d H:i:s');
+        }
+        $tzLocal = new \DateTimeZone('Asia/Kolkata');
+        $tzUtc = new \DateTimeZone('UTC');
+        $dt = new \DateTimeImmutable($datetimeLocal, $tzLocal);
+        return $dt->setTimezone($tzUtc)->format('Y-m-d H:i:s');
+    }
+
+    private function convertUtcToLocalInput(string $utcDatetime): string
+    {
+        $utcDatetime = trim($utcDatetime);
+        if ($utcDatetime === '') {
+            return (new \DateTimeImmutable('now', new \DateTimeZone('Asia/Kolkata')))->format('Y-m-d\TH:i');
+        }
+        $tzLocal = new \DateTimeZone('Asia/Kolkata');
+        $tzUtc = new \DateTimeZone('UTC');
+        $dt = new \DateTimeImmutable($utcDatetime, $tzUtc);
+        return $dt->setTimezone($tzLocal)->format('Y-m-d\TH:i');
+    }
+
     /**
      * @Route(path="/admin", methods="GET", name="admin.root")
      */
@@ -87,8 +111,8 @@ class AdminController extends Controller
 
         $error = null;
         if ($request->getMethod() === 'POST') {
-            $username = trim((string) $request->get('username', ''));
-            $password = (string) $request->get('password', '');
+            $username = trim((string) $request->input('username', ''));
+            $password = (string) $request->input('password', '');
 
             if ($username === '' || $password === '') {
                 $error = 'Please provide username/email and password';
@@ -104,7 +128,7 @@ class AdminController extends Controller
 
         return $this->render('admin/login.html.twig', [
             'error' => $error,
-            'username' => $request->get('username', ''),
+            'username' => $request->input('username', ''),
         ]);
     }
 
@@ -133,7 +157,7 @@ class AdminController extends Controller
         );
         $quizzes = $quizzesStmt->fetchAll(PDO::FETCH_ASSOC);
 
-        $selectedQuizId = (int) $request->get('quiz_id', 0);
+        $selectedQuizId = (int) $request->input('quiz_id', 0);
         if ($selectedQuizId === 0 && !empty($quizzes)) {
             $selectedQuizId = (int) $quizzes[0]['id'];
         }
@@ -159,8 +183,8 @@ class AdminController extends Controller
             return $authRedirect;
         }
 
-        $search = trim((string) $request->get('search', ''));
-        $page = max(1, (int) $request->get('page', 1));
+        $search = trim((string) $request->input('search', ''));
+        $page = max(1, (int) $request->input('page', 1));
         $limit = 20;
 
         $result = $this->employeeService->list(
@@ -251,7 +275,7 @@ class AdminController extends Controller
             return $authRedirect;
         }
 
-        $filePath = (string) $request->get('file_path', '');
+        $filePath = (string) $request->input('file_path', '');
         if (!file_exists($filePath)) {
             return $this->render('admin/employees/import.html.twig', [
                 'admin' => $this->getAdminUser(),
@@ -369,33 +393,33 @@ class AdminController extends Controller
 
         if ($request->getMethod() === 'POST') {
             try {
-                $title = trim((string) $request->get('title', ''));
-                $code = strtoupper(trim((string) $request->get('code', '')));
-                $desc = trim((string) $request->get('description', ''));
-                $windowStart = (string) $request->get('window_start', '');
-                $windowEnd = (string) $request->get('window_end', '');
-                $duration = (int) $request->get('duration_minutes', 30);
+                $title = trim((string) $request->input('title', ''));
+                $code = strtoupper(trim((string) $request->input('code', '')));
+                $desc = trim((string) $request->input('description', ''));
+                $windowStart = (string) $request->input('window_start', '');
+                $windowEnd = (string) $request->input('window_end', '');
+                $duration = (int) $request->input('duration_minutes', 30);
 
                 $scoring = [
-                    'marks_per_correct' => (float) $request->get('marks_per_correct', 1.0),
-                    'negative_marks_per_wrong' => (float) $request->get('negative_marks', 0.0),
-                    'unanswered_penalty' => (float) $request->get('unanswered_penalty', 0.0),
-                    'pass_mark' => (float) $request->get('pass_mark', 20.0),
+                    'marks_per_correct' => (float) $request->input('marks_per_correct', 1.0),
+                    'negative_marks_per_wrong' => (float) $request->input('negative_marks', 0.0),
+                    'unanswered_penalty' => (float) $request->input('unanswered_penalty', 0.0),
+                    'pass_mark' => (float) $request->input('pass_mark', 20.0),
                 ];
 
                 $nav = [
-                    'allow_back' => (bool) $request->get('allow_back', false),
-                    'allow_skip' => (bool) $request->get('allow_skip', false),
-                    'allow_review_screen' => (bool) $request->get('allow_review_screen', false),
-                    'randomize_questions' => (bool) $request->get('randomize_questions', false),
-                    'randomize_options' => (bool) $request->get('randomize_options', false),
+                    'allow_back' => (bool) $request->input('allow_back', false),
+                    'allow_skip' => (bool) $request->input('allow_skip', false),
+                    'allow_review_screen' => (bool) $request->input('allow_review_screen', false),
+                    'randomize_questions' => (bool) $request->input('randomize_questions', false),
+                    'randomize_options' => (bool) $request->input('randomize_options', false),
                 ];
 
-                $startUtc = gmdate('Y-m-d H:i:s', strtotime($windowStart));
-                $endUtc = gmdate('Y-m-d H:i:s', strtotime($windowEnd));
+                $startUtc = $this->convertLocalToUtc($windowStart);
+                $endUtc = $this->convertLocalToUtc($windowEnd);
 
-                $targetAudience = (string) $request->get('target_audience', 'all');
-                $selectedGroups = (array) $request->get('target_groups', []);
+                $targetAudience = (string) $request->input('target_audience', 'all');
+                $selectedGroups = (array) $request->input('target_groups', []);
                 $targetGroups = [];
                 if ($targetAudience === 'groups' && !empty($selectedGroups)) {
                     $targetGroups = array_values(array_filter(array_map('intval', $selectedGroups), fn($g) => $g > 0));
@@ -432,13 +456,164 @@ class AdminController extends Controller
             }
         }
 
+        $nowIst = new \DateTimeImmutable('now', new \DateTimeZone('Asia/Kolkata'));
+        $endIst = $nowIst->modify('+2 hours');
+
         $groups = $this->db->query('SELECT id, name, description FROM `groups` ORDER BY name ASC')->fetchAll(PDO::FETCH_ASSOC);
         return $this->render('admin/quizzes/form.html.twig', [
             'admin' => $this->getAdminUser(),
             'current_route' => 'quizzes',
             'groups' => $groups,
-            'old' => null,
+            'old' => [
+                'window_start' => $nowIst->format('Y-m-d\TH:i'),
+                'window_end' => $endIst->format('Y-m-d\TH:i'),
+            ],
         ]);
+    }
+
+    /**
+     * @Route(path="/admin/quizzes/{id}/edit", methods="GET,POST", name="admin.quizzes.edit")
+     */
+    public function quizEdit(Request $request, string $id): Response
+    {
+        if ($authRedirect = $this->requireAdmin()) {
+            return $authRedirect;
+        }
+
+        $quizId = (int) $id;
+        $quiz = $this->quizService->getById($quizId);
+        if (!$quiz) {
+            Session::set('flash_error', 'Quiz not found');
+            return $this->redirect('/admin/quizzes');
+        }
+
+        $admin = $this->getAdminUser();
+        $adminId = (int) ($admin['id'] ?? 1);
+
+        if ($request->getMethod() === 'POST') {
+            try {
+                $title = trim((string) $request->input('title', ''));
+                $code = strtoupper(trim((string) $request->input('code', '')));
+                $desc = trim((string) $request->input('description', ''));
+                $windowStart = (string) $request->input('window_start', '');
+                $windowEnd = (string) $request->input('window_end', '');
+                $duration = (int) $request->input('duration_minutes', 30);
+
+                $scoring = [
+                    'marks_per_correct' => (float) $request->input('marks_per_correct', 1.0),
+                    'negative_marks_per_wrong' => (float) $request->input('negative_marks', 0.0),
+                    'unanswered_penalty' => (float) $request->input('unanswered_penalty', 0.0),
+                    'pass_mark' => (float) $request->input('pass_mark', 20.0),
+                ];
+
+                $nav = [
+                    'allow_back' => (bool) $request->input('allow_back', false),
+                    'allow_skip' => (bool) $request->input('allow_skip', false),
+                    'allow_review_screen' => (bool) $request->input('allow_review_screen', false),
+                    'randomize_questions' => (bool) $request->input('randomize_questions', false),
+                    'randomize_options' => (bool) $request->input('randomize_options', false),
+                ];
+
+                $startUtc = $this->convertLocalToUtc($windowStart);
+                $endUtc = $this->convertLocalToUtc($windowEnd);
+
+                $targetAudience = (string) $request->input('target_audience', 'all');
+                $selectedGroups = (array) $request->input('target_groups', []);
+                $targetGroups = [];
+                if ($targetAudience === 'groups' && !empty($selectedGroups)) {
+                    $targetGroups = array_values(array_filter(array_map('intval', $selectedGroups), fn($g) => $g > 0));
+                }
+
+                $this->quizService->update($quizId, [
+                    'title' => $title,
+                    'code' => $code,
+                    'description' => $desc,
+                    'duration_minutes' => $duration,
+                    'duration_seconds' => $duration * 60,
+                    'start_at' => $startUtc,
+                    'end_at' => $endUtc,
+                    'settings' => [
+                        'scoring' => $scoring,
+                        'navigation' => $nav,
+                        'target_groups' => $targetGroups,
+                    ],
+                ], $adminId);
+
+                if (($quiz['status'] ?? '') === 'published') {
+                    $this->quizPublisher->syncRoster($quizId, (int) $quiz['current_version'], (int) ($quiz['question_count'] ?? 0));
+                    $this->quizWarmer->warm($quizId);
+                }
+
+                Session::set('flash_success', 'Quiz updated successfully.');
+                return $this->redirect('/admin/quizzes');
+            } catch (\Throwable $e) {
+                $groups = $this->db->query('SELECT id, name, description FROM `groups` ORDER BY name ASC')->fetchAll(PDO::FETCH_ASSOC);
+                return $this->render('admin/quizzes/form.html.twig', [
+                    'admin' => $this->getAdminUser(),
+                    'current_route' => 'quizzes',
+                    'groups' => $groups,
+                    'error' => $e->getMessage(),
+                    'is_edit' => true,
+                    'quiz_id' => $quizId,
+                    'old' => $request->getPostData(),
+                ]);
+            }
+        }
+
+        $settings = $quiz['settings'] ?? [];
+        $scoring = $settings['scoring'] ?? [];
+        $navigation = $settings['navigation'] ?? [];
+        $targetGroups = $settings['target_groups'] ?? [];
+
+        $oldData = [
+            'title' => $quiz['title'],
+            'code' => $quiz['code'],
+            'description' => $quiz['description'],
+            'window_start' => $this->convertUtcToLocalInput((string) $quiz['start_at']),
+            'window_end' => $this->convertUtcToLocalInput((string) $quiz['end_at']),
+            'duration_minutes' => (int) ceil(($quiz['duration_seconds'] ?? 1800) / 60),
+            'marks_per_correct' => $scoring['marks_per_correct'] ?? 1.0,
+            'negative_marks' => $scoring['negative_marks_per_wrong'] ?? 0.0,
+            'unanswered_penalty' => $scoring['unanswered_penalty'] ?? 0.0,
+            'pass_mark' => $scoring['pass_mark'] ?? 20.0,
+            'allow_back' => $navigation['allow_back'] ?? true,
+            'allow_skip' => $navigation['allow_skip'] ?? true,
+            'allow_review_screen' => $navigation['allow_review_screen'] ?? true,
+            'randomize_questions' => $navigation['randomize_questions'] ?? true,
+            'randomize_options' => $navigation['randomize_options'] ?? true,
+            'target_audience' => !empty($targetGroups) ? 'groups' : 'all',
+            'target_groups' => $targetGroups,
+        ];
+
+        $groups = $this->db->query('SELECT id, name, description FROM `groups` ORDER BY name ASC')->fetchAll(PDO::FETCH_ASSOC);
+        return $this->render('admin/quizzes/form.html.twig', [
+            'admin' => $this->getAdminUser(),
+            'current_route' => 'quizzes',
+            'groups' => $groups,
+            'is_edit' => true,
+            'quiz_id' => $quizId,
+            'old' => $oldData,
+        ]);
+    }
+
+    /**
+     * @Route(path="/admin/quizzes/{id}/delete", methods="POST", name="admin.quizzes.delete")
+     */
+    public function quizDelete(Request $request, string $id): Response
+    {
+        if ($authRedirect = $this->requireAdmin()) {
+            return $authRedirect;
+        }
+
+        $quizId = (int) $id;
+        try {
+            $this->quizService->delete($quizId, true);
+            Session::set('flash_success', 'Quiz deleted successfully.');
+        } catch (\Throwable $e) {
+            Session::set('flash_error', 'Failed to delete quiz: ' . $e->getMessage());
+        }
+
+        return $this->redirect('/admin/quizzes');
     }
 
     /**
@@ -464,7 +639,7 @@ class AdminController extends Controller
                     mkdir($targetDir, 0755, true);
                 }
 
-                $rawQuestions = $request->get('questions');
+                $rawQuestions = $request->input('questions');
                 $addedCount = 0;
 
                 if (is_array($rawQuestions) && !empty($rawQuestions)) {
@@ -518,10 +693,10 @@ class AdminController extends Controller
                 }
 
                 // Fallback for single question submission format
-                $questionText = trim((string) $request->get('question_text', ''));
+                $questionText = trim((string) $request->input('question_text', ''));
                 if ($questionText !== '') {
-                    $correctIndex = (int) $request->get('correct_option', -1);
-                    $rawOptions = (array) $request->get('options', []);
+                    $correctIndex = (int) $request->input('correct_option', -1);
+                    $rawOptions = (array) $request->input('options', []);
 
                     $options = [];
                     foreach ($rawOptions as $idx => $optText) {
@@ -601,8 +776,8 @@ class AdminController extends Controller
         $adminId = (int) ($admin['id'] ?? 1);
         $quizId = (int) $id;
 
-        $targetAudience = (string) $request->get('target_audience', 'all');
-        $selectedGroups = (array) $request->get('target_groups', []);
+        $targetAudience = (string) $request->input('target_audience', 'all');
+        $selectedGroups = (array) $request->input('target_groups', []);
         $targetGroups = [];
         if ($targetAudience === 'groups' && !empty($selectedGroups)) {
             $targetGroups = array_values(array_filter(array_map('intval', $selectedGroups), fn($g) => $g > 0));
@@ -623,6 +798,57 @@ class AdminController extends Controller
     }
 
     /**
+     * @Route(path="/admin/quizzes/{id}/questions/{qid}/edit", methods="POST", name="admin.quizzes.questions.edit")
+     */
+    public function quizQuestionEdit(Request $request, string $id, string $qid): Response
+    {
+        if ($authRedirect = $this->requireAdmin()) {
+            return $authRedirect;
+        }
+
+        $admin = $this->getAdminUser();
+        $adminId = (int) ($admin['id'] ?? 1);
+        $quizId = (int) $id;
+        $questionId = (int) $qid;
+
+        try {
+            $questionText = trim((string) $request->input('question_text', ''));
+            $correctIndex = (int) $request->input('correct_option', -1);
+            $rawOptions = (array) $request->input('options', []);
+
+            $options = [];
+            foreach ($rawOptions as $idx => $optText) {
+                $optText = trim((string) $optText);
+                if ($optText !== '') {
+                    $options[] = [
+                        'text' => $optText,
+                        'is_correct' => ($idx === $correctIndex),
+                    ];
+                }
+            }
+
+            $this->questionService->updateQuestion($questionId, $questionText, $options);
+
+            // Re-publish if published to sync Redis snapshot
+            $quiz = $this->quizService->getById($quizId);
+            if ($quiz && ($quiz['status'] ?? '') === 'published') {
+                try {
+                    $publisher = new QuizPublisher($this->db);
+                    $publisher->publish($quizId, $adminId);
+                } catch (\Throwable $e) {
+                    // Ignore publish error
+                }
+            }
+
+            Session::set('flash_success', 'Question updated successfully.');
+        } catch (\Throwable $e) {
+            Session::set('flash_error', 'Failed to update question: ' . $e->getMessage());
+        }
+
+        return $this->redirect("/admin/quizzes/{$quizId}/questions");
+    }
+
+    /**
      * @Route(path="/admin/quizzes/{id}/questions/{qid}/delete", methods="POST", name="admin.quizzes.questions.delete")
      */
     public function quizQuestionDelete(Request $request, string $id, string $qid): Response
@@ -631,11 +857,24 @@ class AdminController extends Controller
             return $authRedirect;
         }
 
+        $admin = $this->getAdminUser();
+        $adminId = (int) ($admin['id'] ?? 1);
         $quizId = (int) $id;
         $questionId = (int) $qid;
 
         try {
             $this->questionService->deleteQuestion($questionId);
+
+            $quiz = $this->quizService->getById($quizId);
+            if ($quiz && ($quiz['status'] ?? '') === 'published') {
+                try {
+                    $publisher = new QuizPublisher($this->db);
+                    $publisher->publish($quizId, $adminId);
+                } catch (\Throwable $e) {
+                    // Ignore publish error
+                }
+            }
+
             Session::set('flash_success', 'Question deleted successfully.');
         } catch (\Throwable $e) {
             Session::set('flash_error', 'Failed to delete question: ' . $e->getMessage());
@@ -696,10 +935,10 @@ class AdminController extends Controller
             return $authRedirect;
         }
 
-        $quizId = (int) $request->get('quiz_id', 0);
-        $status = trim((string) $request->get('status', ''));
-        $search = trim((string) $request->get('search', ''));
-        $cursor = (int) $request->get('cursor', 0);
+        $quizId = (int) $request->input('quiz_id', 0);
+        $status = trim((string) $request->input('status', ''));
+        $search = trim((string) $request->input('search', ''));
+        $cursor = (int) $request->input('cursor', 0);
 
         $filters = [
             'quiz_id' => $quizId > 0 ? $quizId : null,
@@ -784,8 +1023,8 @@ class AdminController extends Controller
             return $authRedirect;
         }
 
-        $type = (string) $request->get('report_type', 'submissions');
-        $quizId = (int) $request->get('quiz_id', 0);
+        $type = (string) $request->input('report_type', 'submissions');
+        $quizId = (int) $request->input('quiz_id', 0);
         $admin = $this->getAdminUser();
         $adminId = (int) ($admin['id'] ?? 1);
 

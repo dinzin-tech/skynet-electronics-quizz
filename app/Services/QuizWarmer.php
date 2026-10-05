@@ -147,9 +147,9 @@ class QuizWarmer
         $attStmt = $this->db->prepare(
             'SELECT id, public_id, employee_id, status, started_at, deadline_at, submitted_at, ' .
             'submit_reason, layout, max_seq, total_questions, correct_count, score, accuracy, completion_time_s ' .
-            'FROM attempts WHERE quiz_id = :qid AND quiz_version = :ver'
+            'FROM attempts WHERE quiz_id = :qid ORDER BY id ASC'
         );
-        $attStmt->execute(['qid' => $quizId, 'ver' => $version]);
+        $attStmt->execute(['qid' => $quizId]);
         $attempts = $attStmt->fetchAll(PDO::FETCH_ASSOC);
 
         $totalAttempts = count($attempts);
