@@ -33,6 +33,8 @@ cp /var/www/corpquiz/ops/sysctl.d/99-corpquiz.conf /etc/sysctl.d/99-corpquiz.con
 sysctl --system
 
 echo ">>> [5/7] Configuring Redis & MySQL..."
+mkdir -p /var/lib/redis /var/log/redis
+chown -R redis:redis /var/lib/redis /var/log/redis
 cp /var/www/corpquiz/ops/redis/redis.conf /etc/redis/redis.conf
 usermod -a -G redis www-data
 systemctl restart redis-server
