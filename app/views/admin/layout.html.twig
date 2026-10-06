@@ -34,11 +34,17 @@
         }
         .sidebar {
             width: 250px;
+            height: 100vh;
+            position: fixed;
+            top: 0;
+            left: 0;
+            bottom: 0;
             background-color: var(--sidebar-bg);
             color: #f8fafc;
             display: flex;
             flex-direction: column;
             flex-shrink: 0;
+            z-index: 100;
         }
         .sidebar-brand {
             padding: 24px 20px;
@@ -49,6 +55,7 @@
             display: flex;
             align-items: center;
             gap: 10px;
+            flex-shrink: 0;
         }
         .sidebar-nav {
             padding: 16px 12px;
@@ -56,6 +63,21 @@
             display: flex;
             flex-direction: column;
             gap: 4px;
+            overflow-y: auto;
+            overflow-x: hidden;
+        }
+        .sidebar-nav::-webkit-scrollbar {
+            width: 5px;
+        }
+        .sidebar-nav::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        .sidebar-nav::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.15);
+            border-radius: 4px;
+        }
+        .sidebar-nav::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.3);
         }
         .nav-item {
             display: flex;
@@ -82,12 +104,15 @@
             border-top: 1px solid rgba(255, 255, 255, 0.08);
             font-size: 0.85rem;
             color: #64748b;
+            flex-shrink: 0;
         }
         .content-wrap {
             flex: 1;
+            margin-left: 250px;
             display: flex;
             flex-direction: column;
             overflow-x: hidden;
+            min-width: 0;
         }
         .topbar {
             height: 64px;
