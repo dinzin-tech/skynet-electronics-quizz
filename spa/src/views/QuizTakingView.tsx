@@ -26,6 +26,7 @@ export const QuizTakingView: React.FC<QuizTakingViewProps> = ({ attemptId, onSub
   const [submitting, setSubmitting] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [zoomImage, setZoomImage] = useState<string | null>(null);
 
   // 1. Initial Load: Bundle + Attempt State
   useEffect(() => {
@@ -208,6 +209,7 @@ export const QuizTakingView: React.FC<QuizTakingViewProps> = ({ attemptId, onSub
   }
 
   const selectedOptionId = currentQuestion ? answers[currentQuestion.id.toString()] : undefined;
+  const questionImage = currentQuestion?.image_url || currentQuestion?.image_path;
 
   return (
     <div style={{ minHeight: '100dvh', display: 'flex', flexDirection: 'column', background: 'var(--gray-50)' }}>
@@ -274,6 +276,22 @@ export const QuizTakingView: React.FC<QuizTakingViewProps> = ({ attemptId, onSub
             <h3 style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--gray-900)', marginBottom: '1.75rem', lineHeight: 1.5 }}>
               {currentQuestion?.text}
             </h3>
+
+            {/* Question Illustration Image */}
+            {questionImage && (
+              <div className="question-image-wrapper">
+                <img
+                  src={questionImage}
+                  alt={`Question ${currentIndex + 1} illustration`}
+                  className="question-image"
+                  onClick={() => setZoomImage(questionImage)}
+                  title="Click to zoom in"
+                />
+                <div className="question-image-caption">
+                  <span>🔍 Click image to enlarge</span>
+                </div>
+              </div>
+            )}
 
             {/* Answer Options */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.875rem' }}>
@@ -599,6 +617,69 @@ export const QuizTakingView: React.FC<QuizTakingViewProps> = ({ attemptId, onSub
                 {submitting ? 'Submitting...' : 'Yes, Submit Answers'}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Question Image Lightbox Modal */}
+      {zoomImage && (
+        <div 
+          onClick={() => setZoomImage(null)}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(15, 23, 42, 0.85)',
+            backdropFilter: 'blur(8px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '1.5rem',
+            zIndex: 120,
+            cursor: 'zoom-out',
+          }}
+        >
+          <div 
+            style={{ position: 'relative', maxWidth: '92vw', maxHeight: '90vh' }} 
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              onClick={() => setZoomImage(null)}
+              style={{
+                position: 'absolute',
+                top: '-16px',
+                right: '-16px',
+                width: '38px',
+                height: '38px',
+                borderRadius: '50%',
+                background: '#ffffff',
+                border: '2px solid var(--gray-300)',
+                color: 'var(--gray-800)',
+                fontSize: '1.25rem',
+                fontWeight: 'bold',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                boxShadow: 'var(--shadow-md)',
+                zIndex: 121,
+              }}
+              title="Close preview"
+            >
+              ✕
+            </button>
+            <img
+              src={zoomImage}
+              alt="Full size illustration"
+              style={{
+                maxWidth: '92vw',
+                maxHeight: '85vh',
+                objectFit: 'contain',
+                borderRadius: '12px',
+                boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)',
+                background: '#ffffff',
+                display: 'block',
+              }}
+            />
           </div>
         </div>
       )}

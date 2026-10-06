@@ -129,6 +129,7 @@ class QuizPublisher
                 'id' => $qid,
                 'text' => $q['question_text'],
                 'image_url' => $q['image_path'] ?? null,
+                'image_path' => $q['image_path'] ?? null,
                 'display_order' => (int) $q['display_order'],
                 'options' => $cleanOptions,
             ];
