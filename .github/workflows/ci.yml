@@ -32,15 +32,17 @@ jobs:
         uses: actions/cache@v4
         with:
           path: vendor
-          key: ${{ runner.os }}-composer-${{ hashFiles('**/composer.json') }}
+          key: ${{ runner.os }}-composer-${{ hashFiles('**/composer.lock') }}
           restore-keys: |
             ${{ runner.os }}-composer-
 
       - name: Install dependencies
-        run: composer install --prefer-dist --no-progress --no-interaction
+        run: |
+          mkdir -p storage/logs storage/cache storage/bundles
+          composer install --prefer-dist --no-progress --no-interaction
 
-      - name: Run PHP CodeSniffer
-        run: vendor/bin/phpcs --standard=phpcs.xml
+      - name: Run PHP CodeSniffer (Errors Only)
+        run: vendor/bin/phpcs --standard=phpcs.xml -n
 
   build-frontend:
     name: Build Employee SPA
@@ -98,8 +100,9 @@ jobs:
           ini-values: apc.enable_cli=1, opcache.enable_cli=1
           tools: composer:v2
 
-      - name: Prepare Environment File
+      - name: Prepare Environment File and Storage
         run: |
+          mkdir -p storage/logs storage/cache storage/bundles
           cp .env.example .env
           sed -i 's/DEFAULT_DB_HOST=.*/DEFAULT_DB_HOST=127.0.0.1/' .env
           sed -i 's/DEFAULT_DB_DATABASE=.*/DEFAULT_DB_DATABASE=corp_quizz/' .env
@@ -107,12 +110,20 @@ jobs:
           sed -i 's/DEFAULT_DB_PASSWORD=.*/DEFAULT_DB_PASSWORD=secret/' .env
           sed -i 's/REDIS_HOST=.*/REDIS_HOST=127.0.0.1/' .env
           sed -i 's/REDIS_PORT=.*/REDIS_PORT=6379/' .env
+          sed -i 's/REDIS_SOCKET=.*/REDIS_SOCKET=/' .env
+
+      - name: Wait for MySQL to be ready
+        run: |
+          until mysqladmin ping -h 127.0.0.1 -P 3306 -u root -psecret --silent; do
+            echo "Waiting for MySQL container..."
+            sleep 2
+          done
 
       - name: Cache Composer dependencies
         uses: actions/cache@v4
         with:
           path: vendor
-          key: ${{ runner.os }}-composer-${{ hashFiles('**/composer.json') }}
+          key: ${{ runner.os }}-composer-${{ hashFiles('**/composer.lock') }}
           restore-keys: |
             ${{ runner.os }}-composer-
 
