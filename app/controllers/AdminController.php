@@ -14,6 +14,7 @@ use App\Services\QuizService;
 use App\Services\QuizWarmer;
 use App\Services\ReportExportService;
 use App\Services\SubmissionsService;
+use App\Services\WorkerManagerService;
 use Core\Controller;
 use Core\Database;
 use Core\Http\Request;
@@ -38,6 +39,7 @@ class AdminController extends Controller
     private QuizWarmer $quizWarmer;
     private SubmissionsService $submissionsService;
     private ReportExportService $exportService;
+    private WorkerManagerService $workerManager;
 
     public function __construct()
     {
@@ -53,6 +55,7 @@ class AdminController extends Controller
         $this->quizWarmer = new QuizWarmer($this->db);
         $this->submissionsService = new SubmissionsService($this->db);
         $this->exportService = new ReportExportService($this->db);
+        $this->workerManager = new WorkerManagerService($this->db);
 
         if (session_status() === PHP_SESSION_NONE) {
             Session::start();
@@ -1065,5 +1068,109 @@ class AdminController extends Controller
                 "Invalid format for {$fieldName}: '{$datetime}'. Expected YYYY-MM-DD HH:MM."
             );
         }
+    }
+
+    /**
+     * @Route(path="/admin/workers", methods="GET", name="admin.workers")
+     */
+    public function workers(Request $request): Response
+    {
+        if ($authRedirect = $this->requireAdmin()) {
+            return $authRedirect;
+        }
+
+        $status = $this->workerManager->getStatus();
+        $success = Session::get('flash_success');
+        $error = Session::get('flash_error');
+        Session::delete('flash_success');
+        Session::delete('flash_error');
+
+        return $this->render('admin/workers/index.html.twig', [
+            'status' => $status,
+            'current_route' => 'workers',
+            'success' => $success,
+            'error' => $error,
+            'admin' => $this->getAdminUser(),
+        ]);
+    }
+
+    /**
+     * @Route(path="/admin/workers/status", methods="GET", name="admin.workers.status")
+     */
+    public function workersStatus(Request $request): Response
+    {
+        if ($authRedirect = $this->requireAdmin()) {
+            return $authRedirect;
+        }
+
+        $status = $this->workerManager->getStatus();
+        return new Response(
+            json_encode($status, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES),
+            200,
+            ['Content-Type' => 'application/json; charset=utf-8']
+        );
+    }
+
+    /**
+     * @Route(path="/admin/workers/action", methods="POST", name="admin.workers.action")
+     */
+    public function workersAction(Request $request): Response
+    {
+        if ($authRedirect = $this->requireAdmin()) {
+            return $authRedirect;
+        }
+
+        $worker = trim((string) ($request->get('worker') ?: ($_POST['worker'] ?? '')));
+        $action = trim((string) ($request->get('action') ?: ($_POST['action'] ?? '')));
+
+        $result = match ($action) {
+            'run_once' => $this->workerManager->runOnce($worker),
+            'restart' => $this->workerManager->restartWorker($worker),
+            'start' => $this->workerManager->startWorker($worker),
+            'stop' => $this->workerManager->stopWorker($worker),
+            default => ['success' => false, 'message' => "Invalid worker action: {$action}"],
+        };
+
+        $accept = $_SERVER['HTTP_ACCEPT'] ?? '';
+        $isAjax = str_contains($accept, 'application/json')
+            || !empty($_SERVER['HTTP_X_REQUESTED_WITH'])
+            || !empty($_SERVER['HTTP_HX_REQUEST']);
+
+        if ($isAjax) {
+            $code = $result['success'] ? 200 : 400;
+            return new Response(
+                json_encode($result, JSON_UNESCAPED_SLASHES),
+                $code,
+                ['Content-Type' => 'application/json; charset=utf-8']
+            );
+        }
+
+        if ($result['success']) {
+            Session::set('flash_success', $result['message']);
+        } else {
+            Session::set('flash_error', $result['message']);
+        }
+
+        return $this->redirect('/admin/workers');
+    }
+
+    /**
+     * @Route(path="/admin/workers/logs", methods="GET", name="admin.workers.logs")
+     */
+    public function workersLogs(Request $request): Response
+    {
+        if ($authRedirect = $this->requireAdmin()) {
+            return $authRedirect;
+        }
+
+        $worker = trim((string) $request->get('worker', 'flusher'));
+        $lines = max(10, min(200, (int) $request->get('lines', 50)));
+
+        $logs = $this->workerManager->getLogs($worker, $lines);
+        return new Response(
+            json_encode(['worker' => $worker, 'logs' => $logs], JSON_UNESCAPED_SLASHES),
+            200,
+            ['Content-Type' => 'application/json; charset=utf-8']
+        );
     }
 }

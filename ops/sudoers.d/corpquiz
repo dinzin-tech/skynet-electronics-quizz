@@ -1,10 +1,32 @@
 # ==============================================================================
-# Sudoers configuration for CorpQuiz CI/CD Deployments
+# Sudoers configuration for CorpQuiz CI/CD Deployments & Admin Worker Control
 # Location on VPS: /etc/sudoers.d/corpquiz
 # Permissions: 0440 (chmod 0440 /etc/sudoers.d/corpquiz)
 # ==============================================================================
 
-# Allow members of corpquiz-deploy group or runner user to reload PHP, Nginx, Prometheus, and restart daemons
+# 1. Allow www-data (PHP-FPM web server) to manage quiz worker daemons from Admin Console
+www-data ALL=(ALL) NOPASSWD: /usr/bin/systemctl restart quiz-flusher, \
+                             /usr/bin/systemctl restart quiz-scheduler, \
+                             /usr/bin/systemctl restart quiz-finalizer, \
+                             /usr/bin/systemctl restart quiz-jobs, \
+                             /usr/bin/systemctl start quiz-flusher, \
+                             /usr/bin/systemctl start quiz-scheduler, \
+                             /usr/bin/systemctl start quiz-finalizer, \
+                             /usr/bin/systemctl start quiz-jobs, \
+                             /usr/bin/systemctl stop quiz-flusher, \
+                             /usr/bin/systemctl stop quiz-scheduler, \
+                             /usr/bin/systemctl stop quiz-finalizer, \
+                             /usr/bin/systemctl stop quiz-jobs, \
+                             /usr/bin/systemctl status quiz-flusher, \
+                             /usr/bin/systemctl status quiz-scheduler, \
+                             /usr/bin/systemctl status quiz-finalizer, \
+                             /usr/bin/systemctl status quiz-jobs, \
+                             /usr/bin/systemctl is-active quiz-flusher, \
+                             /usr/bin/systemctl is-active quiz-scheduler, \
+                             /usr/bin/systemctl is-active quiz-finalizer, \
+                             /usr/bin/systemctl is-active quiz-jobs
+
+# 2. Allow members of corpquiz-deploy group or runner user to reload PHP, Nginx, Prometheus, and restart daemons
 %corpquiz-deploy ALL=(ALL) NOPASSWD: /usr/bin/systemctl reload php8.2-fpm, \
                                      /usr/bin/systemctl reload php8.3-fpm, \
                                      /usr/bin/systemctl reload nginx, \
@@ -17,7 +39,7 @@
                                      /usr/bin/chown -R www-data\:www-data /var/www/corpquiz/storage /var/www/corpquiz/public, \
                                      /usr/bin/chmod -R 775 /var/www/corpquiz/storage
 
-# Allow runner user (if named 'runner') passwordless execution of the deployment script and essential services
+# 3. Allow runner user passwordless execution for deployments
 runner ALL=(ALL) NOPASSWD: /var/www/corpquiz/ops/deploy.sh, \
                            /usr/bin/systemctl reload php8.2-fpm, \
                            /usr/bin/systemctl reload php8.3-fpm, \

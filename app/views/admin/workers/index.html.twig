@@ -1,0 +1,667 @@
+{% extends "admin/layout.html.twig" %}
+
+{% block page_title %}Background Workers Monitor{% endblock %}
+
+{% block stylesheets %}
+<style>
+    .pulse-dot {
+        display: inline-block;
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background-color: #10b981;
+        box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
+        animation: pulse 1.8s infinite;
+        vertical-align: middle;
+        margin-right: 6px;
+    }
+    @keyframes pulse {
+        0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
+        70% { transform: scale(1); box-shadow: 0 0 0 8px rgba(16, 185, 129, 0); }
+        100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+    }
+    .workers-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+        gap: 20px;
+        margin-bottom: 28px;
+    }
+    .worker-card {
+        background: #ffffff;
+        border: 1px solid var(--border-color);
+        border-radius: 12px;
+        padding: 22px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.03);
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        transition: box-shadow 0.2s ease;
+    }
+    .worker-card:hover {
+        box-shadow: 0 4px 12px rgba(0,0,0,0.06);
+    }
+    .worker-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        margin-bottom: 12px;
+    }
+    .worker-title {
+        font-size: 1.05rem;
+        font-weight: 700;
+        color: #0f172a;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+    .worker-desc {
+        font-size: 0.825rem;
+        color: #64748b;
+        margin-bottom: 16px;
+        line-height: 1.4;
+    }
+    .worker-meta {
+        background: #f8fafc;
+        border: 1px solid #f1f5f9;
+        border-radius: 8px;
+        padding: 12px 14px;
+        margin-bottom: 18px;
+        font-size: 0.85rem;
+    }
+    .worker-meta-row {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 6px;
+    }
+    .worker-meta-row:last-child {
+        margin-bottom: 0;
+    }
+    .worker-meta-label {
+        color: #64748b;
+    }
+    .worker-meta-value {
+        font-weight: 600;
+        color: #0f172a;
+    }
+    .worker-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        border-top: 1px solid #f1f5f9;
+        padding-top: 16px;
+    }
+    .action-btn {
+        padding: 6px 12px;
+        font-size: 0.825rem;
+        font-weight: 600;
+        border-radius: 6px;
+        border: 1px solid #cbd5e1;
+        background: #ffffff;
+        color: #334155;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        transition: all 0.15s ease;
+    }
+    .action-btn:hover {
+        background: #f1f5f9;
+        border-color: #94a3b8;
+        color: #0f172a;
+    }
+    .action-btn-primary {
+        background: #2563eb;
+        color: #ffffff;
+        border-color: #2563eb;
+    }
+    .action-btn-primary:hover {
+        background: #1d4ed8;
+        border-color: #1d4ed8;
+        color: #ffffff;
+    }
+    .action-btn-danger {
+        color: #dc2626;
+        border-color: #fecaca;
+    }
+    .action-btn-danger:hover {
+        background: #fee2e2;
+        border-color: #f87171;
+    }
+    .badge-running {
+        background: #dcfce7;
+        color: #15803d;
+        border: 1px solid #bbf7d0;
+    }
+    .badge-down {
+        background: #fee2e2;
+        color: #b91c1c;
+        border: 1px solid #fecaca;
+    }
+    .progress-bar-bg {
+        background: #e2e8f0;
+        height: 8px;
+        border-radius: 4px;
+        overflow: hidden;
+        margin-top: 8px;
+    }
+    .progress-bar-fill {
+        background: #2563eb;
+        height: 100%;
+        border-radius: 4px;
+        transition: width 0.3s ease;
+    }
+    /* Modal */
+    .modal-backdrop {
+        position: fixed;
+        top: 0; left: 0; right: 0; bottom: 0;
+        background: rgba(15, 23, 42, 0.6);
+        display: none;
+        align-items: center;
+        justify-content: center;
+        z-index: 1000;
+        backdrop-filter: blur(2px);
+    }
+    .modal-box {
+        background: #0f172a;
+        color: #f8fafc;
+        width: 90%;
+        max-width: 850px;
+        max-height: 85vh;
+        border-radius: 12px;
+        display: flex;
+        flex-direction: column;
+        box-shadow: 0 20px 25px -5px rgba(0,0,0,0.5);
+        border: 1px solid #334155;
+    }
+    .modal-header {
+        padding: 16px 20px;
+        border-bottom: 1px solid #334155;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    .modal-title {
+        font-size: 1rem;
+        font-weight: 600;
+        color: #38bdf8;
+    }
+    .modal-body {
+        padding: 16px 20px;
+        overflow-y: auto;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+        font-size: 0.85rem;
+        line-height: 1.5;
+        white-space: pre-wrap;
+        word-break: break-all;
+        background: #090d16;
+        color: #e2e8f0;
+        flex: 1;
+    }
+    .modal-footer {
+        padding: 12px 20px;
+        border-top: 1px solid #334155;
+        display: flex;
+        justify-content: flex-end;
+        gap: 10px;
+    }
+    /* Toast Alert */
+    #action-toast {
+        position: fixed;
+        bottom: 24px;
+        right: 24px;
+        background: #0f172a;
+        color: #ffffff;
+        padding: 14px 20px;
+        border-radius: 8px;
+        box-shadow: 0 10px 15px -3px rgba(0,0,0,0.3);
+        display: none;
+        z-index: 1100;
+        font-size: 0.9rem;
+        max-width: 420px;
+        border-left: 4px solid #2563eb;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Top Header & Live Toggle -->
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; flex-wrap: wrap; gap: 16px;">
+    <div>
+        <h2 style="font-size: 1.25rem; font-weight: 700; color: #0f172a;">Background Workers & Queue Supervisor</h2>
+        <p style="font-size: 0.875rem; color: #64748b; margin-top: 2px;">
+            Live operational dashboard with manual controls for flusher, finalizer, scheduler, and jobs daemons.
+        </p>
+    </div>
+    <div style="display: flex; align-items: center; gap: 12px;">
+        <label style="display: flex; align-items: center; gap: 8px; font-size: 0.85rem; font-weight: 500; cursor: pointer; user-select: none;">
+            <input type="checkbox" id="auto-refresh-toggle" checked style="cursor: pointer;">
+            <span><span class="pulse-dot" id="live-indicator-dot"></span>Live Auto-Refresh (2s)</span>
+        </label>
+        <button class="btn btn-secondary" onclick="fetchLiveStatus(true)">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+            Refresh Now
+        </button>
+    </div>
+</div>
+
+{% if success %}
+    <div class="alert alert-success">{{ success }}</div>
+{% endif %}
+{% if error %}
+    <div class="alert alert-error">{{ error }}</div>
+{% endif %}
+
+<!-- 1. Critical Queues & Write-Behind Lags (Mirroring CLI quiz:monitor) -->
+<div style="margin-bottom: 12px; font-size: 0.85rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: #64748b;">
+    Critical Queues & Write-Behind Lags
+</div>
+<div class="kpi-grid">
+    <div class="kpi-card">
+        <div class="kpi-title">Dirty Attempts (dirty_att)</div>
+        <div class="kpi-val" id="queue-dirty-attempts" style="color: {% if status.queues.dirty_attempts > 500 %}#dc2626{% elseif status.queues.dirty_attempts > 100 %}#d97706{% else %}#16a34a{% endif %};">
+            {{ status.queues.dirty_attempts|number_format }}
+        </div>
+        <div style="font-size: 0.775rem; color: #64748b; margin-top: 4px;">Pending MySQL attempts flush</div>
+    </div>
+    <div class="kpi-card">
+        <div class="kpi-title">Dirty Answers (dirty)</div>
+        <div class="kpi-val" id="queue-dirty-answers" style="color: {% if status.queues.dirty_answers > 1000 %}#dc2626{% elseif status.queues.dirty_answers > 200 %}#d97706{% else %}#16a34a{% endif %};">
+            {{ status.queues.dirty_answers|number_format }}
+        </div>
+        <div style="font-size: 0.775rem; color: #64748b; margin-top: 4px;">Pending MySQL answers flush</div>
+    </div>
+    <div class="kpi-card">
+        <div class="kpi-title">Finalizer Queue (fq)</div>
+        <div class="kpi-val" id="queue-finalizer" style="color: {% if status.queues.finalizer_queue > 200 %}#dc2626{% elseif status.queues.finalizer_queue > 50 %}#d97706{% else %}#16a34a{% endif %};">
+            {{ status.queues.finalizer_queue|number_format }}
+        </div>
+        <div style="font-size: 0.775rem; color: #64748b; margin-top: 4px;">Submissions awaiting grading</div>
+    </div>
+    <div class="kpi-card">
+        <div class="kpi-title">Dead Letter Queue (dlq)</div>
+        <div class="kpi-val" id="queue-dead-letter" style="color: {% if status.queues.dead_letter > 0 %}#dc2626{% else %}#16a34a{% endif %};">
+            {{ status.queues.dead_letter|number_format }}
+        </div>
+        <div style="font-size: 0.775rem; color: #64748b; margin-top: 4px;">Failed background writes</div>
+    </div>
+</div>
+
+<!-- 2. Worker Daemons with Action Buttons -->
+<div style="margin-bottom: 12px; font-size: 0.85rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: #64748b;">
+    Worker Daemons & Management Controls
+</div>
+<div class="workers-grid">
+    {% for key, w in status.workers %}
+    <div class="worker-card" id="worker-card-{{ key }}">
+        <div>
+            <div class="worker-header">
+                <div>
+                    <div class="worker-title">{{ w.name }}</div>
+                    <code style="font-size: 0.75rem; color: #64748b;">{{ w.service }}.service</code>
+                </div>
+                <span class="badge {% if w.healthy %}badge-running{% else %}badge-down{% endif %}" id="badge-{{ key }}">
+                    {% if w.healthy %}RUNNING{% else %}DOWN / HUNG{% endif %}
+                </span>
+            </div>
+            <div class="worker-desc">{{ w.description }}</div>
+
+            <div class="worker-meta">
+                <div class="worker-meta-row">
+                    <span class="worker-meta-label">Heartbeat Age:</span>
+                    <span class="worker-meta-value" id="age-{{ key }}">
+                        {% if w.age_seconds >= 0 %}{{ w.age_seconds }}s ago{% else %}Never{% endif %}
+                    </span>
+                </div>
+                <div class="worker-meta-row">
+                    <span class="worker-meta-label">Systemd State:</span>
+                    <span class="worker-meta-value" id="systemd-{{ key }}">
+                        <code>{{ w.systemd_state }}</code>
+                    </span>
+                </div>
+            </div>
+        </div>
+
+        <div class="worker-actions">
+            <!-- Run Once (Instant single execution pass) -->
+            <button class="action-btn action-btn-primary" onclick="triggerWorkerAction('{{ key }}', 'run_once', this)" title="Execute a single pass right now">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+                Run Once
+            </button>
+
+            <!-- Restart Service -->
+            <button class="action-btn" onclick="triggerWorkerAction('{{ key }}', 'restart', this)" title="Restart systemd service">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+                Restart
+            </button>
+
+            <!-- Start / Stop Toggle -->
+            <button class="action-btn" onclick="triggerWorkerAction('{{ key }}', 'start', this)" title="Start daemon">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                Start
+            </button>
+            <button class="action-btn action-btn-danger" onclick="triggerWorkerAction('{{ key }}', 'stop', this)" title="Stop daemon">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="6" y="6" width="12" height="12"/></svg>
+                Stop
+            </button>
+
+            <!-- View Logs Modal -->
+            <button class="action-btn" onclick="openLogsModal('{{ key }}')" title="View recent logs">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+                Logs
+            </button>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+<!-- 3. Redis In-Memory Engine & MySQL Status -->
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); gap: 20px;">
+    <!-- Redis Card -->
+    <div class="card">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+            <div style="font-size: 1rem; font-weight: 700; color: #0f172a;">Redis In-Memory Engine</div>
+            <span class="badge {% if status.redis.connected %}badge-running{% else %}badge-down{% endif %}" id="redis-badge">
+                {% if status.redis.connected %}CONNECTED{% else %}DISCONNECTED{% endif %}
+            </span>
+        </div>
+
+        <div style="margin-bottom: 14px;">
+            <div style="display: flex; justify-content: space-between; font-size: 0.85rem; margin-bottom: 4px;">
+                <span style="color: #64748b;">Memory Usage:</span>
+                <span style="font-weight: 600;" id="redis-mem-text">
+                    {{ (status.redis.used_memory / 1048576)|round(1) }} MB / 1024 MB
+                </span>
+            </div>
+            <div class="progress-bar-bg">
+                <div class="progress-bar-fill" id="redis-mem-bar" style="width: {{ (status.redis.used_memory / 1073741824 * 100)|round(1) }}%;"></div>
+            </div>
+        </div>
+
+        <div class="worker-meta" style="margin-bottom: 0;">
+            <div class="worker-meta-row">
+                <span class="worker-meta-label">Connected Clients:</span>
+                <span class="worker-meta-value" id="redis-clients">{{ status.redis.connected_clients }}</span>
+            </div>
+            <div class="worker-meta-row">
+                <span class="worker-meta-label">Instantaneous Throughput:</span>
+                <span class="worker-meta-value" id="redis-ops">{{ status.redis.ops_per_sec|number_format }} ops/sec</span>
+            </div>
+            <div class="worker-meta-row">
+                <span class="worker-meta-label">Cache Hit Rate:</span>
+                <span class="worker-meta-value" id="redis-hitrate">{{ (status.redis.hit_rate * 100)|round(1) }}%</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- MySQL Database Card -->
+    <div class="card">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+            <div style="font-size: 1rem; font-weight: 700; color: #0f172a;">MySQL Database Health</div>
+            <span class="badge {% if status.database.connected %}badge-running{% else %}badge-down{% endif %}" id="mysql-badge">
+                {% if status.database.connected %}CONNECTED{% else %}DISCONNECTED{% endif %}
+            </span>
+        </div>
+
+        <div class="worker-meta" style="margin-bottom: 16px;">
+            <div class="worker-meta-row">
+                <span class="worker-meta-label">Connected Threads:</span>
+                <span class="worker-meta-value" id="mysql-thd-conn">{{ status.database.threads_connected }}</span>
+            </div>
+            <div class="worker-meta-row">
+                <span class="worker-meta-label">Active Running Threads:</span>
+                <span class="worker-meta-value" id="mysql-thd-run">{{ status.database.threads_running }}</span>
+            </div>
+            <div class="worker-meta-row">
+                <span class="worker-meta-label">Slow Queries (Cumulative):</span>
+                <span class="worker-meta-value" id="mysql-slow">{{ status.database.slow_queries }}</span>
+            </div>
+        </div>
+
+        <div>
+            <div style="font-size: 0.8rem; font-weight: 600; color: #64748b; margin-bottom: 8px;">Attempts Distribution:</div>
+            <div id="mysql-attempts-wrap" style="display: flex; flex-wrap: wrap; gap: 6px;">
+                {% for st, cnt in status.database.attempt_counts %}
+                <span class="badge badge-info" style="font-size: 0.8rem; text-transform: none;">
+                    {{ st }}: <strong>{{ cnt|number_format }}</strong>
+                </span>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Logs Viewer -->
+<div class="modal-backdrop" id="logs-modal" onclick="if(event.target === this) closeLogsModal()">
+    <div class="modal-box">
+        <div class="modal-header">
+            <div class="modal-title" id="logs-modal-title">Worker Logs</div>
+            <div style="display: flex; gap: 8px;">
+                <button class="action-btn" onclick="refreshCurrentLogs()" title="Refresh Logs" style="padding: 4px 8px; font-size: 0.775rem;">
+                    Refresh
+                </button>
+                <button class="action-btn" onclick="copyCurrentLogs()" title="Copy to clipboard" style="padding: 4px 8px; font-size: 0.775rem;">
+                    Copy
+                </button>
+                <button class="action-btn" onclick="closeLogsModal()" style="padding: 4px 8px; font-size: 0.775rem;">
+                    ✕
+                </button>
+            </div>
+        </div>
+        <div class="modal-body" id="logs-modal-body">Loading logs...</div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="closeLogsModal()">Close</button>
+        </div>
+    </div>
+</div>
+
+<!-- Toast Container -->
+<div id="action-toast"></div>
+{% endblock %}
+
+{% block javascripts %}
+<script>
+    let activeLogWorker = null;
+    let refreshInterval = null;
+
+    // Toast feedback
+    function showToast(msg, isError = false) {
+        const toast = document.getElementById('action-toast');
+        toast.textContent = msg;
+        toast.style.borderLeftColor = isError ? '#dc2626' : '#16a34a';
+        toast.style.display = 'block';
+        setTimeout(() => {
+            toast.style.display = 'none';
+        }, 4000);
+    }
+
+    // Trigger Worker Action (run_once, restart, start, stop)
+    async function triggerWorkerAction(worker, action, btnElem) {
+        const originalText = btnElem.innerHTML;
+        btnElem.disabled = true;
+        btnElem.innerHTML = '⏳ Working...';
+
+        try {
+            const formData = new FormData();
+            formData.append('worker', worker);
+            formData.append('action', action);
+
+            const res = await fetch('/admin/workers/action', {
+                method: 'POST',
+                headers: {
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                body: formData
+            });
+
+            const data = await res.json();
+            if (data.success) {
+                showToast(data.message, false);
+                // Immediately refresh live status to reflect changes
+                await fetchLiveStatus(false);
+            } else {
+                showToast(data.message || 'Action failed', true);
+            }
+        } catch (err) {
+            showToast('Error connecting to server: ' + err.message, true);
+        } finally {
+            btnElem.disabled = false;
+            btnElem.innerHTML = originalText;
+        }
+    }
+
+    // Open Logs Modal
+    async function openLogsModal(worker) {
+        activeLogWorker = worker;
+        const modal = document.getElementById('logs-modal');
+        const title = document.getElementById('logs-modal-title');
+        const body = document.getElementById('logs-modal-body');
+
+        title.textContent = `Recent Logs: ${worker.toUpperCase()}`;
+        body.textContent = 'Loading logs from server...';
+        modal.style.display = 'flex';
+
+        await refreshCurrentLogs();
+    }
+
+    async function refreshCurrentLogs() {
+        if (!activeLogWorker) return;
+        const body = document.getElementById('logs-modal-body');
+        try {
+            const res = await fetch(`/admin/workers/logs?worker=${encodeURIComponent(activeLogWorker)}&lines=60`);
+            const data = await res.json();
+            body.textContent = data.logs || 'No log data received.';
+            body.scrollTop = body.scrollHeight;
+        } catch (err) {
+            body.textContent = 'Failed to load logs: ' + err.message;
+        }
+    }
+
+    function closeLogsModal() {
+        document.getElementById('logs-modal').style.display = 'none';
+        activeLogWorker = null;
+    }
+
+    function copyCurrentLogs() {
+        const text = document.getElementById('logs-modal-body').textContent;
+        navigator.clipboard.writeText(text).then(() => {
+            showToast('Logs copied to clipboard!');
+        });
+    }
+
+    // Real-time live status update
+    async function fetchLiveStatus(showFeedback = false) {
+        try {
+            const res = await fetch('/admin/workers/status');
+            if (!res.ok) return;
+            const data = await res.json();
+
+            // 1. Update Queues
+            const q = data.queues;
+            const elDirtyAtt = document.getElementById('queue-dirty-attempts');
+            const elDirtyAns = document.getElementById('queue-dirty-answers');
+            const elFq = document.getElementById('queue-finalizer');
+            const elDlq = document.getElementById('queue-dead-letter');
+
+            if (elDirtyAtt) {
+                elDirtyAtt.textContent = Number(q.dirty_attempts || 0).toLocaleString();
+                elDirtyAtt.style.color = q.dirty_attempts > 500 ? '#dc2626' : (q.dirty_attempts > 100 ? '#d97706' : '#16a34a');
+            }
+            if (elDirtyAns) {
+                elDirtyAns.textContent = Number(q.dirty_answers || 0).toLocaleString();
+                elDirtyAns.style.color = q.dirty_answers > 1000 ? '#dc2626' : (q.dirty_answers > 200 ? '#d97706' : '#16a34a');
+            }
+            if (elFq) {
+                elFq.textContent = Number(q.finalizer_queue || 0).toLocaleString();
+                elFq.style.color = q.finalizer_queue > 200 ? '#dc2626' : (q.finalizer_queue > 50 ? '#d97706' : '#16a34a');
+            }
+            if (elDlq) {
+                elDlq.textContent = Number(q.dead_letter || 0).toLocaleString();
+                elDlq.style.color = q.dead_letter > 0 ? '#dc2626' : '#16a34a';
+            }
+
+            // 2. Update Workers
+            for (const [key, w] of Object.entries(data.workers)) {
+                const badge = document.getElementById(`badge-${key}`);
+                const age = document.getElementById(`age-${key}`);
+                const sys = document.getElementById(`systemd-${key}`);
+
+                if (badge) {
+                    badge.className = `badge ${w.healthy ? 'badge-running' : 'badge-down'}`;
+                    badge.textContent = w.healthy ? 'RUNNING' : 'DOWN / HUNG';
+                }
+                if (age) {
+                    age.textContent = w.age_seconds >= 0 ? `${w.age_seconds}s ago` : 'Never';
+                }
+                if (sys) {
+                    sys.innerHTML = `<code>${w.systemd_state}</code>`;
+                }
+            }
+
+            // 3. Update Redis
+            const r = data.redis;
+            const rBadge = document.getElementById('redis-badge');
+            if (rBadge) {
+                rBadge.className = `badge ${r.connected ? 'badge-running' : 'badge-down'}`;
+                rBadge.textContent = r.connected ? 'CONNECTED' : 'DISCONNECTED';
+            }
+            if (r.connected) {
+                const memMb = (r.used_memory / 1048576).toFixed(1);
+                const memPct = Math.min(100, (r.used_memory / 1073741824 * 100)).toFixed(1);
+                document.getElementById('redis-mem-text').textContent = `${memMb} MB / 1024 MB`;
+                document.getElementById('redis-mem-bar').style.width = `${memPct}%`;
+                document.getElementById('redis-clients').textContent = r.connected_clients;
+                document.getElementById('redis-ops').textContent = `${Number(r.ops_per_sec).toLocaleString()} ops/sec`;
+                document.getElementById('redis-hitrate').textContent = `${(r.hit_rate * 100).toFixed(1)}%`;
+            }
+
+            // 4. Update MySQL
+            const db = data.database;
+            const dbBadge = document.getElementById('mysql-badge');
+            if (dbBadge) {
+                dbBadge.className = `badge ${db.connected ? 'badge-running' : 'badge-down'}`;
+                dbBadge.textContent = db.connected ? 'CONNECTED' : 'DISCONNECTED';
+            }
+            if (db.connected) {
+                document.getElementById('mysql-thd-conn').textContent = db.threads_connected;
+                document.getElementById('mysql-thd-run').textContent = db.threads_running;
+                document.getElementById('mysql-slow').textContent = db.slow_queries;
+            }
+
+            if (showFeedback) {
+                showToast('Status refreshed!');
+            }
+        } catch (err) {
+            console.error('Auto-refresh poll failed:', err);
+        }
+    }
+
+    // Auto-refresh timer management
+    function startAutoRefresh() {
+        if (refreshInterval) clearInterval(refreshInterval);
+        refreshInterval = setInterval(() => {
+            fetchLiveStatus(false);
+        }, 2000); // 2s intervals
+        document.getElementById('live-indicator-dot').style.display = 'inline-block';
+    }
+
+    function stopAutoRefresh() {
+        if (refreshInterval) {
+            clearInterval(refreshInterval);
+            refreshInterval = null;
+        }
+        document.getElementById('live-indicator-dot').style.display = 'none';
+    }
+
+    document.getElementById('auto-refresh-toggle').addEventListener('change', function(e) {
+        if (e.target.checked) {
+            startAutoRefresh();
+        } else {
+            stopAutoRefresh();
+        }
+    });
+
+    // Start auto-refresh on load
+    startAutoRefresh();
+</script>
+{% endblock %}
