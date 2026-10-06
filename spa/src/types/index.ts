@@ -53,6 +53,8 @@ export interface AnswerOption {
 export interface Question {
   id: number;
   text: string;
+  image_url?: string | null;
+  image_path?: string | null;
   display_order: number;
   options: AnswerOption[];
 }
