@@ -1,0 +1,94 @@
+{% extends "admin/layout.html.twig" %}
+
+{% block page_title %}{% if employee %}Edit Employee - {{ employee.name }}{% else %}Add New Employee{% endif %}{% endblock %}
+
+{% block content %}
+<div style="margin-bottom: 24px;">
+    <a href="/admin/employees" style="font-size: 0.875rem; color: #2563eb; text-decoration: none;">&larr; Back to Employees</a>
+</div>
+
+{% if error %}
+    <div class="alert alert-error" style="margin-bottom: 20px;">{{ error }}</div>
+{% endif %}
+
+<div class="card" style="max-width: 800px;">
+    <form action="{% if employee %}/admin/employees/{{ employee.id }}/edit{% else %}/admin/employees/create{% endif %}" method="POST">
+        <h3 style="font-size: 1.1rem; font-weight: 600; margin-bottom: 16px; border-bottom: 1px solid var(--border-color); padding-bottom: 8px;">
+            {% if employee %}Edit Employee Details{% else %}Add Employee{% endif %}
+        </h3>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px;">
+            <div class="form-group">
+                <label class="form-label" for="employee_code">Employee Code (EMP CODE) *</label>
+                <input type="text" id="employee_code" name="employee_code" required class="form-control" placeholder="e.g. 000169" value="{{ old.employee_code|default(employee.employee_code|default('')) }}">
+            </div>
+            <div class="form-group">
+                <label class="form-label" for="name">Employee Name (EMP NAME) *</label>
+                <input type="text" id="name" name="name" required class="form-control" placeholder="e.g. AFZAL PASHA" value="{{ old.name|default(employee.name|default('')) }}">
+            </div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px;">
+            <div class="form-group">
+                <label class="form-label" for="zone_region">ZONE / Region</label>
+                <input type="text" id="zone_region" name="zone_region" class="form-control" placeholder="e.g. ZONE 1" value="{{ old.zone_region|default(employee.zone_region|default('')) }}">
+            </div>
+            <div class="form-group">
+                <label class="form-label" for="department">Department</label>
+                <input type="text" id="department" name="department" class="form-control" placeholder="e.g. KOLAR SALES" value="{{ old.department|default(employee.department|default('')) }}">
+            </div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px;">
+            <div class="form-group">
+                <label class="form-label" for="designation">Designation</label>
+                <input type="text" id="designation" name="designation" class="form-control" placeholder="e.g. SALES LEADER" value="{{ old.designation|default(employee.designation|default('')) }}">
+            </div>
+            <div class="form-group">
+                <label class="form-label" for="email">Email Address (Optional)</label>
+                <input type="email" id="email" name="email" class="form-control" placeholder="e.g. employee@company.com" value="{{ old.email|default(employee.email|default('')) }}">
+            </div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr; gap: 16px; margin-bottom: 16px;">
+            <div class="form-group">
+                <label class="form-label" for="status">Account Status *</label>
+                <select id="status" name="status" class="form-control" style="max-width: 200px;">
+                    <option value="active" {% if (old.status|default(employee.status|default('active'))) == 'active' %}selected{% endif %}>Active</option>
+                    <option value="inactive" {% if (old.status|default(employee.status|default('active'))) == 'inactive' %}selected{% endif %}>Inactive</option>
+                </select>
+            </div>
+        </div>
+
+        {% if groups %}
+        <div style="margin-top: 24px; border-top: 1px solid var(--border-color); padding-top: 16px;">
+            <label class="form-label" style="font-weight: 600; margin-bottom: 12px; display: block;">Assigned Groups / Categories</label>
+            {% set assignedGroupIds = [] %}
+            {% if old and old.group_ids %}
+                {% set assignedGroupIds = old.group_ids %}
+            {% elseif employee and employee.groups %}
+                {% for g in employee.groups %}
+                    {% set assignedGroupIds = assignedGroupIds|merge([g.id]) %}
+                {% endfor %}
+            {% endif %}
+
+            <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px;">
+                {% for g in groups %}
+                <label style="display: flex; align-items: center; gap: 8px; font-size: 0.9rem; cursor: pointer; padding: 6px 10px; border: 1px solid var(--border-color); border-radius: 6px; background: #fff;">
+                    <input type="checkbox" name="group_ids[]" value="{{ g.id }}" {% if g.id in assignedGroupIds %}checked{% endif %}>
+                    <span>{{ g.name }}</span>
+                </label>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        <div style="margin-top: 28px; display: flex; gap: 12px;">
+            <button type="submit" class="btn btn-primary">
+                {% if employee %}Save Changes{% else %}Create Employee{% endif %}
+            </button>
+            <a href="/admin/employees" class="btn btn-secondary">Cancel</a>
+        </div>
+    </form>
+</div>
+{% endblock %}

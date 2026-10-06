@@ -35,12 +35,15 @@ class EmployeeService
         $params = [];
 
         if ($search !== '') {
-            $where[] = '(name LIKE :s1 OR employee_code LIKE :s2 OR email LIKE :s3 OR username LIKE :s4)';
+            $where[] = '(name LIKE :s1 OR employee_code LIKE :s2 OR email LIKE :s3 OR username LIKE :s4 OR department LIKE :s5 OR designation LIKE :s6 OR zone_region LIKE :s7)';
             $searchWild = "%{$search}%";
             $params['s1'] = $searchWild;
             $params['s2'] = $searchWild;
             $params['s3'] = $searchWild;
             $params['s4'] = $searchWild;
+            $params['s5'] = $searchWild;
+            $params['s6'] = $searchWild;
+            $params['s7'] = $searchWild;
         }
 
         if ($status !== null && in_array($status, ['active', 'inactive'], true)) {
@@ -54,7 +57,7 @@ class EmployeeService
         $countStmt->execute($params);
         $total = (int) $countStmt->fetchColumn();
 
-        $query = "SELECT id, public_id, employee_code, name, email, username, status, created_at, updated_at " .
+        $query = "SELECT id, public_id, employee_code, zone_region, name, department, designation, email, username, status, created_at, updated_at " .
                  "FROM employees " .
                  "WHERE {$whereClause} " .
                  "ORDER BY id DESC " .
@@ -90,6 +93,9 @@ class EmployeeService
 
             foreach ($employees as &$emp) {
                 $emp['groups'] = $groupsByEmp[$emp['id']] ?? [];
+                $emp['group_names'] = !empty($emp['groups'])
+                    ? implode(', ', array_column($emp['groups'], 'name'))
+                    : '';
             }
         }
 
@@ -111,6 +117,10 @@ class EmployeeService
 
         $code = trim($data['employee_code']);
         $name = trim($data['name']);
+        $zoneRegion = isset($data['zone_region']) ? trim((string) $data['zone_region']) : (isset($data['zone']) ? trim((string) $data['zone']) : null);
+        $zoneRegion = $zoneRegion !== '' ? $zoneRegion : null;
+        $department = isset($data['department']) && trim((string) $data['department']) !== '' ? trim((string) $data['department']) : null;
+        $designation = isset($data['designation']) && trim((string) $data['designation']) !== '' ? trim((string) $data['designation']) : null;
         $email = !empty($data['email']) ? trim(strtolower($data['email'])) : null;
         $username = !empty($data['username']) ? trim($data['username']) : null;
         $status = $data['status'] ?? 'active';
@@ -123,13 +133,16 @@ class EmployeeService
         try {
             $stmt = $this->db->prepare(
                 'INSERT INTO employees ' .
-                '(public_id, employee_code, name, email, username, password_hash, status, created_at, updated_at) ' .
-                'VALUES (:pub, :code, :name, :email, :username, :hash, :status, NOW(), NOW())'
+                '(public_id, employee_code, zone_region, name, department, designation, email, username, password_hash, status, created_at, updated_at) ' .
+                'VALUES (:pub, :code, :zone, :name, :dept, :desig, :email, :username, :hash, :status, NOW(), NOW())'
             );
             $stmt->execute([
                 'pub' => $publicId,
                 'code' => $code,
+                'zone' => $zoneRegion,
                 'name' => $name,
+                'dept' => $department,
+                'desig' => $designation,
                 'email' => $email,
                 'username' => $username,
                 'hash' => null,
@@ -162,6 +175,15 @@ class EmployeeService
 
         $code = trim($data['employee_code'] ?? $existing['employee_code']);
         $name = trim($data['name'] ?? $existing['name']);
+        $zoneRegion = array_key_exists('zone_region', $data)
+            ? (trim((string) $data['zone_region']) !== '' ? trim((string) $data['zone_region']) : null)
+            : (array_key_exists('zone', $data) ? (trim((string) $data['zone']) !== '' ? trim((string) $data['zone']) : null) : $existing['zone_region']);
+        $department = array_key_exists('department', $data)
+            ? (trim((string) $data['department']) !== '' ? trim((string) $data['department']) : null)
+            : $existing['department'];
+        $designation = array_key_exists('designation', $data)
+            ? (trim((string) $data['designation']) !== '' ? trim((string) $data['designation']) : null)
+            : $existing['designation'];
         $email = array_key_exists('email', $data)
             ? (!empty($data['email']) ? trim(strtolower($data['email'])) : null)
             : $existing['email'];
@@ -174,12 +196,16 @@ class EmployeeService
 
         $this->db->beginTransaction();
         try {
-            $query = 'UPDATE employees SET employee_code = :code, name = :name, email = :email, ' .
+            $query = 'UPDATE employees SET employee_code = :code, zone_region = :zone, name = :name, ' .
+                     'department = :dept, designation = :desig, email = :email, ' .
                      'username = :username, status = :status, updated_at = NOW() ';
 
             $params = [
                 'code' => $code,
+                'zone' => $zoneRegion,
                 'name' => $name,
+                'dept' => $department,
+                'desig' => $designation,
                 'email' => $email,
                 'username' => $username,
                 'status' => $status,
@@ -241,10 +267,29 @@ class EmployeeService
         }
     }
 
+    /**
+     * Delete multiple employees in bulk:
+     * - Respects individual soft/hard delete rules.
+     *
+     * @param array<int> $ids
+     * @return int Count of deleted or soft-deleted employees
+     */
+    public function bulkDelete(array $ids): int
+    {
+        $count = 0;
+        foreach ($ids as $id) {
+            $id = (int) $id;
+            if ($id > 0 && $this->delete($id)) {
+                $count++;
+            }
+        }
+        return $count;
+    }
+
     public function getById(int $id): ?array
     {
         $stmt = $this->db->prepare(
-            'SELECT id, public_id, employee_code, name, email, username, status, created_at, updated_at ' .
+            'SELECT id, public_id, employee_code, zone_region, name, department, designation, email, username, status, created_at, updated_at ' .
             'FROM employees WHERE id = :id'
         );
         $stmt->execute(['id' => $id]);
