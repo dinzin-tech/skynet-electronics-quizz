@@ -34,22 +34,23 @@ export const ResultView: React.FC<ResultViewProps> = ({ attemptId, onDone }) => 
   const result = attempt?.result;
 
   return (
-    <div style={{ minHeight: '100vh', background: 'var(--gray-50)', display: 'flex', flexDirection: 'column' }}>
+    <div style={{ minHeight: '100dvh', background: 'var(--gray-50)', display: 'flex', flexDirection: 'column' }}>
       <Navbar onLogout={onDone} />
 
-      <main style={{ maxWidth: '640px', width: '100%', margin: '3rem auto', padding: '0 1.5rem', flex: 1 }}>
-        <div className="glass-card" style={{ padding: '2.5rem', textAlign: 'center' }}>
+      <main style={{ maxWidth: '680px', width: '100%', margin: '2rem auto', padding: '0 1.25rem', flex: 1 }}>
+        <div className="glass-card" style={{ padding: '2.5rem 1.75rem', textAlign: 'center' }}>
           <div style={{
-            width: '64px',
-            height: '64px',
+            width: '68px',
+            height: '68px',
             borderRadius: '50%',
             background: 'var(--success-light)',
             color: 'var(--success)',
             display: 'inline-flex',
             alignItems: 'center',
             justifyContent: 'center',
-            fontSize: '2rem',
-            marginBottom: '1rem',
+            fontSize: '2.25rem',
+            marginBottom: '1.25rem',
+            border: '2px solid rgba(16, 185, 129, 0.3)',
           }}>
             ✓
           </div>
@@ -58,33 +59,34 @@ export const ResultView: React.FC<ResultViewProps> = ({ attemptId, onDone }) => 
             Assessment Completed
           </h2>
           <p style={{ fontSize: '0.9375rem', color: 'var(--gray-600)', marginBottom: '2rem' }}>
-            Your assessment has been securely submitted and permanently recorded.
+            Your assessment has been securely submitted and recorded under PEAK PURSUIT 4.0.
           </p>
 
           {loading || !result ? (
             <div style={{ padding: '2rem 1rem' }}>
-              <div style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--primary)', marginBottom: '0.5rem' }}>
+              <div style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--primary)', marginBottom: '0.5rem' }}>
                 Finalizing score calculations...
               </div>
               <div style={{ fontSize: '0.8125rem', color: 'var(--gray-500)' }}>
-                Please wait a moment while the grading engine computes your results.
+                Please wait a moment while the asynchronous grading engine computes your results.
               </div>
             </div>
           ) : (
             <div>
               <div style={{
                 display: 'grid',
-                gridTemplateColumns: 'repeat(2, 1fr)',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
                 gap: '1rem',
                 marginBottom: '2rem',
               }}>
                 <div style={{
                   padding: '1.25rem',
-                  background: 'var(--gray-100)',
-                  borderRadius: '12px',
+                  background: 'linear-gradient(135deg, #fffdf0 0%, #fafafa 100%)',
+                  border: '1.5px solid var(--gold-primary)',
+                  borderRadius: '14px',
                   textAlign: 'left',
                 }}>
-                  <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--gray-500)', textTransform: 'uppercase' }}>
+                  <div style={{ fontSize: '0.75rem', fontWeight: 800, color: 'var(--gold-primary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
                     Final Score
                   </div>
                   <div style={{ fontSize: '1.75rem', fontWeight: 800, color: 'var(--primary)', marginTop: '0.25rem' }}>
@@ -95,10 +97,11 @@ export const ResultView: React.FC<ResultViewProps> = ({ attemptId, onDone }) => 
                 <div style={{
                   padding: '1.25rem',
                   background: 'var(--gray-100)',
-                  borderRadius: '12px',
+                  borderRadius: '14px',
+                  border: '1px solid var(--gray-200)',
                   textAlign: 'left',
                 }}>
-                  <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--gray-500)', textTransform: 'uppercase' }}>
+                  <div style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--gray-500)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
                     Accuracy
                   </div>
                   <div style={{ fontSize: '1.75rem', fontWeight: 800, color: 'var(--success)', marginTop: '0.25rem' }}>
@@ -109,13 +112,14 @@ export const ResultView: React.FC<ResultViewProps> = ({ attemptId, onDone }) => 
                 <div style={{
                   padding: '1.25rem',
                   background: 'var(--gray-100)',
-                  borderRadius: '12px',
+                  borderRadius: '14px',
+                  border: '1px solid var(--gray-200)',
                   textAlign: 'left',
                 }}>
-                  <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--gray-500)', textTransform: 'uppercase' }}>
+                  <div style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--gray-500)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
                     Correct Answers
                   </div>
-                  <div style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--gray-900)', marginTop: '0.25rem' }}>
+                  <div style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--gray-900)', marginTop: '0.25rem' }}>
                     {result.correct_count} / {result.total_questions}
                   </div>
                 </div>
@@ -123,13 +127,14 @@ export const ResultView: React.FC<ResultViewProps> = ({ attemptId, onDone }) => 
                 <div style={{
                   padding: '1.25rem',
                   background: 'var(--gray-100)',
-                  borderRadius: '12px',
+                  borderRadius: '14px',
+                  border: '1px solid var(--gray-200)',
                   textAlign: 'left',
                 }}>
-                  <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--gray-500)', textTransform: 'uppercase' }}>
-                    Completion Time
+                  <div style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--gray-500)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                    Time Taken
                   </div>
-                  <div style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--gray-900)', marginTop: '0.25rem' }}>
+                  <div style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--gray-900)', marginTop: '0.25rem' }}>
                     {Math.floor(result.completion_time_s / 60)}m {result.completion_time_s % 60}s
                   </div>
                 </div>
@@ -138,7 +143,7 @@ export const ResultView: React.FC<ResultViewProps> = ({ attemptId, onDone }) => 
               <button
                 onClick={onDone}
                 className="btn btn-primary"
-                style={{ padding: '0.875rem 2rem', fontSize: '1rem' }}
+                style={{ padding: '0.875rem 2.5rem', fontSize: '1rem', width: '100%', maxWidth: '320px' }}
               >
                 Return to Portal
               </button>
@@ -149,3 +154,4 @@ export const ResultView: React.FC<ResultViewProps> = ({ attemptId, onDone }) => 
     </div>
   );
 };
+

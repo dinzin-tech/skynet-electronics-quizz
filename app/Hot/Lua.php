@@ -44,20 +44,20 @@ class Lua
     /**
      * Execute a Lua script by name atomically.
      *
-     * @param PhpRedis $redis
+     * @param object $redis PhpRedis or RedisSocketClient
      * @param string $scriptName e.g. 'start', 'save', 'submit'
      * @param array<int, string> $keys Redis KEYS
      * @param array<int, mixed> $args Redis ARGV
      * @return mixed Lua script return value
      */
-    public static function execute(PhpRedis $redis, string $scriptName, array $keys = [], array $args = []): mixed
+    public static function execute(object $redis, string $scriptName, array $keys = [], array $args = []): mixed
     {
         $sha = self::$shaCache[$scriptName] ?? null;
 
         if ($sha !== null) {
             try {
                 return $redis->evalSha($sha, array_merge($keys, $args), count($keys));
-            } catch (\RedisException $e) {
+            } catch (\Throwable $e) {
                 if (stripos($e->getMessage(), 'NOSCRIPT') === false) {
                     throw $e;
                 }

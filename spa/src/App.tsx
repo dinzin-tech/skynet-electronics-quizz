@@ -63,6 +63,7 @@ export const App: React.FC = () => {
       {screen === 'entry' && (
         <QuizEntryView
           quizCode={quizCode}
+          onSelectQuizCode={(code) => setQuizCode(code)}
           onStartAttempt={handleStartAttempt}
           onResumeAttempt={handleResumeAttempt}
         />

@@ -212,6 +212,21 @@ class RedisSocketClient
         return $this->executeCommand($cmd);
     }
 
+    public function evalSha(string $sha, array $args = [], int $numKeys = 0): mixed
+    {
+        $cmd = ['EVALSHA', $sha, (string) $numKeys];
+        foreach ($args as $arg) {
+            $cmd[] = (string) $arg;
+        }
+        return $this->executeCommand($cmd);
+    }
+
+    public function script(string $command, mixed ...$args): mixed
+    {
+        $cmd = array_merge(['SCRIPT', strtoupper($command)], $args);
+        return $this->executeCommand($cmd);
+    }
+
     /**
      * Send command using RESP protocol and parse response.
      *

@@ -22,6 +22,7 @@ export const QuizTakingView: React.FC<QuizTakingViewProps> = ({ attemptId, onSub
   const [answers, setAnswers] = useState<Record<string, number>>({});
   const [syncStatus, setSyncStatus] = useState<SyncStatus>('synced');
   const [showReviewModal, setShowReviewModal] = useState(false);
+  const [showMobileDrawer, setShowMobileDrawer] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -209,17 +210,17 @@ export const QuizTakingView: React.FC<QuizTakingViewProps> = ({ attemptId, onSub
   const selectedOptionId = currentQuestion ? answers[currentQuestion.id.toString()] : undefined;
 
   return (
-    <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', background: 'var(--gray-50)' }}>
+    <div style={{ minHeight: '100dvh', display: 'flex', flexDirection: 'column', background: 'var(--gray-50)' }}>
       {/* Top Examination Sticky Bar */}
       <Navbar>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
           {/* Sync Status Badge */}
           <div className={`sync-indicator sync-${syncStatus}`}>
             <span style={{ fontSize: '0.625rem' }}>●</span>
-            {syncStatus === 'synced' && 'All changes saved'}
-            {syncStatus === 'saving' && 'Saving answer...'}
-            {syncStatus === 'offline' && 'Offline (cached locally)'}
-            {syncStatus === 'error' && 'Sync retrying...'}
+            {syncStatus === 'synced' && 'Saved'}
+            {syncStatus === 'saving' && 'Saving...'}
+            {syncStatus === 'offline' && 'Offline'}
+            {syncStatus === 'error' && 'Sync error'}
           </div>
 
           {/* Calibrated Server Timer */}
@@ -229,15 +230,24 @@ export const QuizTakingView: React.FC<QuizTakingViewProps> = ({ attemptId, onSub
               onExpire={() => handleSubmit('timeout')}
             />
           )}
+
+          {/* Mobile Question Palette Toggle */}
+          <button
+            onClick={() => setShowMobileDrawer(true)}
+            className="btn btn-secondary"
+            style={{ padding: '0.4rem 0.65rem', fontSize: '0.8125rem' }}
+          >
+            📋 {answeredCount}/{totalQuestions}
+          </button>
         </div>
       </Navbar>
 
       {/* Main Examination Layout */}
-      <div style={{
-        maxWidth: '1200px',
+      <div className="quiz-layout-grid" style={{
+        maxWidth: '1240px',
         width: '100%',
-        margin: '1.5rem auto',
-        padding: '0 1.5rem',
+        margin: '1.25rem auto 5rem auto',
+        padding: '0 1.25rem',
         display: 'grid',
         gridTemplateColumns: '1fr 320px',
         gap: '1.5rem',
@@ -245,13 +255,19 @@ export const QuizTakingView: React.FC<QuizTakingViewProps> = ({ attemptId, onSub
       }}>
         {/* Left Column: Active Question */}
         <div>
-          <div className="glass-card" style={{ padding: '2rem', marginBottom: '1.5rem' }}>
+          <div className="glass-card" style={{ padding: '2rem 1.75rem', marginBottom: '1.25rem' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-              <span style={{ fontSize: '0.875rem', fontWeight: 700, color: 'var(--primary)', textTransform: 'uppercase' }}>
+              <span style={{ 
+                fontSize: '0.875rem', 
+                fontWeight: 800, 
+                color: 'var(--primary)', 
+                textTransform: 'uppercase',
+                letterSpacing: '0.04em',
+              }}>
                 Question {currentIndex + 1} of {totalQuestions}
               </span>
-              <span style={{ fontSize: '0.8125rem', color: 'var(--gray-500)' }}>
-                Single choice
+              <span style={{ fontSize: '0.8125rem', color: 'var(--gold-primary)', fontWeight: 700 }}>
+                PEAK PURSUIT 4.0
               </span>
             </div>
 
@@ -260,7 +276,7 @@ export const QuizTakingView: React.FC<QuizTakingViewProps> = ({ attemptId, onSub
             </h3>
 
             {/* Answer Options */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.875rem' }}>
               {currentQuestion?.options.map((option, idx) => {
                 const isSelected = selectedOptionId === option.id;
                 const letter = String.fromCharCode(65 + idx);
@@ -275,14 +291,15 @@ export const QuizTakingView: React.FC<QuizTakingViewProps> = ({ attemptId, onSub
                       {isSelected && <div className="option-radio-dot" />}
                     </div>
                     <span style={{
-                      fontWeight: 700,
+                      fontWeight: 800,
                       marginRight: '0.75rem',
                       color: isSelected ? 'var(--primary)' : 'var(--gray-500)',
-                      fontSize: '0.875rem'
+                      fontSize: '0.9375rem',
+                      marginTop: '2px',
                     }}>
                       {letter}.
                     </span>
-                    <span style={{ fontSize: '0.9375rem', color: 'var(--gray-800)', fontWeight: isSelected ? 600 : 400 }}>
+                    <span style={{ fontSize: '0.9375rem', color: 'var(--gray-800)', fontWeight: isSelected ? 700 : 400, lineHeight: 1.5 }}>
                       {option.text}
                     </span>
                   </div>
@@ -291,15 +308,15 @@ export const QuizTakingView: React.FC<QuizTakingViewProps> = ({ attemptId, onSub
             </div>
           </div>
 
-          {/* Navigation Controls */}
+          {/* Desktop Navigation Controls */}
           <div style={{
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
             background: '#ffffff',
-            padding: '1rem 1.5rem',
-            borderRadius: '12px',
-            border: '1px solid var(--gray-200)',
+            padding: '1rem 1.25rem',
+            borderRadius: '14px',
+            border: '1.5px solid var(--gray-200)',
             boxShadow: 'var(--shadow-sm)',
           }}>
             <div>
@@ -329,7 +346,7 @@ export const QuizTakingView: React.FC<QuizTakingViewProps> = ({ attemptId, onSub
                 <button
                   onClick={() => setCurrentIndex((prev) => Math.min(totalQuestions - 1, prev + 1))}
                   disabled={submitting}
-                  className="btn btn-primary"
+                  className="btn btn-crimson"
                 >
                   Next Question →
                 </button>
@@ -337,7 +354,7 @@ export const QuizTakingView: React.FC<QuizTakingViewProps> = ({ attemptId, onSub
                 <button
                   onClick={() => setShowReviewModal(true)}
                   disabled={submitting}
-                  className="btn btn-success"
+                  className="btn btn-primary"
                 >
                   Finish & Submit
                 </button>
@@ -346,10 +363,10 @@ export const QuizTakingView: React.FC<QuizTakingViewProps> = ({ attemptId, onSub
           </div>
         </div>
 
-        {/* Right Column: Question Palette Matrix */}
-        <div>
-          <div className="glass-card" style={{ padding: '1.5rem' }}>
-            <h4 style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--gray-900)', marginBottom: '1rem' }}>
+        {/* Right Column: Question Palette Matrix (Desktop Sidebar) */}
+        <div className="desktop-sidebar">
+          <div className="glass-card" style={{ padding: '1.5rem', position: 'sticky', top: '90px' }}>
+            <h4 style={{ fontSize: '1rem', fontWeight: 800, color: 'var(--gray-900)', marginBottom: '1rem' }}>
               Question Matrix
             </h4>
 
@@ -388,7 +405,7 @@ export const QuizTakingView: React.FC<QuizTakingViewProps> = ({ attemptId, onSub
               <button
                 onClick={() => setShowReviewModal(true)}
                 disabled={submitting}
-                className="btn btn-success"
+                className="btn btn-primary"
                 style={{ width: '100%', padding: '0.75rem' }}
               >
                 Review & Submit Assessment
@@ -398,20 +415,127 @@ export const QuizTakingView: React.FC<QuizTakingViewProps> = ({ attemptId, onSub
         </div>
       </div>
 
+      {/* Mobile Fixed Bottom Navigation Bar */}
+      <div className="mobile-bottom-nav">
+        {allowBack && (
+          <button
+            onClick={() => setCurrentIndex((prev) => Math.max(0, prev - 1))}
+            disabled={currentIndex === 0 || submitting}
+            className="btn btn-secondary"
+            style={{ padding: '0.5rem 0.875rem', fontSize: '0.875rem' }}
+          >
+            ← Prev
+          </button>
+        )}
+
+        <button
+          onClick={() => setShowMobileDrawer(true)}
+          className="btn btn-secondary"
+          style={{ padding: '0.5rem 0.875rem', fontSize: '0.875rem', background: 'var(--gold-light)', borderColor: 'var(--gold-primary)' }}
+        >
+          Grid ({answeredCount}/{totalQuestions})
+        </button>
+
+        {currentIndex < totalQuestions - 1 ? (
+          <button
+            onClick={() => setCurrentIndex((prev) => Math.min(totalQuestions - 1, prev + 1))}
+            disabled={submitting}
+            className="btn btn-crimson"
+            style={{ padding: '0.5rem 1rem', fontSize: '0.875rem' }}
+          >
+            Next →
+          </button>
+        ) : (
+          <button
+            onClick={() => setShowReviewModal(true)}
+            disabled={submitting}
+            className="btn btn-primary"
+            style={{ padding: '0.5rem 1rem', fontSize: '0.875rem' }}
+          >
+            Submit
+          </button>
+        )}
+      </div>
+
+      {/* Mobile Question Matrix Drawer Overlay */}
+      {showMobileDrawer && (
+        <div className="drawer-overlay" onClick={() => setShowMobileDrawer(false)}>
+          <div className="drawer-content" onClick={(e) => e.stopPropagation()}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
+              <h4 style={{ fontSize: '1.125rem', fontWeight: 800, color: 'var(--gray-900)' }}>
+                Question Matrix
+              </h4>
+              <button
+                onClick={() => setShowMobileDrawer(false)}
+                className="btn btn-secondary"
+                style={{ padding: '0.25rem 0.5rem', minHeight: 'auto', fontSize: '1.25rem', border: 'none' }}
+              >
+                ✕
+              </button>
+            </div>
+
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              fontSize: '0.875rem',
+              color: 'var(--gray-600)',
+              marginBottom: '1.25rem',
+              paddingBottom: '0.75rem',
+              borderBottom: '1px solid var(--gray-200)',
+            }}>
+              <span>Answered: <strong style={{ color: 'var(--success)' }}>{answeredCount}</strong></span>
+              <span>Remaining: <strong style={{ color: 'var(--warning)' }}>{unansweredCount}</strong></span>
+            </div>
+
+            <div className="matrix-grid" style={{ marginBottom: '1.5rem' }}>
+              {orderedQuestions.map((q, idx) => {
+                const isAnswered = answers[q.id.toString()] !== undefined;
+                const isCurrent = idx === currentIndex;
+
+                return (
+                  <button
+                    key={q.id}
+                    onClick={() => {
+                      setCurrentIndex(idx);
+                      setShowMobileDrawer(false);
+                    }}
+                    className={`matrix-btn ${isAnswered ? 'answered' : ''} ${isCurrent ? 'current' : ''}`}
+                  >
+                    {idx + 1}
+                  </button>
+                );
+              })}
+            </div>
+
+            <button
+              onClick={() => {
+                setShowMobileDrawer(false);
+                setShowReviewModal(true);
+              }}
+              disabled={submitting}
+              className="btn btn-primary"
+              style={{ width: '100%', padding: '0.875rem', marginTop: 'auto' }}
+            >
+              Review & Submit
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Review & Confirmation Modal */}
       {showReviewModal && (
         <div style={{
           position: 'fixed',
           inset: 0,
-          background: 'rgba(15, 23, 42, 0.6)',
+          background: 'rgba(15, 23, 42, 0.65)',
           backdropFilter: 'blur(4px)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          padding: '1.5rem',
-          zIndex: 50,
+          padding: '1.25rem',
+          zIndex: 110,
         }}>
-          <div className="glass-card" style={{ maxWidth: '480px', width: '100%', padding: '2rem' }}>
+          <div className="glass-card" style={{ maxWidth: '480px', width: '100%', padding: '2rem 1.5rem' }}>
             <h3 style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--gray-900)', marginBottom: '0.75rem' }}>
               Confirm Assessment Submission
             </h3>
@@ -421,9 +545,10 @@ export const QuizTakingView: React.FC<QuizTakingViewProps> = ({ attemptId, onSub
 
             <div style={{
               background: 'var(--gray-100)',
-              borderRadius: '10px',
+              borderRadius: '12px',
               padding: '1rem',
               marginBottom: '1.5rem',
+              border: '1px solid var(--gray-200)',
             }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem', fontSize: '0.875rem' }}>
                 <span style={{ color: 'var(--gray-600)' }}>Total Questions:</span>
@@ -443,30 +568,33 @@ export const QuizTakingView: React.FC<QuizTakingViewProps> = ({ attemptId, onSub
 
             {unansweredCount > 0 && (
               <div style={{
-                padding: '0.75rem',
+                padding: '0.75rem 1rem',
                 background: 'var(--warning-light)',
                 color: '#b45309',
-                borderRadius: '8px',
+                borderRadius: '10px',
                 fontSize: '0.8125rem',
                 fontWeight: 600,
                 marginBottom: '1.5rem',
+                border: '1px solid rgba(245, 158, 11, 0.3)',
               }}>
-                Warning: You have {unansweredCount} unanswered question(s). Unanswered questions may receive penalty points depending on the scoring policy.
+                Warning: You have {unansweredCount} unanswered question(s). Unanswered questions may receive penalty points depending on scoring policies.
               </div>
             )}
 
-            <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end' }}>
+            <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
               <button
                 onClick={() => setShowReviewModal(false)}
                 disabled={submitting}
                 className="btn btn-secondary"
+                style={{ flex: 1 }}
               >
-                Return to Assessment
+                Back
               </button>
               <button
                 onClick={() => handleSubmit('manual')}
                 disabled={submitting}
-                className="btn btn-success"
+                className="btn btn-primary"
+                style={{ flex: 1 }}
               >
                 {submitting ? 'Submitting...' : 'Yes, Submit Answers'}
               </button>
@@ -477,3 +605,4 @@ export const QuizTakingView: React.FC<QuizTakingViewProps> = ({ attemptId, onSub
     </div>
   );
 };
+

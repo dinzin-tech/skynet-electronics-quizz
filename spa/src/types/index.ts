@@ -114,3 +114,17 @@ export interface SaveItem {
   seq: number;
   ts?: number;
 }
+
+export interface QuizListItem {
+  id: number;
+  code: string;
+  title: string;
+  description?: string;
+  duration_seconds: number;
+  opens_at_ms: number;
+  closes_at_ms: number;
+  attempt_status: string;
+  attempt_id?: string | null;
+  category: 'active' | 'upcoming' | 'previous' | 'completed';
+}
+
