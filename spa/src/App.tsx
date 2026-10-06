@@ -48,6 +48,11 @@ export const App: React.FC = () => {
     setScreen('taking');
   };
 
+  const handleViewResult = (attemptId: string) => {
+    setActiveAttemptId(attemptId);
+    setScreen('result');
+  };
+
   const handleSubmitted = (attemptId: string) => {
     setActiveAttemptId(attemptId);
     setScreen('result');
@@ -66,6 +71,7 @@ export const App: React.FC = () => {
           onSelectQuizCode={(code) => setQuizCode(code)}
           onStartAttempt={handleStartAttempt}
           onResumeAttempt={handleResumeAttempt}
+          onViewResult={handleViewResult}
         />
       )}
 

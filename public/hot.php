@@ -229,6 +229,7 @@ $router->get('/api/quiz/{code}', function (array $params, array $config, mixed $
     if ($nowMs >= $endMs) {
         HotRouter::json(200, [
             'state' => 'closed',
+            'attempt' => ['id' => $aid, 'status' => $attStatus],
             'meta' => $meta,
             'server_now_ms' => $nowMs,
         ], $nowMs);
