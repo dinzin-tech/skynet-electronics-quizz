@@ -12,12 +12,12 @@
             "source": {
                 "type": "git",
                 "url": "https://github.com/dinzin-tech/simple-mvc.git",
-                "reference": "0ff2b3e6e68ea1018b1d13ac7689a70113b4b553"
+                "reference": "b4f639672d5fc9c1c69571e9ab632ba58c8e2f0c"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/dinzin-tech/simple-mvc/zipball/0ff2b3e6e68ea1018b1d13ac7689a70113b4b553",
-                "reference": "0ff2b3e6e68ea1018b1d13ac7689a70113b4b553",
+                "url": "https://api.github.com/repos/dinzin-tech/simple-mvc/zipball/b4f639672d5fc9c1c69571e9ab632ba58c8e2f0c",
+                "reference": "b4f639672d5fc9c1c69571e9ab632ba58c8e2f0c",
                 "shasum": ""
             },
             "require": {
@@ -64,7 +64,7 @@
                 "source": "https://github.com/dinzin-tech/simple-mvc/tree/release",
                 "issues": "https://github.com/dinzin-tech/simple-mvc/issues"
             },
-            "time": "2026-05-17T06:37:00+00:00"
+            "time": "2026-10-02T13:31:14+00:00"
         },
         {
             "name": "graham-campbell/result-type",
