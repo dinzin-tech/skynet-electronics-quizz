@@ -372,12 +372,12 @@ class AdminController extends Controller
 
         if ($request->getMethod() === 'POST') {
             try {
-                $title = trim((string) $request->get('title', ''));
-                $code = strtoupper(trim((string) $request->get('code', '')));
-                $desc = trim((string) $request->get('description', ''));
-                $windowStart = (string) $request->get('window_start', '');
-                $windowEnd = (string) $request->get('window_end', '');
-                $duration = (int) $request->get('duration_minutes', 30);
+                $title = trim((string) ($request->get('title') ?: ($request->getPostData()['title'] ?? ($_POST['title'] ?? ''))));
+                $code = strtoupper(trim((string) ($request->get('code') ?: ($request->getPostData()['code'] ?? ($_POST['code'] ?? '')))));
+                $desc = trim((string) ($request->get('description') ?: ($request->getPostData()['description'] ?? ($_POST['description'] ?? ''))));
+                $windowStart = trim((string) ($request->get('window_start') ?: ($request->getPostData()['window_start'] ?? ($_POST['window_start'] ?? ''))));
+                $windowEnd = trim((string) ($request->get('window_end') ?: ($request->getPostData()['window_end'] ?? ($_POST['window_end'] ?? ''))));
+                $duration = (int) ($request->get('duration_minutes') ?: ($request->getPostData()['duration_minutes'] ?? ($_POST['duration_minutes'] ?? 30)));
 
                 $scoring = [
                     'marks_per_correct' => (float) $request->get('marks_per_correct', 1.0),

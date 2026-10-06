@@ -19,6 +19,10 @@ class AdminQuizCreateTest extends TestCase
     protected function setUp(): void
     {
         $this->db = Database::getInstance()->getConnection();
+        $this->db->exec("DELETE FROM quizzes WHERE code LIKE 'TESTQZ%'");
+        $_POST = [];
+        $_GET = [];
+        $_SERVER['REQUEST_METHOD'] = 'GET';
         $this->controller = new AdminController();
         Session::set('admin_user', [
             'id' => 1,
@@ -30,6 +34,9 @@ class AdminQuizCreateTest extends TestCase
     protected function tearDown(): void
     {
         Session::delete('admin_user');
+        $_POST = [];
+        $_GET = [];
+        $_SERVER['REQUEST_METHOD'] = 'GET';
         // Clean up test quizzes
         $this->db->exec("DELETE FROM quizzes WHERE code LIKE 'TESTQZ%'");
     }
@@ -79,7 +86,7 @@ class AdminQuizCreateTest extends TestCase
         $response = $this->controller->quizCreate($request);
 
         // Success redirects to questions page (302)
-        $this->assertSame(302, $response->getStatusCode());
+        $this->assertSame(302, $response->getStatusCode(), "Quiz create failed: " . substr($this->getResponseBody($response), 0, 500));
         $this->assertStringContainsString('/questions', $response->getHeader('Location') ?? '');
 
         // Verify quiz created in database
