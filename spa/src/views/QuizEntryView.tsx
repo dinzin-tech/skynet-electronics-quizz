@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { api, getServerTime } from '../services/api';
-import { QuizStateResponse, StartAttemptResponse, QuizListItem } from '../types';
+import { QuizStateResponse, StartAttemptResponse } from '../types';
 import { Navbar } from '../components/Navbar';
 
 interface QuizEntryViewProps {
@@ -8,32 +8,20 @@ interface QuizEntryViewProps {
   onSelectQuizCode?: (code: string) => void;
   onStartAttempt: (attempt: StartAttemptResponse) => void;
   onResumeAttempt: (attemptId: string) => void;
+  onViewResult?: (attemptId: string) => void;
 }
 
 export const QuizEntryView: React.FC<QuizEntryViewProps> = ({
   quizCode,
-  onSelectQuizCode,
   onStartAttempt,
   onResumeAttempt,
+  onViewResult,
 }) => {
   const [data, setData] = useState<QuizStateResponse | null>(null);
-  const [quizList, setQuizList] = useState<QuizListItem[]>([]);
-  const [activeTab, setActiveTab] = useState<'active' | 'upcoming' | 'previous'>('active');
   const [loading, setLoading] = useState(true);
   const [starting, setStarting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [timeUntilOpenMs, setTimeUntilOpenMs] = useState<number | null>(null);
-
-  const fetchQuizList = async () => {
-    try {
-      const res = await api.getQuizList();
-      if (res && res.quizzes) {
-        setQuizList(res.quizzes);
-      }
-    } catch {
-      // Non-blocking for primary quiz view
-    }
-  };
 
   const fetchState = async () => {
     try {
@@ -56,7 +44,6 @@ export const QuizEntryView: React.FC<QuizEntryViewProps> = ({
   };
 
   useEffect(() => {
-    fetchQuizList();
     fetchState();
   }, [quizCode]);
 
@@ -103,15 +90,17 @@ export const QuizEntryView: React.FC<QuizEntryViewProps> = ({
     }
   };
 
-  const activeQuizzes = quizList.filter((q) => q.category === 'active');
-  const upcomingQuizzes = quizList.filter((q) => q.category === 'upcoming');
-  const previousQuizzes = quizList.filter((q) => q.category === 'previous' || q.category === 'completed');
+  const handleViewResults = () => {
+    if (data?.attempt?.id) {
+      if (onViewResult) {
+        onViewResult(data.attempt.id);
+      } else {
+        onResumeAttempt(data.attempt.id);
+      }
+    }
+  };
 
-  const displayedQuizzes = 
-    activeTab === 'active' ? (activeQuizzes.length > 0 ? activeQuizzes : quizList.filter(q => q.category !== 'upcoming')) :
-    activeTab === 'upcoming' ? upcomingQuizzes : previousQuizzes;
-
-  const formatDate = (ms: number) => {
+  const formatDate = (ms?: number) => {
     if (!ms) return '';
     return new Date(ms).toLocaleDateString(undefined, {
       month: 'short',
@@ -127,7 +116,7 @@ export const QuizEntryView: React.FC<QuizEntryViewProps> = ({
         <Navbar />
         <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '60vh' }}>
           <div style={{ fontSize: '1.125rem', color: 'var(--gray-500)', fontWeight: 600 }}>
-            Loading assessment portal...
+            Loading assessment details...
           </div>
         </div>
       </div>
@@ -135,137 +124,15 @@ export const QuizEntryView: React.FC<QuizEntryViewProps> = ({
   }
 
   const meta = data?.meta;
+  const isTimeExpired = data?.state === 'closed' || (meta?.closes_at_ms ? getServerTime() >= meta.closes_at_ms : false);
+  const isCompleted = data?.state === 'completed' || data?.attempt?.status === 'COMPLETED';
+  const hasAttempt = !!data?.attempt?.id;
 
   return (
     <div style={{ minHeight: '100dvh', background: 'var(--gray-50)', paddingBottom: '3rem' }}>
       <Navbar />
 
       <main style={{ maxWidth: '960px', margin: '2rem auto', padding: '0 1.25rem' }}>
-        {/* PEAK PURSUIT 4.0 Dashboard Quiz Category Tabs & List */}
-        <div className="glass-card" style={{ padding: '1.5rem', marginBottom: '2rem' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '0.75rem' }}>
-            <h3 style={{ fontSize: '1.125rem', fontWeight: 800, color: 'var(--gray-900)' }}>
-              Assigned Assessments
-            </h3>
-            <div style={{ fontSize: '0.8125rem', color: 'var(--gold-primary)', fontWeight: 700 }}>
-              PEAK PURSUIT 4.0 PORTAL
-            </div>
-          </div>
-
-          {/* Tab Selection Bar */}
-          <div style={{
-            display: 'flex',
-            gap: '0.5rem',
-            marginBottom: '1.25rem',
-            borderBottom: '1.5px solid var(--gray-200)',
-            paddingBottom: '0.75rem',
-            overflowX: 'auto',
-          }}>
-            <button
-              onClick={() => setActiveTab('active')}
-              className={`btn ${activeTab === 'active' ? 'btn-primary' : 'btn-secondary'}`}
-              style={{ padding: '0.45rem 1rem', fontSize: '0.875rem', borderRadius: '20px' }}
-            >
-              ⚡ Active Exams ({activeQuizzes.length})
-            </button>
-            <button
-              onClick={() => setActiveTab('upcoming')}
-              className={`btn ${activeTab === 'upcoming' ? 'btn-primary' : 'btn-secondary'}`}
-              style={{ padding: '0.45rem 1rem', fontSize: '0.875rem', borderRadius: '20px' }}
-            >
-              ⏳ Upcoming Exams ({upcomingQuizzes.length})
-            </button>
-            <button
-              onClick={() => setActiveTab('previous')}
-              className={`btn ${activeTab === 'previous' ? 'btn-primary' : 'btn-secondary'}`}
-              style={{ padding: '0.45rem 1rem', fontSize: '0.875rem', borderRadius: '20px' }}
-            >
-              📜 Previous & Completed ({previousQuizzes.length})
-            </button>
-          </div>
-
-          {/* Quiz Cards Grid */}
-          {displayedQuizzes.length === 0 ? (
-            <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--gray-500)', fontSize: '0.9375rem' }}>
-              No {activeTab} assessments found for your profile.
-            </div>
-          ) : (
-            <div style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
-              gap: '1rem',
-            }}>
-              {displayedQuizzes.map((q) => {
-                const isSelected = q.code === quizCode;
-
-                return (
-                  <div
-                    key={q.id}
-                    onClick={() => onSelectQuizCode && onSelectQuizCode(q.code)}
-                    style={{
-                      padding: '1.125rem',
-                      borderRadius: '14px',
-                      border: isSelected ? '2px solid var(--gold-primary)' : '1.5px solid var(--gray-200)',
-                      background: isSelected ? '#fffdf5' : '#ffffff',
-                      boxShadow: isSelected ? '0 4px 14px rgba(212, 175, 55, 0.2)' : 'var(--shadow-sm)',
-                      cursor: 'pointer',
-                      transition: 'all 0.2s ease',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      justifyContent: 'space-between',
-                    }}
-                  >
-                    <div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
-                        <span style={{
-                          background: 'linear-gradient(135deg, #1f0508 0%, #3a080d 100%)',
-                          color: 'var(--gold-primary)',
-                          fontSize: '0.75rem',
-                          fontWeight: 800,
-                          padding: '0.2rem 0.5rem',
-                          borderRadius: '6px',
-                        }}>
-                          {q.code}
-                        </span>
-                        
-                        {q.category === 'active' && (
-                          <span className="sync-indicator sync-synced" style={{ fontSize: '0.75rem' }}>Active Now</span>
-                        )}
-                        {q.category === 'upcoming' && (
-                          <span className="sync-indicator sync-saving" style={{ fontSize: '0.75rem' }}>Opens {formatDate(q.opens_at_ms)}</span>
-                        )}
-                        {(q.category === 'previous' || q.category === 'completed') && (
-                          <span className="sync-indicator sync-offline" style={{ fontSize: '0.75rem' }}>
-                            {q.attempt_status === 'COMPLETED' ? 'Finished' : `Closed ${formatDate(q.closes_at_ms)}`}
-                          </span>
-                        )}
-                      </div>
-
-                      <h4 style={{ fontSize: '1rem', fontWeight: 800, color: 'var(--gray-900)', marginBottom: '0.375rem', lineHeight: 1.3 }}>
-                        {q.title}
-                      </h4>
-                      {q.description && (
-                        <p style={{ fontSize: '0.8125rem', color: 'var(--gray-600)', marginBottom: '0.875rem', lineClamp: 2, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
-                          {q.description}
-                        </p>
-                      )}
-                    </div>
-
-                    <div style={{ paddingTop: '0.75rem', borderTop: '1px solid var(--gray-100)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span style={{ fontSize: '0.75rem', color: 'var(--gray-500)', fontWeight: 600 }}>
-                        ⏱ {Math.round(q.duration_seconds / 60)} mins
-                      </span>
-                      <span style={{ fontSize: '0.8125rem', fontWeight: 700, color: isSelected ? 'var(--primary)' : 'var(--gold-primary)' }}>
-                        {isSelected ? 'Selected ✓' : 'View Details →'}
-                      </span>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-
         {/* Selected Assessment Hero Card */}
         <div className="glass-card" style={{ padding: '2.5rem 2rem' }}>
           {error && (
@@ -370,7 +237,65 @@ export const QuizEntryView: React.FC<QuizEntryViewProps> = ({
 
           {/* Action states */}
           <div style={{ textAlign: 'center', paddingTop: '0.5rem' }}>
-            {data?.state === 'not_open' && (
+            {isCompleted ? (
+              <div style={{
+                padding: '1.75rem',
+                background: 'var(--success-light)',
+                borderRadius: '16px',
+                border: '1.5px solid rgba(16, 185, 129, 0.3)',
+              }}>
+                <div style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.5rem',
+                  fontSize: '1.125rem',
+                  fontWeight: 800,
+                  color: 'var(--success)',
+                  marginBottom: '0.35rem',
+                }}>
+                  <span>✓</span>
+                  <span>{isTimeExpired ? 'Quiz Time Expired — Assessment Completed' : 'Assessment Already Completed'}</span>
+                </div>
+                <p style={{ fontSize: '0.875rem', color: 'var(--gray-600)', marginBottom: hasAttempt ? '1.25rem' : '0' }}>
+                  {isTimeExpired 
+                    ? 'The examination window has expired. Your answers were recorded and finalized.'
+                    : 'Your answers have been submitted and locked.'}
+                </p>
+                {hasAttempt && (
+                  <button
+                    onClick={handleViewResults}
+                    className="btn btn-primary"
+                    style={{ padding: '0.85rem 2rem', fontSize: '1rem' }}
+                  >
+                    📊 View Results
+                  </button>
+                )}
+              </div>
+            ) : isTimeExpired ? (
+              <div style={{
+                padding: '1.75rem',
+                background: 'var(--danger-light)',
+                borderRadius: '16px',
+                border: '1.5px solid rgba(239, 68, 68, 0.25)',
+              }}>
+                <div style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.5rem',
+                  fontSize: '1.25rem',
+                  fontWeight: 800,
+                  color: 'var(--danger)',
+                  marginBottom: '0.35rem',
+                }}>
+                  <span>⏱</span>
+                  <span>Quiz Time Expired</span>
+                </div>
+                <p style={{ fontSize: '0.875rem', color: 'var(--gray-600)', marginTop: '0.25rem' }}>
+                  The examination window for this assessment has expired.
+                  {meta?.closes_at_ms ? ` (Closed: ${formatDate(meta.closes_at_ms)})` : ''}
+                </p>
+              </div>
+            ) : data?.state === 'not_open' ? (
               <div style={{ padding: '1.5rem', background: 'var(--warning-light)', borderRadius: '14px', border: '1px solid rgba(245, 158, 11, 0.3)' }}>
                 <div style={{ fontSize: '1.125rem', fontWeight: 700, color: 'var(--warning)' }}>
                   Assessment Window Opens Soon
@@ -384,20 +309,7 @@ export const QuizEntryView: React.FC<QuizEntryViewProps> = ({
                   The portal will automatically activate when the window opens.
                 </p>
               </div>
-            )}
-
-            {data?.state === 'closed' && (
-              <div style={{ padding: '1.5rem', background: 'var(--gray-100)', borderRadius: '14px' }}>
-                <div style={{ fontSize: '1.125rem', fontWeight: 700, color: 'var(--gray-700)' }}>
-                  Assessment Window Closed
-                </div>
-                <p style={{ fontSize: '0.875rem', color: 'var(--gray-500)', marginTop: '0.375rem' }}>
-                  The examination window for this assessment has expired.
-                </p>
-              </div>
-            )}
-
-            {data?.state === 'ineligible' && (
+            ) : data?.state === 'ineligible' ? (
               <div style={{ padding: '1.5rem', background: 'var(--danger-light)', borderRadius: '14px' }}>
                 <div style={{ fontSize: '1.125rem', fontWeight: 700, color: 'var(--danger)' }}>
                   Enrollment Required
@@ -406,29 +318,7 @@ export const QuizEntryView: React.FC<QuizEntryViewProps> = ({
                   Your employee profile is not enrolled in this assessment group.
                 </p>
               </div>
-            )}
-
-            {data?.state === 'completed' && (
-              <div style={{ padding: '1.5rem', background: 'var(--success-light)', borderRadius: '14px', border: '1px solid rgba(16, 185, 129, 0.3)' }}>
-                <div style={{ fontSize: '1.125rem', fontWeight: 700, color: 'var(--success)' }}>
-                  Assessment Already Completed
-                </div>
-                <p style={{ fontSize: '0.875rem', color: 'var(--gray-600)', marginTop: '0.375rem' }}>
-                  Your answers have been submitted and locked.
-                </p>
-                {data.attempt?.id && (
-                  <button
-                    onClick={handleResume}
-                    className="btn btn-secondary"
-                    style={{ marginTop: '1rem' }}
-                  >
-                    View Results
-                  </button>
-                )}
-              </div>
-            )}
-
-            {data?.state === 'resumable' && (
+            ) : data?.state === 'resumable' ? (
               <div>
                 <button
                   onClick={handleResume}
@@ -438,9 +328,7 @@ export const QuizEntryView: React.FC<QuizEntryViewProps> = ({
                   Resume Assessment
                 </button>
               </div>
-            )}
-
-            {data?.state === 'can_start' && (
+            ) : data?.state === 'can_start' ? (
               <div>
                 <button
                   onClick={handleStart}
@@ -454,12 +342,10 @@ export const QuizEntryView: React.FC<QuizEntryViewProps> = ({
                   The timer begins as soon as you click Start.
                 </div>
               </div>
-            )}
+            ) : null}
           </div>
         </div>
       </main>
     </div>
   );
 };
-
-
