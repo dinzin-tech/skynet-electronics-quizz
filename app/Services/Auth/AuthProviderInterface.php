@@ -7,12 +7,11 @@ namespace App\Services\Auth;
 interface AuthProviderInterface
 {
     /**
-     * Authenticate an employee with given credentials.
+     * Authenticate an employee with given identifier.
      * Supports login by employee_code, email, or username.
      *
      * @param string $identifier employee_code, email, or username
-     * @param string $password Clear-text password
      * @return array<string, mixed>|null User array on success, null on failure
      */
-    public function authenticate(string $identifier, string $password): ?array;
+    public function authenticate(string $identifier): ?array;
 }

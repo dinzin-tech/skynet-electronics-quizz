@@ -25,7 +25,7 @@ class AuthService
         ?string $tokenSecret = null,
         string $tokenKid = 'v1'
     ) {
-        $this->employeeProvider = $employeeProvider ?? new PasswordAuthProvider();
+        $this->employeeProvider = $employeeProvider ?? new EmployeeCodeAuthProvider();
         $this->adminProvider = $adminProvider ?? new AdminAuthProvider();
         $this->tokenSecret = $tokenSecret ?? ($_ENV['APP_SECRET'] ?? '');
         $this->tokenKid = $tokenKid;
@@ -39,9 +39,9 @@ class AuthService
      * Authenticate an employee and issue a signed session token.
      * Pre-window login is allowed with long TTL (default 24h = 86400s).
      */
-    public function loginEmployee(string $identifier, string $password, int $ttlSeconds = 86400): ?array
+    public function loginEmployee(string $identifier, int $ttlSeconds = 86400): ?array
     {
-        $user = $this->employeeProvider->authenticate($identifier, $password);
+        $user = $this->employeeProvider->authenticate($identifier);
         if (!$user) {
             return null;
         }

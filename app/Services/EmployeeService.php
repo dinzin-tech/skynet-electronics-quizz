@@ -117,8 +117,6 @@ class EmployeeService
 
         $this->assertUnique($code, $email, $username);
 
-        $password = $data['password'] ?? 'QuizPass2026!';
-        $passwordHash = password_hash($password, PASSWORD_BCRYPT, ['cost' => 10]);
         $publicId = Ulid::generate();
 
         $this->db->beginTransaction();
@@ -134,7 +132,7 @@ class EmployeeService
                 'name' => $name,
                 'email' => $email,
                 'username' => $username,
-                'hash' => $passwordHash,
+                'hash' => null,
                 'status' => $status,
             ]);
 
@@ -187,11 +185,6 @@ class EmployeeService
                 'status' => $status,
                 'id' => $id,
             ];
-
-            if (!empty($data['password'])) {
-                $query .= ', password_hash = :hash ';
-                $params['hash'] = password_hash($data['password'], PASSWORD_BCRYPT, ['cost' => 10]);
-            }
 
             $query .= 'WHERE id = :id';
             $stmt = $this->db->prepare($query);
