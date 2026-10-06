@@ -19,6 +19,9 @@ use Core\Database;
 use Core\Http\Request;
 use Core\Http\Response;
 use Core\Session;
+use DateTimeImmutable;
+use DateTimeZone;
+use InvalidArgumentException;
 use PDO;
 
 class AdminController extends Controller
@@ -369,12 +372,12 @@ class AdminController extends Controller
 
         if ($request->getMethod() === 'POST') {
             try {
-                $title = trim((string) $request->get('title', ''));
-                $code = strtoupper(trim((string) $request->get('code', '')));
-                $desc = trim((string) $request->get('description', ''));
-                $windowStart = (string) $request->get('window_start', '');
-                $windowEnd = (string) $request->get('window_end', '');
-                $duration = (int) $request->get('duration_minutes', 30);
+                $title = trim((string) ($request->get('title') ?: ($request->getPostData()['title'] ?? ($_POST['title'] ?? ''))));
+                $code = strtoupper(trim((string) ($request->get('code') ?: ($request->getPostData()['code'] ?? ($_POST['code'] ?? '')))));
+                $desc = trim((string) ($request->get('description') ?: ($request->getPostData()['description'] ?? ($_POST['description'] ?? ''))));
+                $windowStart = trim((string) ($request->get('window_start') ?: ($request->getPostData()['window_start'] ?? ($_POST['window_start'] ?? ''))));
+                $windowEnd = trim((string) ($request->get('window_end') ?: ($request->getPostData()['window_end'] ?? ($_POST['window_end'] ?? ''))));
+                $duration = (int) ($request->get('duration_minutes') ?: ($request->getPostData()['duration_minutes'] ?? ($_POST['duration_minutes'] ?? 30)));
 
                 $scoring = [
                     'marks_per_correct' => (float) $request->get('marks_per_correct', 1.0),
@@ -391,8 +394,12 @@ class AdminController extends Controller
                     'randomize_options' => (bool) $request->get('randomize_options', false),
                 ];
 
-                $startUtc = gmdate('Y-m-d H:i:s', strtotime($windowStart));
-                $endUtc = gmdate('Y-m-d H:i:s', strtotime($windowEnd));
+                $startUtc = $this->parseWindowDateTime($windowStart, 'Window Start');
+                $endUtc = $this->parseWindowDateTime($windowEnd, 'Window End');
+
+                if ($endUtc <= $startUtc) {
+                    throw new InvalidArgumentException('Quiz window end time must be after start time. Please correct the dates and try again.');
+                }
 
                 $targetAudience = (string) $request->get('target_audience', 'all');
                 $selectedGroups = (array) $request->get('target_groups', []);
@@ -421,7 +428,12 @@ class AdminController extends Controller
                 Session::set('flash_success', 'Quiz created successfully. Now add questions below before publishing.');
                 return $this->redirect("/admin/quizzes/{$created['id']}/questions");
             } catch (\Throwable $e) {
-                $groups = $this->db->query('SELECT id, name, description FROM `groups` ORDER BY name ASC')->fetchAll(PDO::FETCH_ASSOC);
+                $groups = [];
+                try {
+                    $groups = $this->db->query('SELECT id, name, description FROM `groups` ORDER BY name ASC')->fetchAll(PDO::FETCH_ASSOC);
+                } catch (\Throwable $ignored) {
+                    $groups = [];
+                }
                 return $this->render('admin/quizzes/form.html.twig', [
                     'admin' => $this->getAdminUser(),
                     'current_route' => 'quizzes',
@@ -827,5 +839,47 @@ class AdminController extends Controller
             'Content-Type' => 'text/csv',
             'Content-Disposition' => 'attachment; filename="' . $fileName . '"',
         ]);
+    }
+
+    /**
+     * Parse a datetime string from the form and convert it to UTC 'Y-m-d H:i:s'.
+     */
+    private function parseWindowDateTime(string $datetime, string $fieldName = 'Window date'): string
+    {
+        $datetime = trim($datetime);
+        if ($datetime === '') {
+            throw new InvalidArgumentException("{$fieldName} is required.");
+        }
+
+        $companyTz = new DateTimeZone($_ENV['COMPANY_TZ'] ?? 'Asia/Kolkata');
+        $utcTz = new DateTimeZone('UTC');
+
+        // Check common format strings first
+        $formats = [
+            'Y-m-d\TH:i:s',
+            'Y-m-d\TH:i',
+            'Y-m-d H:i:s',
+            'Y-m-d H:i',
+            'd/m/Y H:i:s',
+            'd/m/Y H:i',
+            'd-m-Y H:i:s',
+            'd-m-Y H:i',
+        ];
+
+        foreach ($formats as $fmt) {
+            $dt = DateTimeImmutable::createFromFormat($fmt, $datetime, $companyTz);
+            if ($dt !== false) {
+                return $dt->setTimezone($utcTz)->format('Y-m-d H:i:s');
+            }
+        }
+
+        try {
+            $dt = new DateTimeImmutable($datetime, $companyTz);
+            return $dt->setTimezone($utcTz)->format('Y-m-d H:i:s');
+        } catch (\Throwable $e) {
+            throw new InvalidArgumentException(
+                "Invalid format for {$fieldName}: '{$datetime}'. Expected YYYY-MM-DD HH:MM."
+            );
+        }
     }
 }
