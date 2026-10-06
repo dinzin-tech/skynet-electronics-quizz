@@ -34,17 +34,17 @@
         </div>
 
         <h3 style="font-size: 1.1rem; font-weight: 600; margin: 24px 0 16px 0; border-bottom: 1px solid var(--border-color); padding-bottom: 8px;">
-            Window & Timing (Asia/Kolkata Display, Stored in UTC)
+            Window & Timing ({{ company_tz }} Display, Stored in UTC)
         </h3>
 
         <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px;">
             <div class="form-group">
                 <label class="form-label" for="window_start">Window Start *</label>
-                <input type="datetime-local" id="window_start" name="window_start" required class="form-control" value="{{ old.window_start|default(quiz ? quiz.start_at|date('Y-m-d\\TH:i') : '') }}">
+                <input type="datetime-local" id="window_start" name="window_start" required class="form-control" value="{{ old.window_start|default(quiz ? quiz.start_at|company_input_date : '') }}">
             </div>
             <div class="form-group">
                 <label class="form-label" for="window_end">Window End *</label>
-                <input type="datetime-local" id="window_end" name="window_end" required class="form-control" value="{{ old.window_end|default(quiz ? quiz.end_at|date('Y-m-d\\TH:i') : '') }}">
+                <input type="datetime-local" id="window_end" name="window_end" required class="form-control" value="{{ old.window_end|default(quiz ? quiz.end_at|company_input_date : '') }}">
             </div>
             <div class="form-group">
                 <label class="form-label" for="duration_minutes">Duration (Minutes) *</label>

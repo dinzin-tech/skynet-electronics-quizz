@@ -49,8 +49,8 @@
                     </td>
                     <td>
                         <div style="font-size: 0.85rem;">
-                            <strong>Start:</strong> {{ q.start_at|date('d M Y h:i A') }}<br>
-                            <strong>End:</strong> {{ q.end_at|date('d M Y h:i A') }}
+                            <strong>Start:</strong> {{ q.start_at|company_date('d M Y, h:i A') }}<br>
+                            <strong>End:</strong> {{ q.end_at|company_date('d M Y, h:i A') }}
                         </div>
                     </td>
                     <td>{{ q.duration_minutes }} mins</td>

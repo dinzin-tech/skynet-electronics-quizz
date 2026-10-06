@@ -151,6 +151,8 @@ class ReportExportService
             throw new RuntimeException("Cannot open output file: {$outputPath}");
         }
 
+        $tzName = TimeHelper::getCompanyTimezone()->getName();
+
         // Header row
         fputcsv($handle, [
             'Attempt ID',
@@ -162,8 +164,8 @@ class ReportExportService
             'Score',
             'Accuracy (%)',
             'Completion Time (s)',
-            'Started At (UTC)',
-            'Submitted At (UTC)',
+            "Started At ({$tzName})",
+            "Submitted At ({$tzName})",
         ]);
 
         $quizId = isset($filters['quiz_id']) ? (int) $filters['quiz_id'] : null;
@@ -220,8 +222,8 @@ class ReportExportService
                     self::sanitizeCell($row['score'] !== null ? (string) $row['score'] : ''),
                     self::sanitizeCell($row['accuracy'] !== null ? (string) $row['accuracy'] : ''),
                     self::sanitizeCell($row['completion_time_s'] !== null ? (string) $row['completion_time_s'] : ''),
-                    self::sanitizeCell($row['started_at']),
-                    self::sanitizeCell($row['submitted_at']),
+                    self::sanitizeCell($row['started_at'] ? TimeHelper::toCompanyTz($row['started_at'], 'd M Y, h:i A') : ''),
+                    self::sanitizeCell($row['submitted_at'] ? TimeHelper::toCompanyTz($row['submitted_at'], 'd M Y, h:i A') : ''),
                 ]);
                 $totalExported++;
                 $lastId = (int) $row['id'];

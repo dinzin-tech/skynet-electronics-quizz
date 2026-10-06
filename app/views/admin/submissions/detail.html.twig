@@ -23,7 +23,7 @@
         <div>
             <div style="font-size: 0.8rem; color: #64748b; text-transform: uppercase;">Status</div>
             <strong style="font-size: 1rem;">{{ attempt.status }}</strong>
-            <div style="font-size: 0.85rem; color: #64748b;">Graded: {{ attempt.graded_at|default('No') }}</div>
+            <div style="font-size: 0.85rem; color: #64748b;">Graded: {{ attempt.graded_at ? attempt.graded_at|company_date('d M Y, h:i A') : 'No' }}</div>
         </div>
         <div>
             <div style="font-size: 0.8rem; color: #64748b; text-transform: uppercase;">Score / Accuracy</div>
@@ -45,7 +45,7 @@
                     <th>Selected Option ID</th>
                     <th>Result</th>
                     <th>Sequence #</th>
-                    <th>Answered At</th>
+                    <th>Answered At ({{ company_tz }})</th>
                 </tr>
             </thead>
             <tbody>
@@ -71,7 +71,7 @@
                         {% endif %}
                     </td>
                     <td>{{ ans.seq }}</td>
-                    <td>{{ ans.answered_at }}</td>
+                    <td>{{ ans.answered_at ? ans.answered_at|company_date('d M Y, h:i:s A') : '—' }}</td>
                 </tr>
                 {% else %}
                 <tr>

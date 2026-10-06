@@ -39,7 +39,7 @@
             </div>
             <p style="font-size: 0.875rem; color: #64748b; margin: 0 0 6px 0;">
                 Duration: {{ (quiz.duration_seconds / 60)|round }} mins &bull; 
-                Window: {{ quiz.start_at|date('Y-m-d H:i') }} to {{ quiz.end_at|date('Y-m-d H:i') }} UTC &bull; 
+                Window: {{ quiz.start_at|company_date('d M Y, h:i A') }} to {{ quiz.end_at|company_date('d M Y, h:i A') }} ({{ company_tz }}) &bull; 
                 Total Questions: <strong id="total-questions-count">{{ questions|length }}</strong>
             </p>
             <p style="font-size: 0.85rem; color: #475569; margin: 0;">

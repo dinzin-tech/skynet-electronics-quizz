@@ -36,7 +36,7 @@
                     <th>Email</th>
                     <th>Status</th>
                     <th>Groups</th>
-                    <th>Created</th>
+                    <th>Created ({{ company_tz }})</th>
                 </tr>
             </thead>
             <tbody>
@@ -59,7 +59,7 @@
                             <span style="color: #94a3b8;">—</span>
                         {% endif %}
                     </td>
-                    <td>{{ emp.created_at|date('Y-m-d H:i') }}</td>
+                    <td>{{ emp.created_at ? emp.created_at|company_date('d M Y, h:i A') : '—' }}</td>
                 </tr>
                 {% else %}
                 <tr>
