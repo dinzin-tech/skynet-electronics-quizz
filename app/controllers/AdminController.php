@@ -90,18 +90,23 @@ class AdminController extends Controller
 
         $error = null;
         if ($request->getMethod() === 'POST') {
-            $username = trim((string) ($request->input('username') ?? $request->get('username', '')));
-            $password = (string) ($request->input('password') ?? $request->get('password', ''));
+            $username = trim((string) ($request->get('username') ?: ($_POST['username'] ?? '')));
+            $password = (string) ($request->get('password') ?: ($_POST['password'] ?? ''));
 
             if ($username === '' || $password === '') {
                 $error = 'Please provide username/email and password';
             } else {
-                $result = $this->authService->loginAdmin($username, $password);
-                if ($result) {
-                    Session::set('admin_user', $result['admin'] ?? $result['user'] ?? $result);
-                    return $this->redirect('/admin/dashboard');
+                try {
+                    $result = $this->authService->loginAdmin($username, $password);
+                    if ($result) {
+                        Session::set('admin_user', $result['admin'] ?? $result['user'] ?? $result);
+                        return $this->redirect('/admin/dashboard');
+                    }
+                    $error = 'Invalid credentials or access denied';
+                } catch (\Throwable $e) {
+                    error_log('Admin login error: ' . $e->getMessage());
+                    $error = 'Login error: ' . $e->getMessage();
                 }
-                $error = 'Invalid credentials or access denied';
             }
         }
 
