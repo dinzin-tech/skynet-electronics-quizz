@@ -32,9 +32,10 @@ if [ "$(id -u)" -ne 0 ]; then
 fi
 
 echo ">>> [1/7] Fetching and updating git branch: $TARGET_BRANCH..."
+git reset --hard HEAD
 git fetch origin "$TARGET_BRANCH"
-git checkout "$TARGET_BRANCH"
-git pull origin "$TARGET_BRANCH"
+git checkout -f "$TARGET_BRANCH"
+git reset --hard "origin/$TARGET_BRANCH"
 
 echo ">>> [2/7] Installing production PHP dependencies via Composer..."
 composer install --no-dev --optimize-autoloader --no-interaction --quiet
