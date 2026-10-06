@@ -95,6 +95,9 @@ class SecurityAuditTest extends TestCase
         }
 
         $files = glob("{$bundleDir}/*.json");
+        if (empty($files)) {
+            $this->markTestSkipped('No pre-generated quiz bundles found in storage/bundles to audit.');
+        }
         foreach ($files as $file) {
             $content = (string) file_get_contents($file);
             $this->assertStringNotContainsString(

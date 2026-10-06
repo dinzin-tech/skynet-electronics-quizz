@@ -36,6 +36,16 @@ class Composer
     {
         echo "Running post-install tasks...\n";
 
+        // Create storage directory structure if it doesn't exist
+        if (!is_dir('storage')) {
+            mkdir('storage', 0755, true);
+        }
+        foreach (['logs', 'cache', 'bundles'] as $sub) {
+            if (!is_dir("storage/{$sub}")) {
+                mkdir("storage/{$sub}", 0755, true);
+            }
+        }
+
         // Set file permissions
         chmod('storage', 0755);
         echo "Storage directory permissions set.\n";

@@ -1,0 +1,64 @@
+name: Deploy to Self-Hosted Production
+
+on:
+  push:
+    branches: [ master ]
+  workflow_dispatch:
+    inputs:
+      deploy_method:
+        description: 'Deployment execution method (ssh or self-hosted)'
+        required: true
+        default: 'ssh'
+        type: choice
+        options:
+          - 'ssh'
+          - 'self-hosted'
+      target_branch:
+        description: 'Branch to deploy'
+        required: false
+        default: 'master'
+
+concurrency:
+  group: production-deployment
+  cancel-in-progress: false
+
+jobs:
+  # ============================================================================
+  # Method 1: Deploy via SSH (GitHub-hosted runner connects remotely to VPS)
+  # ============================================================================
+  deploy-via-ssh:
+    name: Deploy via SSH (GitHub Runner)
+    runs-on: ubuntu-latest
+    if: |
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.deploy_method == 'ssh') ||
+      (github.event_name == 'push' && (vars.DEPLOY_METHOD != 'self-hosted'))
+    steps:
+      - name: Deploy remotely via SSH
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ secrets.SERVER_PORT || 22 }}
+          script_stop: true
+          envs: TARGET_BRANCH
+          script: |
+            TARGET_BRANCH="${{ github.event.inputs.target_branch || 'master' }}"
+            echo ">>> Executing deployment for branch: $TARGET_BRANCH"
+            /var/www/corpquiz/ops/deploy.sh "$TARGET_BRANCH"
+
+  # ============================================================================
+  # Method 2: Deploy via Self-Hosted Runner (Runs directly on target VPS)
+  # ============================================================================
+  deploy-via-self-hosted:
+    name: Deploy via Self-Hosted Runner
+    runs-on: self-hosted
+    if: |
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.deploy_method == 'self-hosted') ||
+      (github.event_name == 'push' && vars.DEPLOY_METHOD == 'self-hosted')
+    steps:
+      - name: Trigger deployment locally on server
+        run: |
+          TARGET_BRANCH="${{ github.event.inputs.target_branch || 'master' }}"
+          echo ">>> Executing local deployment on VPS runner for branch: $TARGET_BRANCH"
+          /var/www/corpquiz/ops/deploy.sh "$TARGET_BRANCH"

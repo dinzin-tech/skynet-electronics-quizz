@@ -2,6 +2,7 @@
     "name": "dinzin-tech/simple-mvc-app",
     "description": "Repo to create Simple MVC App",
     "type": "project",
+    "license": "proprietary",
     "minimum-stability": "dev",
     "prefer-stable": true,
     "authors": [

@@ -184,6 +184,7 @@ corp-quizz-app/
     │   ├── ACCEPTANCE.md          # Acceptance test matrix (DEV-01 to DEV-23)
     │   ├── ASSUMPTIONS.md         # Documented client assumptions and defaults
     │   ├── AUDIT.md               # Framework audit and benchmark notes
+    │   ├── CICD.md                # GitHub Actions CI/CD pipeline setup guide
     │   └── RUNBOOK.md             # Operational runbook and disaster recovery procedures
     ├── ops/                       # Server configuration & deployment
     │   ├── mysql/                 # MySQL tuning (buffer pool, transactions)

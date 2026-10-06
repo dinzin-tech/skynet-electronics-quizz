@@ -35,6 +35,12 @@ class QuizFinalizerCommand
         echo "QuizFinalizer started" . ($once ? " (single pass)" : " (daemon mode)") . "...\n";
 
         do {
+            try {
+                $redis->setEx('worker:heartbeat:finalizer', 30, (string) time());
+            } catch (\Throwable $e) {
+                // Ignore transient heartbeat failure
+            }
+
             $gradedCount = $this->finalizeBatch($redis, 100);
             if ($gradedCount > 0) {
                 echo "[Finalizer] Graded and finalized {$gradedCount} attempt(s).\n";
