@@ -34,49 +34,62 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess, defaultQui
 
   return (
     <div style={{
-      minHeight: '100vh',
+      minHeight: '100dvh',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
-      padding: '1.5rem',
-      background: 'linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%)',
+      padding: '1.25rem',
+      background: 'linear-gradient(135deg, #120306 0%, #2b080c 45%, #150204 100%)',
+      position: 'relative',
+      overflow: 'hidden',
     }}>
-      <div className="glass-card" style={{ width: '100%', maxWidth: '440px', padding: '2.5rem' }}>
-        <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
-          <div style={{
-            width: '48px',
-            height: '48px',
-            borderRadius: '12px',
-            background: 'var(--primary)',
-            color: '#ffffff',
-            display: 'inline-flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            fontWeight: 800,
-            fontSize: '1.5rem',
-            marginBottom: '1rem',
-            boxShadow: '0 4px 14px rgba(79, 70, 229, 0.4)',
+      {/* Subtle background glow element */}
+      <div style={{
+        position: 'absolute',
+        width: '500px',
+        height: '500px',
+        borderRadius: '50%',
+        background: 'radial-gradient(circle, rgba(212, 175, 55, 0.12) 0%, rgba(139, 0, 0, 0) 70%)',
+        top: '-100px',
+        right: '-100px',
+        pointerEvents: 'none',
+      }} />
+
+      <div className="glass-card-dark" style={{ width: '100%', maxWidth: '440px', padding: '2.5rem 2rem' }}>
+        <div style={{ textAlign: 'center', marginBottom: '1.75rem' }}>
+          <img 
+            src="/app/logo.png" 
+            alt="PEAK PURSUIT 4.0" 
+            className="login-logo-img"
+            onError={(e) => {
+              (e.target as HTMLImageElement).src = '/logo.png';
+            }}
+          />
+          <h2 style={{ 
+            fontSize: '1.375rem', 
+            fontWeight: 800, 
+            background: 'var(--gold-gradient)',
+            WebkitBackgroundClip: 'text',
+            WebkitTextFillColor: 'transparent',
+            letterSpacing: '0.02em',
           }}>
-            Q
-          </div>
-          <h2 style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--gray-900)' }}>
-            Corporate Assessment Portal
+            EMPLOYEE ASSESSMENT PORTAL
           </h2>
-          <p style={{ fontSize: '0.875rem', color: 'var(--gray-500)', marginTop: '0.375rem' }}>
-            Sign in to start or resume your assigned assessment
+          <p style={{ fontSize: '0.8125rem', color: 'rgba(255,255,255,0.7)', marginTop: '0.375rem' }}>
+            Sign in with your employee credentials to start your exam
           </p>
         </div>
 
         {error && (
           <div style={{
             padding: '0.75rem 1rem',
-            background: 'var(--danger-light)',
-            color: 'var(--danger)',
+            background: 'rgba(239, 68, 68, 0.15)',
+            color: '#fca5a5',
             borderRadius: '10px',
             fontSize: '0.875rem',
             fontWeight: 500,
             marginBottom: '1.5rem',
-            border: '1px solid rgba(239, 68, 68, 0.2)',
+            border: '1px solid rgba(239, 68, 68, 0.3)',
           }}>
             {error}
           </div>
@@ -84,12 +97,13 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess, defaultQui
 
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
           <div>
-            <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 600, color: 'var(--gray-700)', marginBottom: '0.375rem' }}>
+            <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 700, color: 'var(--gold-primary)', marginBottom: '0.375rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
               Employee Identifier
             </label>
             <input
               type="text"
               className="form-input"
+              style={{ background: 'rgba(255,255,255,0.95)', border: '1px solid rgba(212, 175, 55, 0.3)' }}
               placeholder="e.g. EMP0001 or email@corp.local"
               value={login}
               onChange={(e) => setLogin(e.target.value)}
@@ -99,12 +113,13 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess, defaultQui
           </div>
 
           <div>
-            <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 600, color: 'var(--gray-700)', marginBottom: '0.375rem' }}>
+            <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 700, color: 'var(--gold-primary)', marginBottom: '0.375rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
               Password
             </label>
             <input
               type="password"
               className="form-input"
+              style={{ background: 'rgba(255,255,255,0.95)', border: '1px solid rgba(212, 175, 55, 0.3)' }}
               placeholder="••••••••••••"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
@@ -115,7 +130,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess, defaultQui
           <button
             type="submit"
             className="btn btn-primary"
-            style={{ width: '100%', padding: '0.875rem', marginTop: '0.5rem' }}
+            style={{ width: '100%', padding: '0.875rem', marginTop: '0.5rem', fontSize: '1rem' }}
             disabled={loading}
           >
             {loading ? 'Authenticating...' : 'Sign In to Assessment'}
@@ -123,11 +138,12 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess, defaultQui
         </form>
 
         {defaultQuizCode && (
-          <div style={{ marginTop: '1.5rem', textAlign: 'center', fontSize: '0.8125rem', color: 'var(--gray-500)' }}>
-            Direct access link for quiz: <strong style={{ color: 'var(--gray-700)' }}>{defaultQuizCode}</strong>
+          <div style={{ marginTop: '1.75rem', textAlign: 'center', fontSize: '0.8125rem', color: 'rgba(255,255,255,0.6)' }}>
+            Assessment Code: <strong style={{ color: 'var(--gold-primary)' }}>{defaultQuizCode}</strong>
           </div>
         )}
       </div>
     </div>
   );
 };
+

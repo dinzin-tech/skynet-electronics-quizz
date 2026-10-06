@@ -87,8 +87,8 @@ class AdminController extends Controller
 
         $error = null;
         if ($request->getMethod() === 'POST') {
-            $username = trim((string) $request->get('username', ''));
-            $password = (string) $request->get('password', '');
+            $username = trim((string) ($request->input('username') ?? $request->get('username', '')));
+            $password = (string) ($request->input('password') ?? $request->get('password', ''));
 
             if ($username === '' || $password === '') {
                 $error = 'Please provide username/email and password';

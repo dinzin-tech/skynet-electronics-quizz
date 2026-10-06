@@ -81,6 +81,66 @@ $router->get('/api/time', function (array $params, array $config, mixed $redis, 
     ], $nowMs);
 });
 
+// 1b. GET /api/quiz/list (List all assigned, active, upcoming, and previous quizzes)
+$router->get('/api/quiz/list', function (array $params, array $config, mixed $redis, int $nowMs): void {
+    $claims = getHotAuth($config, $nowMs);
+    if (!$claims) {
+        return;
+    }
+
+    $uid = (string) $claims['uid'];
+
+    $pdo = \Core\Database::getInstance()->getConnection();
+    $stmt = $pdo->prepare(
+        'SELECT id, code, title, description, duration_seconds, ' .
+        'UNIX_TIMESTAMP(start_at) * 1000 AS start_ms, UNIX_TIMESTAMP(end_at) * 1000 AS end_ms, status ' .
+        'FROM quizzes WHERE status = "published" ORDER BY start_at DESC'
+    );
+    $stmt->execute();
+    $quizzes = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+
+    $items = [];
+    foreach ($quizzes as $q) {
+        $quizId = (int) $q['id'];
+        $aid = $redis->hGet("qa:{$quizId}", $uid);
+        
+        $attStatus = 'NOT_STARTED';
+        if ($aid) {
+            $attStatus = $redis->hGet("att:{$aid}", 'status') ?: 'NOT_STARTED';
+        }
+
+        $startMs = (int) $q['start_ms'];
+        $endMs = (int) $q['end_ms'];
+
+        $category = 'active';
+        if ($attStatus === 'COMPLETED') {
+            $category = 'completed';
+        } elseif ($nowMs < $startMs) {
+            $category = 'upcoming';
+        } elseif ($nowMs > $endMs) {
+            $category = 'previous';
+        }
+
+        $items[] = [
+            'id' => $quizId,
+            'code' => $q['code'],
+            'title' => $q['title'],
+            'description' => $q['description'] ?? '',
+            'duration_seconds' => (int) $q['duration_seconds'],
+            'opens_at_ms' => $startMs,
+            'closes_at_ms' => $endMs,
+            'attempt_status' => $attStatus,
+            'attempt_id' => $aid ?: null,
+            'category' => $category,
+        ];
+    }
+
+    HotRouter::json(200, [
+        'quizzes' => $items,
+        'server_now_ms' => $nowMs,
+    ], $nowMs);
+});
+
 // 2. GET /api/quiz/{code} (Quiz metadata and employee attempt status)
 $router->get('/api/quiz/{code}', function (array $params, array $config, mixed $redis, int $nowMs): void {
     $claims = getHotAuth($config, $nowMs);
