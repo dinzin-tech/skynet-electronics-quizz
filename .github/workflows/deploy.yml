@@ -2,7 +2,7 @@ name: Deploy to Self-Hosted Production
 
 on:
   push:
-    branches: [ master ]
+    branches: [ master, dev ]
   workflow_dispatch:
     inputs:
       deploy_method:
@@ -43,9 +43,10 @@ jobs:
           script_stop: true
           envs: TARGET_BRANCH
           script: |
-            TARGET_BRANCH="${{ github.event.inputs.target_branch || 'master' }}"
+            TARGET_BRANCH="${{ github.event.inputs.target_branch || github.ref_name || 'master' }}"
             echo ">>> Executing deployment for branch: $TARGET_BRANCH"
-            /var/www/corpquiz/ops/deploy.sh "$TARGET_BRANCH"
+            chmod +x /var/www/corpquiz/ops/deploy.sh 2>/dev/null || true
+            bash /var/www/corpquiz/ops/deploy.sh "$TARGET_BRANCH"
 
   # ============================================================================
   # Method 2: Deploy via Self-Hosted Runner (Runs directly on target VPS)
@@ -59,6 +60,7 @@ jobs:
     steps:
       - name: Trigger deployment locally on server
         run: |
-          TARGET_BRANCH="${{ github.event.inputs.target_branch || 'master' }}"
+          TARGET_BRANCH="${{ github.event.inputs.target_branch || github.ref_name || 'master' }}"
           echo ">>> Executing local deployment on VPS runner for branch: $TARGET_BRANCH"
-          /var/www/corpquiz/ops/deploy.sh "$TARGET_BRANCH"
+          chmod +x /var/www/corpquiz/ops/deploy.sh 2>/dev/null || true
+          bash /var/www/corpquiz/ops/deploy.sh "$TARGET_BRANCH"
