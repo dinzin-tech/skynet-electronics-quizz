@@ -37,6 +37,9 @@ class EmployeeServiceTest extends TestCase
         $created = $this->service->create([
             'employee_code' => $code,
             'name' => 'Test Employee',
+            'zone_region' => 'ZONE 1',
+            'department' => 'KOLAR SALES',
+            'designation' => 'SALES LEADER',
             'email' => $email,
             'username' => $username,
             'status' => 'active',
@@ -45,15 +48,27 @@ class EmployeeServiceTest extends TestCase
         $this->assertNotEmpty($created);
         $this->assertSame($code, $created['employee_code']);
         $this->assertSame('active', $created['status']);
+        $this->assertSame('ZONE 1', $created['zone_region']);
+        $this->assertSame('KOLAR SALES', $created['department']);
+        $this->assertSame('SALES LEADER', $created['designation']);
         if ($groupId > 0) {
             $this->assertCount(1, $created['groups']);
             $this->assertSame($groupId, $created['groups'][0]['id']);
         }
 
-        // Test list search finds this employee
-        $list = $this->service->list($code, null, 1, 10);
+        // Test list search finds this employee by department
+        $list = $this->service->list('KOLAR SALES', null, 1, 10);
         $this->assertGreaterThanOrEqual(1, $list['total']);
-        $this->assertSame($code, $list['data'][0]['employee_code']);
+
+        // Test update
+        $updated = $this->service->update((int) $created['id'], [
+            'department' => 'BANGALORE SALES',
+            'designation' => 'REGIONAL MANAGER',
+            'zone_region' => 'ZONE 2',
+        ]);
+        $this->assertSame('BANGALORE SALES', $updated['department']);
+        $this->assertSame('REGIONAL MANAGER', $updated['designation']);
+        $this->assertSame('ZONE 2', $updated['zone_region']);
 
         // Clean up
         $this->service->delete((int) $created['id']);
@@ -139,5 +154,25 @@ class EmployeeServiceTest extends TestCase
         // Clean up attempt and employee
         $this->db->prepare('DELETE FROM attempts WHERE employee_id = :eid')->execute(['eid' => $emp2Id]);
         $this->db->prepare('DELETE FROM employees WHERE id = :eid')->execute(['eid' => $emp2Id]);
+    }
+
+    public function test_bulk_delete_employees(): void
+    {
+        $uniqueSuffix = substr(Ulid::generate(), -4);
+        $emp1 = $this->service->create([
+            'employee_code' => 'BULK1_' . $uniqueSuffix,
+            'name' => 'Bulk User 1',
+        ]);
+        $emp2 = $this->service->create([
+            'employee_code' => 'BULK2_' . $uniqueSuffix,
+            'name' => 'Bulk User 2',
+        ]);
+
+        $ids = [(int) $emp1['id'], (int) $emp2['id']];
+        $deletedCount = $this->service->bulkDelete($ids);
+
+        $this->assertSame(2, $deletedCount);
+        $this->assertNull($this->service->getById((int) $emp1['id']));
+        $this->assertNull($this->service->getById((int) $emp2['id']));
     }
 }

@@ -200,6 +200,14 @@ class AdminController extends Controller
 
         $totalPages = (int) ceil(($result['total'] ?? 0) / $limit);
 
+        $groupsStmt = $this->db->query('SELECT id, name FROM `groups` ORDER BY name ASC');
+        $groups = $groupsStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+        $success = Session::get('flash_success');
+        $error = Session::get('flash_error');
+        Session::delete('flash_success');
+        Session::delete('flash_error');
+
         return $this->render('admin/employees/index.html.twig', [
             'admin' => $this->getAdminUser(),
             'current_route' => 'employees',
@@ -208,6 +216,238 @@ class AdminController extends Controller
             'current_page' => $page,
             'total_pages' => max(1, $totalPages),
             'search' => $search,
+            'groups' => $groups,
+            'success' => $success,
+            'error' => $error,
+        ]);
+    }
+
+    /**
+     * @Route(path="/admin/employees/create", methods="GET,POST", name="admin.employees.create")
+     */
+    public function employeeCreate(Request $request): Response
+    {
+        if ($authRedirect = $this->requireAdmin()) {
+            return $authRedirect;
+        }
+
+        $groupsStmt = $this->db->query('SELECT id, name FROM `groups` ORDER BY name ASC');
+        $groups = $groupsStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+        if (strtoupper($request->getMethod()) === 'POST') {
+            $code = trim((string) ($request->input('employee_code') ?? $_POST['employee_code'] ?? ''));
+            $name = trim((string) ($request->input('name') ?? $_POST['name'] ?? ''));
+            $zoneRegion = trim((string) ($request->input('zone_region') ?? $_POST['zone_region'] ?? ''));
+            $department = trim((string) ($request->input('department') ?? $_POST['department'] ?? ''));
+            $designation = trim((string) ($request->input('designation') ?? $_POST['designation'] ?? ''));
+            $email = trim((string) ($request->input('email') ?? $_POST['email'] ?? ''));
+            $status = trim((string) ($request->input('status') ?? $_POST['status'] ?? 'active'));
+            $groupIds = array_map('intval', (array) ($request->input('group_ids') ?? $_POST['group_ids'] ?? []));
+
+            try {
+                $this->employeeService->create([
+                    'employee_code' => $code,
+                    'name' => $name,
+                    'zone_region' => $zoneRegion,
+                    'department' => $department,
+                    'designation' => $designation,
+                    'email' => $email,
+                    'status' => in_array($status, ['active', 'inactive'], true) ? $status : 'active',
+                ], $groupIds);
+
+                Session::set('flash_success', "Employee '{$name}' ({$code}) created successfully.");
+                return $this->redirect('/admin/employees');
+            } catch (\Throwable $e) {
+                return $this->render('admin/employees/form.html.twig', [
+                    'admin' => $this->getAdminUser(),
+                    'current_route' => 'employees',
+                    'groups' => $groups,
+                    'employee' => null,
+                    'error' => $e->getMessage(),
+                    'old' => [
+                        'employee_code' => $code,
+                        'name' => $name,
+                        'zone_region' => $zoneRegion,
+                        'department' => $department,
+                        'designation' => $designation,
+                        'email' => $email,
+                        'status' => $status,
+                        'group_ids' => $groupIds,
+                    ],
+                ]);
+            }
+        }
+
+        return $this->render('admin/employees/form.html.twig', [
+            'admin' => $this->getAdminUser(),
+            'current_route' => 'employees',
+            'groups' => $groups,
+            'employee' => null,
+            'old' => null,
+        ]);
+    }
+
+    /**
+     * @Route(path="/admin/employees/{id}/edit", methods="GET,POST", name="admin.employees.edit")
+     */
+    public function employeeEdit(Request $request, string $id): Response
+    {
+        if ($authRedirect = $this->requireAdmin()) {
+            return $authRedirect;
+        }
+
+        $empId = (int) $id;
+        $employee = $this->employeeService->getById($empId);
+        if (!$employee) {
+            Session::set('flash_error', 'Employee not found');
+            return $this->redirect('/admin/employees');
+        }
+
+        $groupsStmt = $this->db->query('SELECT id, name FROM `groups` ORDER BY name ASC');
+        $groups = $groupsStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+        if (strtoupper($request->getMethod()) === 'POST') {
+            $code = trim((string) ($request->input('employee_code') ?? $_POST['employee_code'] ?? ''));
+            $name = trim((string) ($request->input('name') ?? $_POST['name'] ?? ''));
+            $zoneRegion = trim((string) ($request->input('zone_region') ?? $_POST['zone_region'] ?? ''));
+            $department = trim((string) ($request->input('department') ?? $_POST['department'] ?? ''));
+            $designation = trim((string) ($request->input('designation') ?? $_POST['designation'] ?? ''));
+            $email = trim((string) ($request->input('email') ?? $_POST['email'] ?? ''));
+            $status = trim((string) ($request->input('status') ?? $_POST['status'] ?? 'active'));
+            $groupIds = array_map('intval', (array) ($request->input('group_ids') ?? $_POST['group_ids'] ?? []));
+
+            try {
+                $this->employeeService->update($empId, [
+                    'employee_code' => $code,
+                    'name' => $name,
+                    'zone_region' => $zoneRegion,
+                    'department' => $department,
+                    'designation' => $designation,
+                    'email' => $email,
+                    'status' => in_array($status, ['active', 'inactive'], true) ? $status : 'active',
+                ], $groupIds);
+
+                Session::set('flash_success', "Employee '{$name}' ({$code}) updated successfully.");
+                return $this->redirect('/admin/employees');
+            } catch (\Throwable $e) {
+                return $this->render('admin/employees/form.html.twig', [
+                    'admin' => $this->getAdminUser(),
+                    'current_route' => 'employees',
+                    'groups' => $groups,
+                    'employee' => $employee,
+                    'error' => $e->getMessage(),
+                    'old' => [
+                        'employee_code' => $code,
+                        'name' => $name,
+                        'zone_region' => $zoneRegion,
+                        'department' => $department,
+                        'designation' => $designation,
+                        'email' => $email,
+                        'status' => $status,
+                        'group_ids' => $groupIds,
+                    ],
+                ]);
+            }
+        }
+
+        return $this->render('admin/employees/form.html.twig', [
+            'admin' => $this->getAdminUser(),
+            'current_route' => 'employees',
+            'groups' => $groups,
+            'employee' => $employee,
+            'old' => null,
+        ]);
+    }
+
+    /**
+     * @Route(path="/admin/employees/{id}/delete", methods="POST", name="admin.employees.delete")
+     */
+    public function employeeDelete(Request $request, string $id): Response
+    {
+        if ($authRedirect = $this->requireAdmin()) {
+            return $authRedirect;
+        }
+
+        $empId = (int) $id;
+        $employee = $this->employeeService->getById($empId);
+        if (!$employee) {
+            Session::set('flash_error', 'Employee not found');
+            return $this->redirect('/admin/employees');
+        }
+
+        try {
+            $this->employeeService->delete($empId);
+            Session::set('flash_success', "Employee '{$employee['name']}' deleted/deactivated successfully.");
+        } catch (\Throwable $e) {
+            Session::set('flash_error', 'Failed to delete employee: ' . $e->getMessage());
+        }
+
+        return $this->redirect('/admin/employees');
+    }
+
+    /**
+     * @Route(path="/admin/employees/bulk-delete", methods="POST", name="admin.employees.bulk_delete")
+     */
+    public function employeeBulkDelete(Request $request): Response
+    {
+        if ($authRedirect = $this->requireAdmin()) {
+            return $authRedirect;
+        }
+
+        $ids = (array) ($request->input('ids') ?? $_POST['ids'] ?? []);
+        $ids = array_filter(array_map('intval', $ids));
+
+        if (empty($ids)) {
+            Session::set('flash_error', 'No employees were selected for deletion.');
+            return $this->redirect('/admin/employees');
+        }
+
+        try {
+            $count = $this->employeeService->bulkDelete($ids);
+            Session::set('flash_success', "Successfully deleted/deactivated {$count} employee(s).");
+        } catch (\Throwable $e) {
+            Session::set('flash_error', 'Bulk delete failed: ' . $e->getMessage());
+        }
+
+        return $this->redirect('/admin/employees');
+    }
+
+    /**
+     * @Route(path="/admin/employees/sample-csv", methods="GET", name="admin.employees.sample_csv")
+     */
+    public function employeeSampleCsv(Request $request): Response
+    {
+        if ($authRedirect = $this->requireAdmin()) {
+            return $authRedirect;
+        }
+
+        $rows = [
+            ['SL NO', 'ZONE/Region', 'EMP CODE', 'EMP NAME', 'DEPARTMENT', 'DESIGNATION'],
+            ['1', 'ZONE 1', '000169', 'AFZAL PASHA', 'KOLAR SALES', 'SALES LEADER'],
+            ['2', 'ZONE 1', '000172', 'SRIDHARA R', 'KOLAR SALES', 'SALES LEADER'],
+            ['3', 'ZONE 1', '000313', 'SUDEEP G V', 'KOLAR SALES', 'COOPERATIVE PROMOTER'],
+            ['4', 'ZONE 1', '000325', 'VINOD KUMAR DV', 'KOLAR SALES', 'OPPO EXPERIENCE CONSULTANT'],
+            ['5', 'ZONE 1', '000227', 'ISMAIL', 'BANGALORE SALES', 'REGIONAL MANAGER'],
+            ['6', 'ZONE 1', '000028', 'SALMAN PASHA', 'BANGALORE SALES', 'OPPO EXPERIENCE CONSULTANT'],
+            ['7', 'ZONE 1', '000450', 'ARIF SHARIFF', 'BANGALORE SALES', 'OPPO EXPERIENCE CONSULTANT'],
+            ['8', 'ZONE 1', '000075', 'MOHAMMED UMAR A', 'KOLAR SALES', 'SALES LEADER'],
+            ['9', 'ZONE 1', '000531', 'SALMAN PASHA', 'KOLAR SALES', 'CITY MANAGER'],
+            ['10', 'ZONE 1', '000107', 'HARSHA R', 'TRAINING', 'TRAINING MANAGER'],
+            ['11', 'ZONE 1', '000109', 'MOHAN U', 'CHANNEL', 'CHANNEL MANAGER'],
+            ['12', 'ZONE 1', '000155', 'SYED JUNAID', 'BRANDING', 'BRANDING EXECUTIVE'],
+        ];
+
+        $handle = fopen('php://memory', 'r+');
+        foreach ($rows as $row) {
+            fputcsv($handle, $row);
+        }
+        rewind($handle);
+        $csvContent = stream_get_contents($handle);
+        fclose($handle);
+
+        return new Response((string) $csvContent, 200, [
+            'Content-Type' => 'text/csv',
+            'Content-Disposition' => 'attachment; filename="employees_template.csv"',
         ]);
     }
 

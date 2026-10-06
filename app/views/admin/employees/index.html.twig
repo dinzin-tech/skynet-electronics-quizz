@@ -3,22 +3,43 @@
 {% block page_title %}Employee Directory{% endblock %}
 
 {% block content %}
-<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+<form id="bulkDeleteForm" action="/admin/employees/bulk-delete" method="POST" style="display: none;"></form>
+
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; flex-wrap: wrap; gap: 12px;">
     <div>
         <h2 style="font-size: 1.15rem; font-weight: 600;">Employees ({{ total_count|number_format }})</h2>
-        <p style="font-size: 0.85rem; color: #64748b;">Manage active employee rosters and bulk imports</p>
+        <p style="font-size: 0.85rem; color: #64748b;">Manage employee roster, organizational zones, departments, designations, and bulk operations</p>
     </div>
-    <div style="display: flex; gap: 12px;">
+    <div style="display: flex; gap: 10px; flex-wrap: wrap; align-items: center;">
+        <button type="submit" form="bulkDeleteForm" id="bulkDeleteBtn" class="btn btn-danger" style="display: none; background: #dc2626; color: #fff;" onclick="return confirmBulkDelete();">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+            Delete Selected (<span id="bulkDeleteCount">0</span>)
+        </button>
+        <button type="button" onclick="openAddModal()" class="btn btn-primary">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+            Add Employee
+        </button>
         <a href="/admin/employees/import" class="btn btn-secondary">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
             Bulk Upload CSV
         </a>
+        <a href="/admin/employees/sample-csv" class="btn btn-secondary" title="Download matching sample CSV file">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+            Sample CSV
+        </a>
     </div>
 </div>
 
+{% if success %}
+    <div class="alert alert-success">{{ success }}</div>
+{% endif %}
+{% if error %}
+    <div class="alert alert-error">{{ error }}</div>
+{% endif %}
+
 <div class="card" style="padding: 16px; margin-bottom: 20px;">
-    <form action="/admin/employees" method="GET" style="display: flex; gap: 12px; align-items: center;">
-        <input type="text" name="search" class="form-control" placeholder="Search by name or employee code..." value="{{ search|default('') }}" style="max-width: 380px;">
+    <form action="/admin/employees" method="GET" style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
+        <input type="text" name="search" class="form-control" placeholder="Search by name, emp code, zone, department, designation..." value="{{ search|default('') }}" style="max-width: 420px;">
         <button type="submit" class="btn btn-primary">Search</button>
         {% if search %}
             <a href="/admin/employees" class="btn btn-secondary">Clear</a>
@@ -31,20 +52,50 @@
         <table>
             <thead>
                 <tr>
-                    <th>Code</th>
-                    <th>Name</th>
-                    <th>Email</th>
+                    <th style="width: 40px; text-align: center;">
+                        <input type="checkbox" id="selectAllCheckbox" title="Select All" style="cursor: pointer; width: 16px; height: 16px;">
+                    </th>
+                    <th style="width: 60px;">SL NO</th>
+                    <th>ZONE/Region</th>
+                    <th>EMP CODE</th>
+                    <th>EMP NAME</th>
+                    <th>DEPARTMENT</th>
+                    <th>DESIGNATION</th>
                     <th>Status</th>
                     <th>Groups</th>
-                    <th>Created ({{ company_tz }})</th>
+                    <th style="text-align: right; width: 140px;">Actions</th>
                 </tr>
             </thead>
             <tbody>
                 {% for emp in employees %}
                 <tr>
+                    <td style="text-align: center;">
+                        <input type="checkbox" name="ids[]" value="{{ emp.id }}" form="bulkDeleteForm" class="emp-select-checkbox" style="cursor: pointer; width: 16px; height: 16px;">
+                    </td>
+                    <td style="color: #64748b; font-size: 0.85rem;">{{ (current_page - 1) * 20 + loop.index }}</td>
+                    <td>
+                        {% if emp.zone_region %}
+                            <span style="font-weight: 500; color: #334155;">{{ emp.zone_region }}</span>
+                        {% else %}
+                            <span style="color: #94a3b8;">—</span>
+                        {% endif %}
+                    </td>
                     <td><strong>{{ emp.employee_code }}</strong></td>
-                    <td>{{ emp.name }}</td>
-                    <td>{{ emp.email|default('—') }}</td>
+                    <td style="font-weight: 500;">{{ emp.name }}</td>
+                    <td>
+                        {% if emp.department %}
+                            <span style="background: #f1f5f9; padding: 3px 8px; border-radius: 4px; font-size: 0.8rem; font-weight: 500; color: #334155;">{{ emp.department }}</span>
+                        {% else %}
+                            <span style="color: #94a3b8;">—</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if emp.designation %}
+                            <span style="font-size: 0.85rem; color: #475569;">{{ emp.designation }}</span>
+                        {% else %}
+                            <span style="color: #94a3b8;">—</span>
+                        {% endif %}
+                    </td>
                     <td>
                         {% if emp.status == 'active' %}
                             <span class="badge badge-success">Active</span>
@@ -59,30 +110,367 @@
                             <span style="color: #94a3b8;">—</span>
                         {% endif %}
                     </td>
-                    <td>{{ emp.created_at ? emp.created_at|company_date('d M Y, h:i A') : '—' }}</td>
+                    <td style="text-align: right; white-space: nowrap;">
+                        <button type="button"
+                                class="btn btn-secondary"
+                                style="padding: 4px 10px; font-size: 0.8rem;"
+                                onclick='openEditModal({{ emp|json_encode|e("html_attr") }})'>
+                            Edit
+                        </button>
+                        <form action="/admin/employees/{{ emp.id }}/delete" method="POST" style="display: inline-block; margin-left: 4px;" onsubmit="return confirm('Are you sure you want to delete employee {{ emp.name|escape('js') }} ({{ emp.employee_code|escape('js') }})?');">
+                            <button type="submit" class="btn btn-danger" style="padding: 4px 10px; font-size: 0.8rem; background: #fee2e2; color: #b91c1c; border-color: #fecaca;">
+                                Delete
+                            </button>
+                        </form>
+                    </td>
                 </tr>
                 {% else %}
                 <tr>
-                    <td colspan="6" style="text-align: center; color: #64748b; padding: 32px;">No employees found.</td>
+                    <td colspan="10" style="text-align: center; color: #64748b; padding: 40px;">
+                        No employees found matching your criteria.
+                    </td>
                 </tr>
                 {% endfor %}
             </tbody>
         </table>
     </div>
 
-    <!-- Pagination -->
-    <div style="padding: 16px 20px; display: flex; justify-content: space-between; align-items: center; border-top: 1px solid var(--border-color);">
+    <!-- Numbered Pagination -->
+    <div style="padding: 16px 20px; display: flex; justify-content: space-between; align-items: center; border-top: 1px solid var(--border-color); flex-wrap: wrap; gap: 12px;">
         <span style="font-size: 0.85rem; color: #64748b;">
-            Page {{ current_page }} of {{ total_pages }}
+            Showing page {{ current_page }} of {{ total_pages }} ({{ total_count|number_format }} total employees)
         </span>
-        <div style="display: flex; gap: 8px;">
+        <div style="display: flex; gap: 4px; align-items: center; flex-wrap: wrap;">
             {% if current_page > 1 %}
-                <a href="/admin/employees?page={{ current_page - 1 }}{% if search %}&search={{ search }}{% endif %}" class="btn btn-secondary">Previous</a>
+                <a href="/admin/employees?page={{ current_page - 1 }}{% if search %}&search={{ search|url_encode }}{% endif %}" class="btn btn-secondary" style="padding: 6px 12px; font-size: 0.85rem;">
+                    &laquo; Prev
+                </a>
+            {% else %}
+                <span class="btn btn-secondary" style="padding: 6px 12px; font-size: 0.85rem; opacity: 0.45; cursor: not-allowed;">
+                    &laquo; Prev
+                </span>
             {% endif %}
+
+            {# Sliding Window for Numbered Pages #}
+            {% set start_page = current_page - 2 %}
+            {% set end_page = current_page + 2 %}
+
+            {% if start_page < 1 %}
+                {% set end_page = end_page + (1 - start_page) %}
+                {% set start_page = 1 %}
+            {% endif %}
+
+            {% if end_page > total_pages %}
+                {% set start_page = start_page - (end_page - total_pages) %}
+                {% set end_page = total_pages %}
+            {% endif %}
+
+            {% if start_page < 1 %}
+                {% set start_page = 1 %}
+            {% endif %}
+
+            {% if start_page > 1 %}
+                <a href="/admin/employees?page=1{% if search %}&search={{ search|url_encode }}{% endif %}" class="btn btn-secondary" style="padding: 6px 11px; font-size: 0.85rem; min-width: 34px; text-align: center;">1</a>
+                {% if start_page > 2 %}
+                    <span style="padding: 0 4px; color: #94a3b8; font-size: 0.85rem;">&hellip;</span>
+                {% endif %}
+            {% endif %}
+
+            {% for p in start_page..end_page %}
+                {% if p == current_page %}
+                    <span class="btn btn-primary" style="padding: 6px 11px; font-size: 0.85rem; min-width: 34px; text-align: center; font-weight: 600;">{{ p }}</span>
+                {% else %}
+                    <a href="/admin/employees?page={{ p }}{% if search %}&search={{ search|url_encode }}{% endif %}" class="btn btn-secondary" style="padding: 6px 11px; font-size: 0.85rem; min-width: 34px; text-align: center;">{{ p }}</a>
+                {% endif %}
+            {% endfor %}
+
+            {% if end_page < total_pages %}
+                {% if end_page < total_pages - 1 %}
+                    <span style="padding: 0 4px; color: #94a3b8; font-size: 0.85rem;">&hellip;</span>
+                {% endif %}
+                <a href="/admin/employees?page={{ total_pages }}{% if search %}&search={{ search|url_encode }}{% endif %}" class="btn btn-secondary" style="padding: 6px 11px; font-size: 0.85rem; min-width: 34px; text-align: center;">{{ total_pages }}</a>
+            {% endif %}
+
             {% if current_page < total_pages %}
-                <a href="/admin/employees?page={{ current_page + 1 }}{% if search %}&search={{ search }}{% endif %}" class="btn btn-secondary">Next</a>
+                <a href="/admin/employees?page={{ current_page + 1 }}{% if search %}&search={{ search|url_encode }}{% endif %}" class="btn btn-secondary" style="padding: 6px 12px; font-size: 0.85rem;">
+                    Next &raquo;
+                </a>
+            {% else %}
+                <span class="btn btn-secondary" style="padding: 6px 12px; font-size: 0.85rem; opacity: 0.45; cursor: not-allowed;">
+                    Next &raquo;
+                </span>
             {% endif %}
         </div>
     </div>
 </div>
+
+<!-- Modal: Add Employee -->
+<div id="addModal" style="display: none; position: fixed; inset: 0; background: rgba(15, 23, 42, 0.6); z-index: 1000; align-items: center; justify-content: center; padding: 20px;">
+    <div style="background: #fff; width: 100%; max-width: 650px; border-radius: 12px; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1); overflow: hidden; max-height: 90vh; display: flex; flex-direction: column;">
+        <div style="padding: 20px 24px; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center;">
+            <h3 style="font-size: 1.15rem; font-weight: 600;">Add New Employee</h3>
+            <button type="button" onclick="closeAddModal()" style="border: none; background: transparent; font-size: 1.5rem; cursor: pointer; color: #64748b;">&times;</button>
+        </div>
+        <form action="/admin/employees/create" method="POST" style="padding: 24px; overflow-y: auto;">
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px;">
+                <div class="form-group" style="margin-bottom: 0;">
+                    <label class="form-label">Employee Code (EMP CODE) *</label>
+                    <input type="text" name="employee_code" required class="form-control" placeholder="e.g. 000169">
+                </div>
+                <div class="form-group" style="margin-bottom: 0;">
+                    <label class="form-label">Employee Name (EMP NAME) *</label>
+                    <input type="text" name="name" required class="form-control" placeholder="e.g. AFZAL PASHA">
+                </div>
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px;">
+                <div class="form-group" style="margin-bottom: 0;">
+                    <label class="form-label">ZONE / Region</label>
+                    <input type="text" name="zone_region" class="form-control" placeholder="e.g. ZONE 1">
+                </div>
+                <div class="form-group" style="margin-bottom: 0;">
+                    <label class="form-label">Department</label>
+                    <input type="text" name="department" class="form-control" placeholder="e.g. KOLAR SALES">
+                </div>
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px;">
+                <div class="form-group" style="margin-bottom: 0;">
+                    <label class="form-label">Designation</label>
+                    <input type="text" name="designation" class="form-control" placeholder="e.g. SALES LEADER">
+                </div>
+                <div class="form-group" style="margin-bottom: 0;">
+                    <label class="form-label">Email Address (Optional)</label>
+                    <input type="email" name="email" class="form-control" placeholder="e.g. employee@company.com">
+                </div>
+            </div>
+
+            <div class="form-group" style="margin-bottom: 16px;">
+                <label class="form-label">Status</label>
+                <select name="status" class="form-control" style="max-width: 200px;">
+                    <option value="active" selected>Active</option>
+                    <option value="inactive">Inactive</option>
+                </select>
+            </div>
+
+            {% if groups %}
+            <div style="margin-top: 16px; border-top: 1px solid var(--border-color); padding-top: 16px;">
+                <label class="form-label" style="font-weight: 600; margin-bottom: 10px;">Assign Groups</label>
+                <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 10px;">
+                    {% for g in groups %}
+                    <label style="display: flex; align-items: center; gap: 8px; font-size: 0.875rem; cursor: pointer;">
+                        <input type="checkbox" name="group_ids[]" value="{{ g.id }}">
+                        <span>{{ g.name }}</span>
+                    </label>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+
+            <div style="margin-top: 24px; display: flex; justify-content: flex-end; gap: 12px;">
+                <button type="button" onclick="closeAddModal()" class="btn btn-secondary">Cancel</button>
+                <button type="submit" class="btn btn-primary">Create Employee</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Modal: Edit Employee -->
+<div id="editModal" style="display: none; position: fixed; inset: 0; background: rgba(15, 23, 42, 0.6); z-index: 1000; align-items: center; justify-content: center; padding: 20px;">
+    <div style="background: #fff; width: 100%; max-width: 650px; border-radius: 12px; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1); overflow: hidden; max-height: 90vh; display: flex; flex-direction: column;">
+        <div style="padding: 20px 24px; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center;">
+            <h3 style="font-size: 1.15rem; font-weight: 600;" id="editModalTitle">Edit Employee</h3>
+            <button type="button" onclick="closeEditModal()" style="border: none; background: transparent; font-size: 1.5rem; cursor: pointer; color: #64748b;">&times;</button>
+        </div>
+        <form id="editForm" action="" method="POST" style="padding: 24px; overflow-y: auto;">
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px;">
+                <div class="form-group" style="margin-bottom: 0;">
+                    <label class="form-label">Employee Code (EMP CODE) *</label>
+                    <input type="text" id="edit_code" name="employee_code" required class="form-control">
+                </div>
+                <div class="form-group" style="margin-bottom: 0;">
+                    <label class="form-label">Employee Name (EMP NAME) *</label>
+                    <input type="text" id="edit_name" name="name" required class="form-control">
+                </div>
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px;">
+                <div class="form-group" style="margin-bottom: 0;">
+                    <label class="form-label">ZONE / Region</label>
+                    <input type="text" id="edit_zone" name="zone_region" class="form-control">
+                </div>
+                <div class="form-group" style="margin-bottom: 0;">
+                    <label class="form-label">Department</label>
+                    <input type="text" id="edit_department" name="department" class="form-control">
+                </div>
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px;">
+                <div class="form-group" style="margin-bottom: 0;">
+                    <label class="form-label">Designation</label>
+                    <input type="text" id="edit_designation" name="designation" class="form-control">
+                </div>
+                <div class="form-group" style="margin-bottom: 0;">
+                    <label class="form-label">Email Address (Optional)</label>
+                    <input type="email" id="edit_email" name="email" class="form-control">
+                </div>
+            </div>
+
+            <div class="form-group" style="margin-bottom: 16px;">
+                <label class="form-label">Status</label>
+                <select id="edit_status" name="status" class="form-control" style="max-width: 200px;">
+                    <option value="active">Active</option>
+                    <option value="inactive">Inactive</option>
+                </select>
+            </div>
+
+            {% if groups %}
+            <div style="margin-top: 16px; border-top: 1px solid var(--border-color); padding-top: 16px;">
+                <label class="form-label" style="font-weight: 600; margin-bottom: 10px;">Assign Groups</label>
+                <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 10px;">
+                    {% for g in groups %}
+                    <label style="display: flex; align-items: center; gap: 8px; font-size: 0.875rem; cursor: pointer;">
+                        <input type="checkbox" name="group_ids[]" value="{{ g.id }}" class="edit-group-checkbox" data-group-id="{{ g.id }}">
+                        <span>{{ g.name }}</span>
+                    </label>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+
+            <div style="margin-top: 24px; display: flex; justify-content: flex-end; gap: 12px;">
+                <button type="button" onclick="closeEditModal()" class="btn btn-secondary">Cancel</button>
+                <button type="submit" class="btn btn-primary">Save Changes</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block javascripts %}
+<script>
+// Select All & Bulk Actions
+const selectAllCheckbox = document.getElementById('selectAllCheckbox');
+const rowCheckboxes = document.querySelectorAll('.emp-select-checkbox');
+const bulkDeleteBtn = document.getElementById('bulkDeleteBtn');
+const bulkDeleteCount = document.getElementById('bulkDeleteCount');
+
+function updateBulkState() {
+    const checkedBoxes = document.querySelectorAll('.emp-select-checkbox:checked');
+    const totalCount = rowCheckboxes.length;
+    const selectedCount = checkedBoxes.length;
+
+    if (bulkDeleteCount) {
+        bulkDeleteCount.textContent = selectedCount;
+    }
+
+    if (bulkDeleteBtn) {
+        if (selectedCount > 0) {
+            bulkDeleteBtn.style.display = 'inline-flex';
+        } else {
+            bulkDeleteBtn.style.display = 'none';
+        }
+    }
+
+    if (selectAllCheckbox) {
+        if (selectedCount === 0) {
+            selectAllCheckbox.checked = false;
+            selectAllCheckbox.indeterminate = false;
+        } else if (selectedCount === totalCount) {
+            selectAllCheckbox.checked = true;
+            selectAllCheckbox.indeterminate = false;
+        } else {
+            selectAllCheckbox.checked = false;
+            selectAllCheckbox.indeterminate = true;
+        }
+    }
+}
+
+if (selectAllCheckbox) {
+    selectAllCheckbox.addEventListener('change', function() {
+        const isChecked = this.checked;
+        rowCheckboxes.forEach(cb => {
+            cb.checked = isChecked;
+        });
+        updateBulkState();
+    });
+}
+
+rowCheckboxes.forEach(cb => {
+    cb.addEventListener('change', updateBulkState);
+});
+
+function confirmBulkDelete() {
+    const checkedBoxes = document.querySelectorAll('.emp-select-checkbox:checked');
+    const count = checkedBoxes.length;
+    if (count === 0) {
+        alert('Please select at least one employee to delete.');
+        return false;
+    }
+    return confirm('Are you sure you want to delete/deactivate ' + count + ' selected employee(s)?');
+}
+
+// Modal Handlers
+function openAddModal() {
+    const modal = document.getElementById('addModal');
+    if (modal) {
+        modal.style.display = 'flex';
+    }
+}
+
+function closeAddModal() {
+    const modal = document.getElementById('addModal');
+    if (modal) {
+        modal.style.display = 'none';
+    }
+}
+
+function openEditModal(emp) {
+    if (!emp) return;
+    const form = document.getElementById('editForm');
+    form.action = '/admin/employees/' + emp.id + '/edit';
+
+    document.getElementById('editModalTitle').textContent = 'Edit Employee - ' + (emp.name || '');
+    document.getElementById('edit_code').value = emp.employee_code || '';
+    document.getElementById('edit_name').value = emp.name || '';
+    document.getElementById('edit_zone').value = emp.zone_region || '';
+    document.getElementById('edit_department').value = emp.department || '';
+    document.getElementById('edit_designation').value = emp.designation || '';
+    document.getElementById('edit_email').value = emp.email || '';
+    document.getElementById('edit_status').value = emp.status || 'active';
+
+    const assignedIds = new Set((emp.groups || []).map(g => Number(g.id)));
+    document.querySelectorAll('.edit-group-checkbox').forEach(cb => {
+        const gid = Number(cb.getAttribute('data-group-id'));
+        cb.checked = assignedIds.has(gid);
+    });
+
+    const modal = document.getElementById('editModal');
+    if (modal) {
+        modal.style.display = 'flex';
+    }
+}
+
+function closeEditModal() {
+    const modal = document.getElementById('editModal');
+    if (modal) {
+        modal.style.display = 'none';
+    }
+}
+
+window.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+        closeAddModal();
+        closeEditModal();
+    }
+});
+
+document.getElementById('addModal')?.addEventListener('click', function(e) {
+    if (e.target === this) closeAddModal();
+});
+
+document.getElementById('editModal')?.addEventListener('click', function(e) {
+    if (e.target === this) closeEditModal();
+});
+</script>
 {% endblock %}

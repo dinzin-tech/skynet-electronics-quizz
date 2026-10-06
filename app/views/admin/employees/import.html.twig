@@ -3,8 +3,12 @@
 {% block page_title %}Bulk Employee CSV Upload{% endblock %}
 
 {% block content %}
-<div style="margin-bottom: 24px;">
+<div style="margin-bottom: 24px; display: flex; justify-content: space-between; align-items: center;">
     <a href="/admin/employees" style="font-size: 0.875rem; color: #2563eb; text-decoration: none;">&larr; Back to Employees</a>
+    <a href="/admin/employees/sample-csv" class="btn btn-secondary">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+        Download Sample CSV
+    </a>
 </div>
 
 {% if error %}
@@ -36,7 +40,7 @@
 
 {% if preview %}
 <div class="card">
-    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 12px;">
         <div>
             <h3 style="font-size: 1.05rem; font-weight: 600;">CSV Validation Preview (First 10 Rows)</h3>
             <p style="font-size: 0.85rem; color: #64748b;">
@@ -57,11 +61,12 @@
         <table>
             <thead>
                 <tr>
-                    <th>Row</th>
-                    <th>Code</th>
-                    <th>Name</th>
-                    <th>Email</th>
-                    <th>Status</th>
+                    <th style="width: 60px;">Row</th>
+                    <th>ZONE/Region</th>
+                    <th>EMP CODE</th>
+                    <th>EMP NAME</th>
+                    <th>DEPARTMENT</th>
+                    <th>DESIGNATION</th>
                     <th>Validation</th>
                 </tr>
             </thead>
@@ -69,10 +74,29 @@
                 {% for row in preview.preview %}
                 <tr>
                     <td>{{ row.row }}</td>
+                    <td>
+                        {% if row.zone_region %}
+                            <span style="font-weight: 500;">{{ row.zone_region }}</span>
+                        {% else %}
+                            <span style="color: #94a3b8;">—</span>
+                        {% endif %}
+                    </td>
                     <td><strong>{{ row.code }}</strong></td>
-                    <td>{{ row.name }}</td>
-                    <td>{{ row.email|default('—') }}</td>
-                    <td>{{ row.status }}</td>
+                    <td style="font-weight: 500;">{{ row.name }}</td>
+                    <td>
+                        {% if row.department %}
+                            <span style="background: #f1f5f9; padding: 2px 6px; border-radius: 4px; font-size: 0.8rem;">{{ row.department }}</span>
+                        {% else %}
+                            <span style="color: #94a3b8;">—</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if row.designation %}
+                            <span style="font-size: 0.85rem; color: #475569;">{{ row.designation }}</span>
+                        {% else %}
+                            <span style="color: #94a3b8;">—</span>
+                        {% endif %}
+                    </td>
                     <td>
                         {% if row.is_valid %}
                             <span class="badge badge-success">Valid</span>
@@ -87,21 +111,38 @@
     </div>
 </div>
 {% else %}
-<div class="card" style="max-width: 600px;">
+<div class="card" style="max-width: 720px;">
     <h3 style="font-size: 1.05rem; font-weight: 600; margin-bottom: 12px;">Upload CSV File</h3>
-    <p style="font-size: 0.85rem; color: #64748b; margin-bottom: 20px;">
-        Format: <code>employee_code, name, email, username, status</code>.<br>
-        Maximum 20,000 rows, 5 MB file size limit. Duplicate codes/emails will be flagged and skipped.
+    <p style="font-size: 0.85rem; color: #64748b; margin-bottom: 16px;">
+        Upload an employee roster CSV file. The columns can match your organization's employee export format directly.
     </p>
+
+    <div style="background: #f8fafc; border: 1px solid var(--border-color); border-radius: 8px; padding: 16px; margin-bottom: 20px;">
+        <div style="font-size: 0.85rem; font-weight: 600; color: #334155; margin-bottom: 8px;">Supported CSV Header Format:</div>
+        <code style="font-size: 0.85rem; color: #0284c7; display: block; background: #fff; padding: 8px 12px; border-radius: 4px; border: 1px solid #e2e8f0; margin-bottom: 10px;">
+            SL NO, ZONE/Region, EMP CODE, EMP NAME, DEPARTMENT, DESIGNATION
+        </code>
+        <ul style="font-size: 0.825rem; color: #64748b; margin-left: 18px; line-height: 1.6;">
+            <li><strong>EMP CODE</strong> and <strong>EMP NAME</strong> are required. Leading zeros in employee codes (e.g. <code>000169</code>) are preserved.</li>
+            <li><strong>ZONE/Region</strong>, <strong>DEPARTMENT</strong>, and <strong>DESIGNATION</strong> will be saved to each employee's profile.</li>
+            <li>Existing employee codes will have their name, zone/region, department, and designation updated.</li>
+            <li>Maximum file size: 5 MB (up to 20,000 rows).</li>
+        </ul>
+    </div>
 
     <form action="/admin/employees/import/preview" method="POST" enctype="multipart/form-data">
         <div class="form-group">
             <label class="form-label" for="csv_file">Select CSV File</label>
             <input type="file" id="csv_file" name="csv_file" accept=".csv" required class="form-control">
         </div>
-        <button type="submit" class="btn btn-primary">
-            Upload & Preview
-        </button>
+        <div style="display: flex; gap: 12px; align-items: center; margin-top: 20px;">
+            <button type="submit" class="btn btn-primary">
+                Upload & Preview
+            </button>
+            <a href="/admin/employees/sample-csv" class="btn btn-secondary">
+                Download Sample CSV
+            </a>
+        </div>
     </form>
 </div>
 {% endif %}

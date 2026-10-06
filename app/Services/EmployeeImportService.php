@@ -76,17 +76,32 @@ class EmployeeImportService
                 break;
             }
 
-            $code = trim($row[$colMap['employee_code']] ?? '');
-            $name = trim($row[$colMap['name']] ?? '');
+            $code = trim((string) ($row[$colMap['employee_code']] ?? ''));
+            $name = trim((string) ($row[$colMap['name']] ?? ''));
+            $zoneRegion = isset($colMap['zone_region']) && isset($row[$colMap['zone_region']])
+                ? trim((string) $row[$colMap['zone_region']])
+                : null;
+            $zoneRegion = ($zoneRegion !== '') ? $zoneRegion : null;
+            $department = isset($colMap['department']) && isset($row[$colMap['department']])
+                ? trim((string) $row[$colMap['department']])
+                : null;
+            $department = ($department !== '') ? $department : null;
+            $designation = isset($colMap['designation']) && isset($row[$colMap['designation']])
+                ? trim((string) $row[$colMap['designation']])
+                : null;
+            $designation = ($designation !== '') ? $designation : null;
             $email = isset($colMap['email']) && isset($row[$colMap['email']])
-                ? strtolower(trim($row[$colMap['email']]))
+                ? strtolower(trim((string) $row[$colMap['email']]))
                 : null;
+            $email = ($email !== '') ? $email : null;
             $username = isset($colMap['username']) && isset($row[$colMap['username']])
-                ? trim($row[$colMap['username']])
+                ? trim((string) $row[$colMap['username']])
                 : null;
+            $username = ($username !== '') ? $username : null;
             $status = isset($colMap['status']) && isset($row[$colMap['status']])
-                ? strtolower(trim($row[$colMap['status']]))
+                ? strtolower(trim((string) $row[$colMap['status']]))
                 : 'active';
+            $status = in_array($status, ['active', 'inactive'], true) ? $status : 'active';
 
             $isDuplicate = false;
             $reason = '';
@@ -123,6 +138,9 @@ class EmployeeImportService
                     'row' => $totalRows + 1,
                     'code' => $code,
                     'name' => $name,
+                    'zone_region' => $zoneRegion,
+                    'department' => $department,
+                    'designation' => $designation,
                     'email' => $email,
                     'username' => $username,
                     'status' => $status,
@@ -214,7 +232,7 @@ class EmployeeImportService
 
         $failedReportPath = "{$reportsDir}/import_{$jobId}_failed.csv";
         $failedHandle = fopen($failedReportPath, 'w');
-        fputcsv($failedHandle, ['Row Number', 'Employee Code', 'Name', 'Failure Reason']);
+        fputcsv($failedHandle, ['Row Number', 'Zone/Region', 'Employee Code', 'Name', 'Department', 'Designation', 'Failure Reason']);
 
         $seenCodes = [];
         $seenEmails = [];
@@ -235,16 +253,30 @@ class EmployeeImportService
 
         while (($row = fgetcsv($handle)) !== false) {
             $total++;
-            $code = trim($row[$colMap['employee_code']] ?? '');
-            $name = trim($row[$colMap['name']] ?? '');
+            $code = trim((string) ($row[$colMap['employee_code']] ?? ''));
+            $name = trim((string) ($row[$colMap['name']] ?? ''));
+            $zoneRegion = isset($colMap['zone_region']) && isset($row[$colMap['zone_region']])
+                ? trim((string) $row[$colMap['zone_region']])
+                : null;
+            $zoneRegion = ($zoneRegion !== '') ? $zoneRegion : null;
+            $department = isset($colMap['department']) && isset($row[$colMap['department']])
+                ? trim((string) $row[$colMap['department']])
+                : null;
+            $department = ($department !== '') ? $department : null;
+            $designation = isset($colMap['designation']) && isset($row[$colMap['designation']])
+                ? trim((string) $row[$colMap['designation']])
+                : null;
+            $designation = ($designation !== '') ? $designation : null;
             $email = isset($colMap['email']) && isset($row[$colMap['email']])
-                ? strtolower(trim($row[$colMap['email']]))
+                ? strtolower(trim((string) $row[$colMap['email']]))
                 : null;
+            $email = ($email !== '') ? $email : null;
             $username = isset($colMap['username']) && isset($row[$colMap['username']])
-                ? trim($row[$colMap['username']])
+                ? trim((string) $row[$colMap['username']])
                 : null;
+            $username = ($username !== '') ? $username : null;
             $rawStatus = isset($colMap['status']) && isset($row[$colMap['status']])
-                ? strtolower(trim($row[$colMap['status']]))
+                ? strtolower(trim((string) $row[$colMap['status']]))
                 : 'active';
             $status = in_array($rawStatus, ['active', 'inactive'], true) ? $rawStatus : 'active';
 
@@ -259,7 +291,7 @@ class EmployeeImportService
 
             if ($failReason !== null) {
                 $failed++;
-                fputcsv($failedHandle, [$total + 1, $code, $name, $failReason]);
+                fputcsv($failedHandle, [$total + 1, $zoneRegion, $code, $name, $department, $designation, $failReason]);
                 continue;
             }
 
@@ -269,10 +301,13 @@ class EmployeeImportService
             }
 
             $publicId = Ulid::generate();
-            $batchRows[] = '(?, ?, ?, ?, ?, ?, ?, ?)';
+            $batchRows[] = '(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)';
             $batchBindings[] = $publicId;
             $batchBindings[] = $code;
+            $batchBindings[] = $zoneRegion;
             $batchBindings[] = $name;
+            $batchBindings[] = $department;
+            $batchBindings[] = $designation;
             $batchBindings[] = $email;
             $batchBindings[] = $username;
             $batchBindings[] = $status;
@@ -335,9 +370,9 @@ class EmployeeImportService
     private function executeEmployeeBatch(array $batchRows, array $batchBindings): void
     {
         $sql = 'INSERT INTO employees ' .
-               '(public_id, employee_code, name, email, username, status, created_at, updated_at) ' .
+               '(public_id, employee_code, zone_region, name, department, designation, email, username, status, created_at, updated_at) ' .
                'VALUES ' . implode(', ', $batchRows) . ' ' .
-               'ON DUPLICATE KEY UPDATE name=VALUES(name)';
+               'ON DUPLICATE KEY UPDATE name=VALUES(name), zone_region=VALUES(zone_region), department=VALUES(department), designation=VALUES(designation), status=VALUES(status), updated_at=VALUES(updated_at)';
         $stmt = $this->db->prepare($sql);
         $stmt->execute($batchBindings);
     }
@@ -352,23 +387,32 @@ class EmployeeImportService
     {
         $map = [];
         foreach ($header as $idx => $colName) {
-            $clean = strtolower(trim((string) $colName));
-            if ($clean === 'employee_code' || $clean === 'code' || $clean === 'employee code') {
+            $clean = strtolower(trim((string) preg_replace('/[\x{FEFF}]/u', '', (string) $colName)));
+            // Normalize spaces and slashes
+            $normalized = preg_replace('/\s+/', ' ', $clean);
+
+            if (in_array($normalized, ['employee_code', 'code', 'employee code', 'emp code', 'emp_code', 'empcode'], true)) {
                 $map['employee_code'] = $idx;
-            } elseif ($clean === 'name' || $clean === 'employee_name' || $clean === 'full name') {
+            } elseif (in_array($normalized, ['name', 'employee_name', 'full name', 'fullname', 'emp name', 'emp_name', 'empname', 'employee name'], true)) {
                 $map['name'] = $idx;
-            } elseif ($clean === 'email') {
+            } elseif (in_array($normalized, ['zone/region', 'zone / region', 'zone_region', 'zone', 'region', 'zone-region'], true)) {
+                $map['zone_region'] = $idx;
+            } elseif (in_array($normalized, ['department', 'dept', 'departments'], true)) {
+                $map['department'] = $idx;
+            } elseif (in_array($normalized, ['designation', 'designations', 'role', 'title', 'designation/role'], true)) {
+                $map['designation'] = $idx;
+            } elseif (in_array($normalized, ['email', 'e-mail', 'email address'], true)) {
                 $map['email'] = $idx;
-            } elseif ($clean === 'username') {
+            } elseif (in_array($normalized, ['username', 'user name', 'user'], true)) {
                 $map['username'] = $idx;
-            } elseif ($clean === 'status') {
+            } elseif (in_array($normalized, ['status', 'emp status'], true)) {
                 $map['status'] = $idx;
             }
         }
 
         if (!isset($map['employee_code']) || !isset($map['name'])) {
             throw new InvalidArgumentException(
-                'Invalid CSV header format. Expected at least "employee_code" and "name" columns.'
+                'Invalid CSV header format. Expected at least "employee_code" (or "EMP CODE") and "name" (or "EMP NAME") columns.'
             );
         }
 
