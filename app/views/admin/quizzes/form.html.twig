@@ -1,6 +1,6 @@
 {% extends "admin/layout.html.twig" %}
 
-{% block page_title %}Create New Quiz{% endblock %}
+{% block page_title %}{% if quiz %}Edit Quiz - {{ quiz.title }}{% else %}Create New Quiz{% endif %}{% endblock %}
 
 {% block content %}
 <div style="margin-bottom: 24px;">
@@ -12,7 +12,7 @@
 {% endif %}
 
 <div class="card" style="max-width: 800px;">
-    <form action="/admin/quizzes/create" method="POST">
+    <form action="{% if quiz %}/admin/quizzes/{{ quiz.id }}/edit{% else %}/admin/quizzes/create{% endif %}" method="POST">
         <h3 style="font-size: 1.1rem; font-weight: 600; margin-bottom: 16px; border-bottom: 1px solid var(--border-color); padding-bottom: 8px;">
             Basic Details
         </h3>
@@ -20,17 +20,17 @@
         <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 16px;">
             <div class="form-group">
                 <label class="form-label" for="title">Quiz Title *</label>
-                <input type="text" id="title" name="title" required class="form-control" placeholder="e.g. Q4 Compliance & Ethics Assessment" value="{{ old.title|default('') }}">
+                <input type="text" id="title" name="title" required class="form-control" placeholder="e.g. Q4 Compliance & Ethics Assessment" value="{{ old.title|default(quiz.title|default('')) }}">
             </div>
             <div class="form-group">
                 <label class="form-label" for="code">Unique Code *</label>
-                <input type="text" id="code" name="code" required class="form-control" placeholder="e.g. COMP-2026" value="{{ old.code|default('') }}">
+                <input type="text" id="code" name="code" required class="form-control" placeholder="e.g. COMP-2026" value="{{ old.code|default(quiz.code|default('')) }}">
             </div>
         </div>
 
         <div class="form-group">
             <label class="form-label" for="description">Instructions / Description</label>
-            <textarea id="description" name="description" rows="3" class="form-control" placeholder="Instructions shown on employee entry screen...">{{ old.description|default('') }}</textarea>
+            <textarea id="description" name="description" rows="3" class="form-control" placeholder="Instructions shown on employee entry screen...">{{ old.description|default(quiz.description|default('')) }}</textarea>
         </div>
 
         <h3 style="font-size: 1.1rem; font-weight: 600; margin: 24px 0 16px 0; border-bottom: 1px solid var(--border-color); padding-bottom: 8px;">
@@ -40,15 +40,15 @@
         <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px;">
             <div class="form-group">
                 <label class="form-label" for="window_start">Window Start *</label>
-                <input type="datetime-local" id="window_start" name="window_start" required class="form-control" value="{{ old.window_start|default('') }}">
+                <input type="datetime-local" id="window_start" name="window_start" required class="form-control" value="{{ old.window_start|default(quiz ? quiz.start_at|date('Y-m-d\\TH:i') : '') }}">
             </div>
             <div class="form-group">
                 <label class="form-label" for="window_end">Window End *</label>
-                <input type="datetime-local" id="window_end" name="window_end" required class="form-control" value="{{ old.window_end|default('') }}">
+                <input type="datetime-local" id="window_end" name="window_end" required class="form-control" value="{{ old.window_end|default(quiz ? quiz.end_at|date('Y-m-d\\TH:i') : '') }}">
             </div>
             <div class="form-group">
                 <label class="form-label" for="duration_minutes">Duration (Minutes) *</label>
-                <input type="number" id="duration_minutes" name="duration_minutes" required min="1" value="{{ old.duration_minutes|default(30) }}" class="form-control">
+                <input type="number" id="duration_minutes" name="duration_minutes" required min="1" value="{{ old.duration_minutes|default(quiz ? (quiz.duration_seconds / 60)|round : 30) }}" class="form-control">
             </div>
         </div>
 
@@ -59,19 +59,19 @@
         <div style="display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 16px;">
             <div class="form-group">
                 <label class="form-label" for="marks_per_correct">Marks / Correct</label>
-                <input type="number" step="0.5" id="marks_per_correct" name="marks_per_correct" value="{{ old.marks_per_correct|default('1.0') }}" class="form-control">
+                <input type="number" step="0.5" id="marks_per_correct" name="marks_per_correct" value="{{ old.marks_per_correct|default(quiz ? quiz.settings.scoring.marks_per_correct|default('1.0') : '1.0') }}" class="form-control">
             </div>
             <div class="form-group">
                 <label class="form-label" for="negative_marks">Negative Marks</label>
-                <input type="number" step="0.25" id="negative_marks" name="negative_marks" value="{{ old.negative_marks|default('0.0') }}" class="form-control">
+                <input type="number" step="0.25" id="negative_marks" name="negative_marks" value="{{ old.negative_marks|default(quiz ? quiz.settings.scoring.negative_marks_per_wrong|default('0.0') : '0.0') }}" class="form-control">
             </div>
             <div class="form-group">
                 <label class="form-label" for="unanswered_penalty">Unanswered Penalty</label>
-                <input type="number" step="0.25" id="unanswered_penalty" name="unanswered_penalty" value="{{ old.unanswered_penalty|default('0.0') }}" class="form-control">
+                <input type="number" step="0.25" id="unanswered_penalty" name="unanswered_penalty" value="{{ old.unanswered_penalty|default(quiz ? quiz.settings.scoring.unanswered_penalty|default('0.0') : '0.0') }}" class="form-control">
             </div>
             <div class="form-group">
                 <label class="form-label" for="pass_mark">Pass Mark</label>
-                <input type="number" step="0.5" id="pass_mark" name="pass_mark" value="{{ old.pass_mark|default('20.0') }}" class="form-control">
+                <input type="number" step="0.5" id="pass_mark" name="pass_mark" value="{{ old.pass_mark|default(quiz ? quiz.settings.scoring.pass_mark|default('20.0') : '20.0') }}" class="form-control">
             </div>
         </div>
 
@@ -82,21 +82,21 @@
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 24px;">
             <div>
                 <label style="display: flex; align-items: center; gap: 8px; font-size: 0.9rem; margin-bottom: 8px;">
-                    <input type="checkbox" name="allow_back" value="1" {% if old is null or old.allow_back is defined %}checked{% endif %}> Allow Back Navigation
+                    <input type="checkbox" name="allow_back" value="1" {% if old is not null %}{% if old.allow_back is defined %}checked{% endif %}{% elseif quiz is not null %}{% if quiz.settings.navigation.allow_back|default(false) %}checked{% endif %}{% else %}checked{% endif %}> Allow Back Navigation
                 </label>
                 <label style="display: flex; align-items: center; gap: 8px; font-size: 0.9rem; margin-bottom: 8px;">
-                    <input type="checkbox" name="allow_skip" value="1" {% if old is null or old.allow_skip is defined %}checked{% endif %}> Allow Skip Questions
+                    <input type="checkbox" name="allow_skip" value="1" {% if old is not null %}{% if old.allow_skip is defined %}checked{% endif %}{% elseif quiz is not null %}{% if quiz.settings.navigation.allow_skip|default(false) %}checked{% endif %}{% else %}checked{% endif %}> Allow Skip Questions
                 </label>
                 <label style="display: flex; align-items: center; gap: 8px; font-size: 0.9rem;">
-                    <input type="checkbox" name="allow_review_screen" value="1" {% if old is null or old.allow_review_screen is defined %}checked{% endif %}> Allow Review Screen
+                    <input type="checkbox" name="allow_review_screen" value="1" {% if old is not null %}{% if old.allow_review_screen is defined %}checked{% endif %}{% elseif quiz is not null %}{% if quiz.settings.navigation.allow_review_screen|default(false) %}checked{% endif %}{% else %}checked{% endif %}> Allow Review Screen
                 </label>
             </div>
             <div>
                 <label style="display: flex; align-items: center; gap: 8px; font-size: 0.9rem; margin-bottom: 8px;">
-                    <input type="checkbox" name="randomize_questions" value="1" {% if old is null or old.randomize_questions is defined %}checked{% endif %}> Randomize Question Order (Fisher-Yates)
+                    <input type="checkbox" name="randomize_questions" value="1" {% if old is not null %}{% if old.randomize_questions is defined %}checked{% endif %}{% elseif quiz is not null %}{% if quiz.settings.navigation.randomize_questions|default(false) %}checked{% endif %}{% else %}checked{% endif %}> Randomize Question Order (Fisher-Yates)
                 </label>
                 <label style="display: flex; align-items: center; gap: 8px; font-size: 0.9rem;">
-                    <input type="checkbox" name="randomize_options" value="1" {% if old is null or old.randomize_options is defined %}checked{% endif %}> Randomize Option Order (Fisher-Yates)
+                    <input type="checkbox" name="randomize_options" value="1" {% if old is not null %}{% if old.randomize_options is defined %}checked{% endif %}{% elseif quiz is not null %}{% if quiz.settings.navigation.randomize_options|default(false) %}checked{% endif %}{% else %}checked{% endif %}> Randomize Option Order (Fisher-Yates)
                 </label>
             </div>
         </div>
@@ -105,27 +105,34 @@
             Target Audience (Eligible Employees)
         </h3>
 
+        {% set is_groups = false %}
+        {% if old is not null and old.target_audience|default('') == 'groups' %}
+            {% set is_groups = true %}
+        {% elseif quiz is not null and quiz.settings.target_groups is not empty and 'all' not in quiz.settings.target_groups %}
+            {% set is_groups = true %}
+        {% endif %}
+
         <div style="margin-bottom: 24px;">
             <p style="font-size: 0.85rem; color: #64748b; margin-bottom: 14px;">
                 Choose which employees are authorized and will have attempts generated for this assessment upon publishing.
             </p>
             <div style="display: flex; gap: 24px; margin-bottom: 16px;">
                 <label style="display: flex; align-items: center; gap: 8px; font-size: 0.95rem; cursor: pointer;">
-                    <input type="radio" name="target_audience" value="all" id="audience_all" {% if old is null or old.target_audience|default('all') == 'all' %}checked{% endif %} onchange="toggleAudienceGroups(false)">
+                    <input type="radio" name="target_audience" value="all" id="audience_all" {% if not is_groups %}checked{% endif %} onchange="toggleAudienceGroups(false)">
                     <strong>All Active Employees</strong>
                 </label>
                 <label style="display: flex; align-items: center; gap: 8px; font-size: 0.95rem; cursor: pointer;">
-                    <input type="radio" name="target_audience" value="groups" id="audience_groups" {% if old is not null and old.target_audience|default('') == 'groups' %}checked{% endif %} onchange="toggleAudienceGroups(true)">
+                    <input type="radio" name="target_audience" value="groups" id="audience_groups" {% if is_groups %}checked{% endif %} onchange="toggleAudienceGroups(true)">
                     <strong>Specific Groups / Departments</strong>
                 </label>
             </div>
 
-            <div id="groups-selector" style="display: {% if old is not null and old.target_audience|default('') == 'groups' %}block{% else %}none{% endif %}; background: #f8fafc; border: 1px solid var(--border-color); border-radius: 8px; padding: 18px; margin-top: 12px;">
+            <div id="groups-selector" style="display: {% if is_groups %}block{% else %}none{% endif %}; background: #f8fafc; border: 1px solid var(--border-color); border-radius: 8px; padding: 18px; margin-top: 12px;">
                 <div style="font-weight: 600; font-size: 0.9rem; margin-bottom: 10px; color: #1e293b;">Select Employee Groups / Departments:</div>
                 <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px;">
                     {% for group in groups %}
                         <label style="display: flex; align-items: center; gap: 10px; font-size: 0.9rem; cursor: pointer; padding: 6px 10px; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 6px;">
-                            <input type="checkbox" name="target_groups[]" value="{{ group.id }}" {% if old is not null and group.id in old.target_groups|default([]) %}checked{% endif %}>
+                            <input type="checkbox" name="target_groups[]" value="{{ group.id }}" {% if old is not null %}{% if group.id in old.target_groups|default([]) %}checked{% endif %}{% elseif quiz is not null %}{% if group.id in quiz.settings.target_groups|default([]) %}checked{% endif %}{% endif %}>
                             <div>
                                 <span style="font-weight: 500;">{{ group.name }}</span>
                                 {% if group.description %}
@@ -151,7 +158,7 @@
         </script>
 
         <button type="submit" class="btn btn-primary" style="padding: 10px 24px; font-size: 0.95rem;">
-            Save Quiz as Draft
+            {% if quiz %}Update Quiz Details{% else %}Save Quiz as Draft{% endif %}
         </button>
     </form>
 </div>

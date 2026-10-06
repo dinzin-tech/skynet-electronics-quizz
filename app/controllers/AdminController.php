@@ -19,7 +19,9 @@ use Core\Database;
 use Core\Http\Request;
 use Core\Http\Response;
 use Core\Session;
+use InvalidArgumentException;
 use PDO;
+use RuntimeException;
 
 class AdminController extends Controller
 {
@@ -369,33 +371,35 @@ class AdminController extends Controller
 
         if ($request->getMethod() === 'POST') {
             try {
-                $title = trim((string) $request->get('title', ''));
-                $code = strtoupper(trim((string) $request->get('code', '')));
-                $desc = trim((string) $request->get('description', ''));
-                $windowStart = (string) $request->get('window_start', '');
-                $windowEnd = (string) $request->get('window_end', '');
-                $duration = (int) $request->get('duration_minutes', 30);
+                $title = trim((string) ($request->input('title') ?? $request->get('title', '')));
+                $code = strtoupper(trim((string) ($request->input('code') ?? $request->get('code', ''))));
+                $desc = trim((string) ($request->input('description') ?? $request->get('description', '')));
+                $windowStart = (string) ($request->input('window_start') ?? $request->get('window_start', ''));
+                $windowEnd = (string) ($request->input('window_end') ?? $request->get('window_end', ''));
+                $duration = (int) ($request->input('duration_minutes') ?? $request->get('duration_minutes', 30));
 
                 $scoring = [
-                    'marks_per_correct' => (float) $request->get('marks_per_correct', 1.0),
-                    'negative_marks_per_wrong' => (float) $request->get('negative_marks', 0.0),
-                    'unanswered_penalty' => (float) $request->get('unanswered_penalty', 0.0),
-                    'pass_mark' => (float) $request->get('pass_mark', 20.0),
+                    'marks_per_correct' => (float) ($request->input('marks_per_correct') ?? $request->get('marks_per_correct', 1.0)),
+                    'negative_marks_per_wrong' => (float) ($request->input('negative_marks') ?? $request->get('negative_marks', 0.0)),
+                    'unanswered_penalty' => (float) ($request->input('unanswered_penalty') ?? $request->get('unanswered_penalty', 0.0)),
+                    'pass_mark' => (float) ($request->input('pass_mark') ?? $request->get('pass_mark', 20.0)),
                 ];
 
                 $nav = [
-                    'allow_back' => (bool) $request->get('allow_back', false),
-                    'allow_skip' => (bool) $request->get('allow_skip', false),
-                    'allow_review_screen' => (bool) $request->get('allow_review_screen', false),
-                    'randomize_questions' => (bool) $request->get('randomize_questions', false),
-                    'randomize_options' => (bool) $request->get('randomize_options', false),
+                    'allow_back' => (bool) ($request->input('allow_back') ?? $request->get('allow_back', false)),
+                    'allow_skip' => (bool) ($request->input('allow_skip') ?? $request->get('allow_skip', false)),
+                    'allow_review_screen' => (bool) ($request->input('allow_review_screen') ?? $request->get('allow_review_screen', false)),
+                    'randomize_questions' => (bool) ($request->input('randomize_questions') ?? $request->get('randomize_questions', false)),
+                    'randomize_options' => (bool) ($request->input('randomize_options') ?? $request->get('randomize_options', false)),
                 ];
 
-                $startUtc = gmdate('Y-m-d H:i:s', strtotime($windowStart));
-                $endUtc = gmdate('Y-m-d H:i:s', strtotime($windowEnd));
+                $startTs = strtotime(str_replace('T', ' ', $windowStart)) ?: time();
+                $endTs = strtotime(str_replace('T', ' ', $windowEnd)) ?: (time() + 86400);
+                $startUtc = gmdate('Y-m-d H:i:s', $startTs);
+                $endUtc = gmdate('Y-m-d H:i:s', $endTs);
 
-                $targetAudience = (string) $request->get('target_audience', 'all');
-                $selectedGroups = (array) $request->get('target_groups', []);
+                $targetAudience = (string) ($request->input('target_audience') ?? $request->get('target_audience', 'all'));
+                $selectedGroups = (array) ($request->input('target_groups') ?? $request->get('target_groups', []));
                 $targetGroups = [];
                 if ($targetAudience === 'groups' && !empty($selectedGroups)) {
                     $targetGroups = array_values(array_filter(array_map('intval', $selectedGroups), fn($g) => $g > 0));
@@ -442,6 +446,123 @@ class AdminController extends Controller
     }
 
     /**
+     * @Route(path="/admin/quizzes/{id}/edit", methods="GET,POST", name="admin.quizzes.edit")
+     */
+    public function quizEdit(Request $request, string $id): Response
+    {
+        if ($authRedirect = $this->requireAdmin()) {
+            return $authRedirect;
+        }
+
+        $admin = $this->getAdminUser();
+        $adminId = (int) ($admin['id'] ?? 1);
+        $quizId = (int) $id;
+
+        $quiz = $this->quizService->getById($quizId);
+        if (!$quiz) {
+            Session::set('flash_error', 'Quiz not found');
+            return $this->redirect('/admin/quizzes');
+        }
+
+        if ($request->getMethod() === 'POST') {
+            try {
+                $title = trim((string) ($request->input('title') ?? $request->get('title', '')));
+                $code = strtoupper(trim((string) ($request->input('code') ?? $request->get('code', ''))));
+                $desc = trim((string) ($request->input('description') ?? $request->get('description', '')));
+                $windowStart = (string) ($request->input('window_start') ?? $request->get('window_start', ''));
+                $windowEnd = (string) ($request->input('window_end') ?? $request->get('window_end', ''));
+                $duration = (int) ($request->input('duration_minutes') ?? $request->get('duration_minutes', 30));
+
+                $scoring = [
+                    'marks_per_correct' => (float) ($request->input('marks_per_correct') ?? $request->get('marks_per_correct', 1.0)),
+                    'negative_marks_per_wrong' => (float) ($request->input('negative_marks') ?? $request->get('negative_marks', 0.0)),
+                    'unanswered_penalty' => (float) ($request->input('unanswered_penalty') ?? $request->get('unanswered_penalty', 0.0)),
+                    'pass_mark' => (float) ($request->input('pass_mark') ?? $request->get('pass_mark', 20.0)),
+                ];
+
+                $nav = [
+                    'allow_back' => (bool) ($request->input('allow_back') ?? $request->get('allow_back', false)),
+                    'allow_skip' => (bool) ($request->input('allow_skip') ?? $request->get('allow_skip', false)),
+                    'allow_review_screen' => (bool) ($request->input('allow_review_screen') ?? $request->get('allow_review_screen', false)),
+                    'randomize_questions' => (bool) ($request->input('randomize_questions') ?? $request->get('randomize_questions', false)),
+                    'randomize_options' => (bool) ($request->input('randomize_options') ?? $request->get('randomize_options', false)),
+                ];
+
+                $startTs = strtotime(str_replace('T', ' ', $windowStart)) ?: time();
+                $endTs = strtotime(str_replace('T', ' ', $windowEnd)) ?: (time() + 86400);
+                $startUtc = gmdate('Y-m-d H:i:s', $startTs);
+                $endUtc = gmdate('Y-m-d H:i:s', $endTs);
+
+                $targetAudience = (string) ($request->input('target_audience') ?? $request->get('target_audience', 'all'));
+                $selectedGroups = (array) ($request->input('target_groups') ?? $request->get('target_groups', []));
+                $targetGroups = [];
+                if ($targetAudience === 'groups' && !empty($selectedGroups)) {
+                    $targetGroups = array_values(array_filter(array_map('intval', $selectedGroups), fn($g) => $g > 0));
+                }
+
+                $this->quizService->update($quizId, [
+                    'title' => $title,
+                    'code' => $code,
+                    'description' => $desc,
+                    'duration_minutes' => $duration,
+                    'duration_seconds' => $duration * 60,
+                    'start_at' => $startUtc,
+                    'end_at' => $endUtc,
+                    'window_start_at' => $startUtc,
+                    'window_end_at' => $endUtc,
+                    'settings' => [
+                        'scoring' => $scoring,
+                        'navigation' => $nav,
+                        'target_groups' => $targetGroups,
+                    ],
+                ], $adminId);
+
+                Session::set('flash_success', 'Quiz updated successfully.');
+                return $this->redirect('/admin/quizzes');
+            } catch (\Throwable $e) {
+                $groups = $this->db->query('SELECT id, name, description FROM `groups` ORDER BY name ASC')->fetchAll(PDO::FETCH_ASSOC);
+                return $this->render('admin/quizzes/form.html.twig', [
+                    'admin' => $this->getAdminUser(),
+                    'current_route' => 'quizzes',
+                    'quiz' => $quiz,
+                    'groups' => $groups,
+                    'error' => $e->getMessage(),
+                    'old' => $request->getPostData(),
+                ]);
+            }
+        }
+
+        $groups = $this->db->query('SELECT id, name, description FROM `groups` ORDER BY name ASC')->fetchAll(PDO::FETCH_ASSOC);
+        return $this->render('admin/quizzes/form.html.twig', [
+            'admin' => $this->getAdminUser(),
+            'current_route' => 'quizzes',
+            'quiz' => $quiz,
+            'groups' => $groups,
+            'old' => null,
+        ]);
+    }
+
+    /**
+     * @Route(path="/admin/quizzes/{id}/delete", methods="POST", name="admin.quizzes.delete")
+     */
+    public function quizDelete(Request $request, string $id): Response
+    {
+        if ($authRedirect = $this->requireAdmin()) {
+            return $authRedirect;
+        }
+
+        $quizId = (int) $id;
+        try {
+            $this->quizService->delete($quizId);
+            Session::set('flash_success', 'Quiz deleted successfully.');
+        } catch (\Throwable $e) {
+            Session::set('flash_error', 'Failed to delete quiz: ' . $e->getMessage());
+        }
+
+        return $this->redirect('/admin/quizzes');
+    }
+
+    /**
      * @Route(path="/admin/quizzes/{id}/questions", methods="GET,POST", name="admin.quizzes.questions")
      */
     public function quizQuestions(Request $request, string $id): Response
@@ -464,7 +585,7 @@ class AdminController extends Controller
                     mkdir($targetDir, 0755, true);
                 }
 
-                $rawQuestions = $request->get('questions');
+                $rawQuestions = $request->input('questions') ?? $request->get('questions');
                 $addedCount = 0;
 
                 if (is_array($rawQuestions) && !empty($rawQuestions)) {
@@ -518,10 +639,10 @@ class AdminController extends Controller
                 }
 
                 // Fallback for single question submission format
-                $questionText = trim((string) $request->get('question_text', ''));
+                $questionText = trim((string) ($request->input('question_text') ?? $request->get('question_text', '')));
                 if ($questionText !== '') {
-                    $correctIndex = (int) $request->get('correct_option', -1);
-                    $rawOptions = (array) $request->get('options', []);
+                    $correctIndex = (int) ($request->input('correct_option') ?? $request->get('correct_option', -1));
+                    $rawOptions = (array) ($request->input('options') ?? $request->get('options', []));
 
                     $options = [];
                     foreach ($rawOptions as $idx => $optText) {
@@ -639,6 +760,67 @@ class AdminController extends Controller
             Session::set('flash_success', 'Question deleted successfully.');
         } catch (\Throwable $e) {
             Session::set('flash_error', 'Failed to delete question: ' . $e->getMessage());
+        }
+
+        return $this->redirect("/admin/quizzes/{$quizId}/questions");
+    }
+
+    /**
+     * @Route(path="/admin/quizzes/{id}/questions/{qid}/edit", methods="POST", name="admin.quizzes.questions.edit")
+     */
+    public function quizQuestionEdit(Request $request, string $id, string $qid): Response
+    {
+        if ($authRedirect = $this->requireAdmin()) {
+            return $authRedirect;
+        }
+
+        $quizId = (int) $id;
+        $questionId = (int) $qid;
+
+        try {
+            $questionText = trim((string) ($request->input('question_text') ?? $request->get('question_text', '')));
+            if ($questionText === '') {
+                throw new InvalidArgumentException('Question text cannot be empty.');
+            }
+
+            $correctIndex = (int) ($request->input('correct_option') ?? $request->get('correct_option', -1));
+            $rawOptions = (array) ($request->input('options') ?? $request->get('options', []));
+            $removeImage = (bool) ($request->input('remove_image') ?? $request->get('remove_image', false));
+
+            $options = [];
+            foreach ($rawOptions as $idx => $optText) {
+                $optText = trim((string) $optText);
+                if ($optText !== '') {
+                    $options[] = [
+                        'text' => $optText,
+                        'is_correct' => ($idx === $correctIndex),
+                    ];
+                }
+            }
+
+            $imagePath = null;
+            $removeImage = (bool) $request->get('remove_image', false);
+            if (!empty($_FILES['question_image']['tmp_name']) && is_uploaded_file($_FILES['question_image']['tmp_name'])) {
+                $targetDir = dirname(__DIR__, 2) . '/public/uploads/questions';
+                if (!is_dir($targetDir)) {
+                    mkdir($targetDir, 0755, true);
+                }
+                $file = $_FILES['question_image'];
+                $allowedExts = ['jpg', 'jpeg', 'png', 'webp', 'gif'];
+                $ext = strtolower(pathinfo((string) $file['name'], PATHINFO_EXTENSION));
+                if (in_array($ext, $allowedExts, true)) {
+                    $fileName = 'q_' . $quizId . '_' . time() . '_' . bin2hex(random_bytes(4)) . '.' . $ext;
+                    $dest = $targetDir . '/' . $fileName;
+                    if (move_uploaded_file($file['tmp_name'], $dest)) {
+                        $imagePath = '/uploads/questions/' . $fileName;
+                    }
+                }
+            }
+
+            $this->questionService->updateQuestion($questionId, $questionText, $options, $imagePath, $removeImage);
+            Session::set('flash_success', 'Question updated successfully.');
+        } catch (\Throwable $e) {
+            Session::set('flash_error', 'Failed to update question: ' . $e->getMessage());
         }
 
         return $this->redirect("/admin/quizzes/{$quizId}/questions");

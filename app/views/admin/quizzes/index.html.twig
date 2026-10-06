@@ -64,14 +64,22 @@
                         {% endif %}
                     </td>
                     <td>
-                        <div style="display: flex; gap: 6px; align-items: center;">
+                        <div style="display: flex; gap: 6px; align-items: center; flex-wrap: wrap;">
                             <a href="/admin/quizzes/{{ q.id }}/questions" class="btn btn-secondary" style="padding: 4px 10px; font-size: 0.775rem;">
                                 Questions ({{ q.question_count|default(0) }})
+                            </a>
+
+                            <a href="/admin/quizzes/{{ q.id }}/edit" class="btn btn-secondary" style="padding: 4px 10px; font-size: 0.775rem;">
+                                Edit
                             </a>
 
                             {% if q.status == 'draft' %}
                                 <form action="/admin/quizzes/{{ q.id }}/publish" method="POST" style="display: inline;" onsubmit="return confirm('Publish this quiz? This will generate the immutable snapshot and materialize eligible attempts.');">
                                     <button type="submit" class="btn btn-primary" style="padding: 4px 10px; font-size: 0.775rem;" {% if q.question_count|default(0) == 0 %}title="Add questions before publishing"{% endif %}>Publish</button>
+                                </form>
+
+                                <form action="/admin/quizzes/{{ q.id }}/delete" method="POST" style="display: inline;" onsubmit="return confirm('Are you sure you want to delete this quiz? All questions will be permanently deleted.');">
+                                    <button type="submit" class="btn" style="background: #fee2e2; color: #dc2626; border: none; padding: 4px 10px; font-size: 0.775rem; border-radius: 4px; cursor: pointer;">Delete</button>
                                 </form>
                             {% endif %}
 

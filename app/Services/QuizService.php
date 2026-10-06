@@ -225,6 +225,22 @@ class QuizService
             $params['title'] = $title;
         }
 
+        if (isset($data['code'])) {
+            $code = strtoupper(trim((string) $data['code']));
+            if ($code === '') {
+                throw new InvalidArgumentException('Quiz code cannot be empty');
+            }
+            if ($code !== $existing['code']) {
+                $codeCheck = $this->db->prepare('SELECT COUNT(*) FROM quizzes WHERE code = :code AND id != :id');
+                $codeCheck->execute(['code' => $code, 'id' => $id]);
+                if (((int) $codeCheck->fetchColumn()) > 0) {
+                    throw new InvalidArgumentException("Quiz code '{$code}' is already taken");
+                }
+            }
+            $fields[] = 'code = :code';
+            $params['code'] = $code;
+        }
+
         if (array_key_exists('description', $data)) {
             $fields[] = 'description = :desc';
             $params['desc'] = $data['description'];
