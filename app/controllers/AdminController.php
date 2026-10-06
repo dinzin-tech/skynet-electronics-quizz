@@ -14,6 +14,7 @@ use App\Services\QuizService;
 use App\Services\QuizWarmer;
 use App\Services\ReportExportService;
 use App\Services\SubmissionsService;
+use App\Services\TimeHelper;
 use App\Services\WorkerManagerService;
 use Core\Controller;
 use Core\Database;
@@ -25,6 +26,8 @@ use DateTimeZone;
 use InvalidArgumentException;
 use PDO;
 use RuntimeException;
+use Twig\TwigFilter;
+use Twig\TwigFunction;
 
 class AdminController extends Controller
 {
@@ -56,6 +59,19 @@ class AdminController extends Controller
         $this->submissionsService = new SubmissionsService($this->db);
         $this->exportService = new ReportExportService($this->db);
         $this->workerManager = new WorkerManagerService($this->db);
+
+        $companyTzName = $_ENV['COMPANY_TZ'] ?? 'Asia/Kolkata';
+        if ($this->twig->hasExtension(\Twig\Extension\CoreExtension::class)) {
+            $core = $this->twig->getExtension(\Twig\Extension\CoreExtension::class);
+            $core->setTimezone($companyTzName);
+            $core->setDateFormat('d M Y, h:i A');
+        }
+
+        $this->twig->addFilter(new TwigFilter('company_date', [TimeHelper::class, 'toCompanyTz']));
+        $this->twig->addFilter(new TwigFilter('company_input_date', [TimeHelper::class, 'formatInputDateTime']));
+        $this->twig->addFunction(new TwigFunction('company_date', [TimeHelper::class, 'toCompanyTz']));
+        $this->twig->addFunction(new TwigFunction('company_tz', fn() => $_ENV['COMPANY_TZ'] ?? 'Asia/Kolkata'));
+        $this->twig->addGlobal('company_tz', $companyTzName);
 
         if (session_status() === PHP_SESSION_NONE) {
             Session::start();
@@ -1033,41 +1049,7 @@ class AdminController extends Controller
      */
     private function parseWindowDateTime(string $datetime, string $fieldName = 'Window date'): string
     {
-        $datetime = trim($datetime);
-        if ($datetime === '') {
-            throw new InvalidArgumentException("{$fieldName} is required.");
-        }
-
-        $companyTz = new DateTimeZone($_ENV['COMPANY_TZ'] ?? 'Asia/Kolkata');
-        $utcTz = new DateTimeZone('UTC');
-
-        // Check common format strings first
-        $formats = [
-            'Y-m-d\TH:i:s',
-            'Y-m-d\TH:i',
-            'Y-m-d H:i:s',
-            'Y-m-d H:i',
-            'd/m/Y H:i:s',
-            'd/m/Y H:i',
-            'd-m-Y H:i:s',
-            'd-m-Y H:i',
-        ];
-
-        foreach ($formats as $fmt) {
-            $dt = DateTimeImmutable::createFromFormat($fmt, $datetime, $companyTz);
-            if ($dt !== false) {
-                return $dt->setTimezone($utcTz)->format('Y-m-d H:i:s');
-            }
-        }
-
-        try {
-            $dt = new DateTimeImmutable($datetime, $companyTz);
-            return $dt->setTimezone($utcTz)->format('Y-m-d H:i:s');
-        } catch (\Throwable $e) {
-            throw new InvalidArgumentException(
-                "Invalid format for {$fieldName}: '{$datetime}'. Expected YYYY-MM-DD HH:MM."
-            );
-        }
+        return TimeHelper::toUtc($datetime, $fieldName);
     }
 
     /**

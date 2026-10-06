@@ -69,7 +69,7 @@
                     <th>Report Type</th>
                     <th>Status</th>
                     <th>Row Count</th>
-                    <th>Expires At</th>
+                    <th>Expires At ({{ company_tz }})</th>
                     <th>Action</th>
                 </tr>
             </thead>
@@ -90,7 +90,7 @@
                         {% endif %}
                     </td>
                     <td>{{ job.row_count|number_format }}</td>
-                    <td>{{ job.expires_at|date('Y-m-d H:i') }}</td>
+                    <td>{{ job.expires_at ? job.expires_at|company_date('d M Y, h:i A') : '—' }}</td>
                     <td>
                         {% if job.status == 'completed' %}
                             <a href="/admin/reports/download/{{ job.id }}" class="btn btn-secondary" style="padding: 4px 10px; font-size: 0.775rem;">Download CSV</a>

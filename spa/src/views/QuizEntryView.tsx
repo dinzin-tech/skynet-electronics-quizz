@@ -102,11 +102,13 @@ export const QuizEntryView: React.FC<QuizEntryViewProps> = ({
 
   const formatDate = (ms?: number) => {
     if (!ms) return '';
-    return new Date(ms).toLocaleDateString(undefined, {
+    return new Date(ms).toLocaleString(undefined, {
+      day: '2-digit',
       month: 'short',
-      day: 'numeric',
+      year: 'numeric',
       hour: '2-digit',
       minute: '2-digit',
+      hour12: true,
     });
   };
 
@@ -300,6 +302,11 @@ export const QuizEntryView: React.FC<QuizEntryViewProps> = ({
                 <div style={{ fontSize: '1.125rem', fontWeight: 700, color: 'var(--warning)' }}>
                   Assessment Window Opens Soon
                 </div>
+                {meta?.opens_at_ms && (
+                  <div style={{ fontSize: '0.875rem', color: 'var(--gray-600)', marginTop: '0.25rem' }}>
+                    Opens at: {formatDate(meta.opens_at_ms)}
+                  </div>
+                )}
                 {timeUntilOpenMs !== null && timeUntilOpenMs > 0 && (
                   <div style={{ fontSize: '1.75rem', fontWeight: 800, color: 'var(--gray-900)', marginTop: '0.5rem' }}>
                     {Math.floor(timeUntilOpenMs / 60000)}m {Math.floor((timeUntilOpenMs % 60000) / 1000)}s
