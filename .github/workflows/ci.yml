@@ -97,7 +97,7 @@ jobs:
         with:
           php-version: '8.2'
           extensions: redis, pdo_mysql, apcu, mbstring, curl, xml, zip, opcache
-          ini-values: apc.enable_cli=1, opcache.enable_cli=1
+          ini-values: apc.enable_cli=1, opcache.enable_cli=1, opcache.jit=disable
           tools: composer:v2
 
       - name: Prepare Environment File and Storage
@@ -135,6 +135,9 @@ jobs:
 
       - name: Run Database Migrations
         run: php bin/console migrations run
+
+      - name: Seed Test Database
+        run: php bin/console db:seed || true
 
       - name: Execute PHPUnit Suite
         run: vendor/bin/phpunit

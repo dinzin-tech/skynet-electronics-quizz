@@ -36,6 +36,18 @@ class AuthServiceTest extends TestCase
             $this->secret,
             'v1'
         );
+
+        // Ensure test employee exists for tests
+        $stmt = $this->db->prepare("SELECT id FROM employees WHERE employee_code = 'EMP0001'");
+        $stmt->execute();
+        if (!$stmt->fetch()) {
+            $hash = password_hash('QuizPass2026!', PASSWORD_BCRYPT, ['cost' => 10]);
+            $ins = $this->db->prepare(
+                'INSERT INTO employees (public_id, employee_code, name, email, username, password_hash, status, created_at, updated_at) ' .
+                "VALUES ('01ARZ3NDEKTSV4RRFFQ69G5FAV', 'EMP0001', 'Employee 1', 'emp1@corp.local', 'emp0001', :hash, 'active', NOW(), NOW())"
+            );
+            $ins->execute(['hash' => $hash]);
+        }
     }
 
     protected function tearDown(): void
