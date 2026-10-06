@@ -45,6 +45,11 @@ jobs:
           script: |
             TARGET_BRANCH="${{ github.event.inputs.target_branch || github.ref_name || 'master' }}"
             echo ">>> Executing deployment for branch: $TARGET_BRANCH"
+            cd /var/www/corpquiz
+            git reset --hard HEAD
+            git fetch origin "$TARGET_BRANCH"
+            git checkout -f "$TARGET_BRANCH"
+            git reset --hard "origin/$TARGET_BRANCH"
             chmod +x /var/www/corpquiz/ops/deploy.sh 2>/dev/null || true
             bash /var/www/corpquiz/ops/deploy.sh "$TARGET_BRANCH"
 
@@ -62,5 +67,10 @@ jobs:
         run: |
           TARGET_BRANCH="${{ github.event.inputs.target_branch || github.ref_name || 'master' }}"
           echo ">>> Executing local deployment on VPS runner for branch: $TARGET_BRANCH"
+          cd /var/www/corpquiz
+          git reset --hard HEAD
+          git fetch origin "$TARGET_BRANCH"
+          git checkout -f "$TARGET_BRANCH"
+          git reset --hard "origin/$TARGET_BRANCH"
           chmod +x /var/www/corpquiz/ops/deploy.sh 2>/dev/null || true
           bash /var/www/corpquiz/ops/deploy.sh "$TARGET_BRANCH"
