@@ -1124,11 +1124,13 @@ class AdminController extends Controller
         $action = trim((string) ($request->get('action') ?: ($_POST['action'] ?? '')));
 
         $result = match ($action) {
-            'run_once' => $this->workerManager->runOnce($worker),
-            'restart' => $this->workerManager->restartWorker($worker),
-            'start' => $this->workerManager->startWorker($worker),
-            'stop' => $this->workerManager->stopWorker($worker),
-            default => ['success' => false, 'message' => "Invalid worker action: {$action}"],
+            'run_once'  => $this->workerManager->runOnce($worker),
+            'restart'   => $this->workerManager->restartWorker($worker),
+            'start'     => $this->workerManager->startWorker($worker),
+            'stop'      => $this->workerManager->stopWorker($worker),
+            'start_all' => $this->workerManager->startAll(),
+            'stop_all'  => $this->workerManager->stopAll(),
+            default     => ['success' => false, 'message' => "Invalid worker action: {$action}"],
         };
 
         $accept = $_SERVER['HTTP_ACCEPT'] ?? '';

@@ -73,12 +73,21 @@ class WorkerManagerService
             // Inspect systemd service status if on Linux
             $systemdState = $this->getSystemdStatus($meta['service']);
 
+            // Determine health:
+            // - If systemd is available, use it as the ground truth (active = running).
+            // - If systemd is unavailable (n/a / Windows dev), fall back to Redis heartbeat.
+            if ($systemdState !== 'n/a' && $systemdState !== 'unknown' && $systemdState !== '') {
+                $healthy = ($systemdState === 'active');
+            } else {
+                $healthy = $workerInfo['healthy'];
+            }
+
             $workersStatus[$key] = [
                 'key' => $key,
                 'name' => $meta['name'],
                 'service' => $meta['service'],
                 'description' => $meta['description'],
-                'healthy' => $workerInfo['healthy'],
+                'healthy' => $healthy,
                 'last_heartbeat' => $workerInfo['last_heartbeat'],
                 'age_seconds' => $workerInfo['age_seconds'],
                 'systemd_state' => $systemdState,
@@ -198,6 +207,60 @@ class WorkerManagerService
     }
 
     /**
+     * Start all four background workers at once.
+     *
+     * @return array{success: bool, message: string, results: array<string, array{success: bool, message: string}>}
+     */
+    public function startAll(): array
+    {
+        $results = [];
+        $allOk = true;
+
+        foreach (array_keys(self::WORKERS) as $worker) {
+            $r = $this->startWorker($worker);
+            $results[$worker] = $r;
+            if (!$r['success']) {
+                $allOk = false;
+            }
+        }
+
+        return [
+            'success' => $allOk,
+            'message' => $allOk
+                ? 'All workers started successfully.'
+                : 'Some workers failed to start — see results for details.',
+            'results' => $results,
+        ];
+    }
+
+    /**
+     * Stop all four background workers at once.
+     *
+     * @return array{success: bool, message: string, results: array<string, array{success: bool, message: string}>}
+     */
+    public function stopAll(): array
+    {
+        $results = [];
+        $allOk = true;
+
+        foreach (array_keys(self::WORKERS) as $worker) {
+            $r = $this->stopWorker($worker);
+            $results[$worker] = $r;
+            if (!$r['success']) {
+                $allOk = false;
+            }
+        }
+
+        return [
+            'success' => $allOk,
+            'message' => $allOk
+                ? 'All workers stopped.'
+                : 'Some workers failed to stop — see results for details.',
+            'results' => $results,
+        ];
+    }
+
+    /**
      * Get recent log lines for a worker.
      */
     public function getLogs(string $worker, int $lines = 50): string
@@ -242,10 +305,10 @@ class WorkerManagerService
         $service = self::WORKERS[$worker]['service'];
 
         if (!$this->isSystemctlAvailable()) {
-            // Emulate or return helpful message in non-systemd environment (Windows / Dev)
             return [
-                'success' => true,
-                'message' => "Action '{$action}' simulated for {$service} (systemctl not available).",
+                'success' => false,
+                'message' => "Cannot {$action} {$service}: systemctl is not available in this environment. "
+                    . "Run this action on the production server via SSH.",
             ];
         }
 

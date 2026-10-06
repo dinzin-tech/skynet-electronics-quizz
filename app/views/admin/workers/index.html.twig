@@ -229,10 +229,16 @@
     <div>
         <h2 style="font-size: 1.25rem; font-weight: 700; color: #0f172a;">Background Workers & Queue Supervisor</h2>
         <p style="font-size: 0.875rem; color: #64748b; margin-top: 2px;">
-            Live operational dashboard with manual controls for flusher, finalizer, scheduler, and jobs daemons.
+            Live operational dashboard. <strong style="color: #0f172a;">Systemd state</strong> is the primary health signal.
         </p>
     </div>
-    <div style="display: flex; align-items: center; gap: 12px;">
+    <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+        <button class="action-btn action-btn-primary" onclick="triggerBulkAction(this, 'start_all')" title="Start all workers">
+            Start All Workers
+        </button>
+        <button class="action-btn action-btn-danger" onclick="triggerBulkAction(this, 'stop_all')" title="Stop all workers">
+            Stop All Workers
+        </button>
         <label style="display: flex; align-items: center; gap: 8px; font-size: 0.85rem; font-weight: 500; cursor: pointer; user-select: none;">
             <input type="checkbox" id="auto-refresh-toggle" checked style="cursor: pointer;">
             <span><span class="pulse-dot" id="live-indicator-dot"></span>Live Auto-Refresh (2s)</span>
@@ -307,15 +313,25 @@
 
             <div class="worker-meta">
                 <div class="worker-meta-row">
-                    <span class="worker-meta-label">Heartbeat Age:</span>
-                    <span class="worker-meta-value" id="age-{{ key }}">
-                        {% if w.age_seconds >= 0 %}{{ w.age_seconds }}s ago{% else %}Never{% endif %}
+                    <span class="worker-meta-label">Systemd State:</span>
+                    <span class="worker-meta-value" id="systemd-{{ key }}">
+                        {% if w.systemd_state == 'active' %}
+                            <code style="color:#15803d;">active ✓</code>
+                        {% elseif w.systemd_state == 'inactive' %}
+                            <code style="color:#b91c1c;">inactive ✗</code>
+                        {% elseif w.systemd_state == 'failed' %}
+                            <code style="color:#b91c1c;">failed ✗</code>
+                        {% elseif w.systemd_state == 'n/a' %}
+                            <code style="color:#64748b;">n/a (dev)</code>
+                        {% else %}
+                            <code style="color:#d97706;">{{ w.systemd_state }}</code>
+                        {% endif %}
                     </span>
                 </div>
                 <div class="worker-meta-row">
-                    <span class="worker-meta-label">Systemd State:</span>
-                    <span class="worker-meta-value" id="systemd-{{ key }}">
-                        <code>{{ w.systemd_state }}</code>
+                    <span class="worker-meta-label">Heartbeat Age:</span>
+                    <span class="worker-meta-value" id="age-{{ key }}">
+                        {% if w.age_seconds >= 0 %}{{ w.age_seconds }}s ago{% else %}Never{% endif %}
                     </span>
                 </div>
             </div>
@@ -663,5 +679,37 @@
 
     // Start auto-refresh on load
     startAutoRefresh();
+
+    // Bulk action: start_all or stop_all (no specific worker)
+    async function triggerBulkAction(btnElem, action) {
+        const label = action === 'start_all' ? 'Starting all workers...' : 'Stopping all workers...';
+        const originalText = btnElem.innerHTML;
+        btnElem.disabled = true;
+        btnElem.innerHTML = '⏳ ' + label;
+
+        try {
+            const formData = new FormData();
+            formData.append('worker', '');
+            formData.append('action', action);
+
+            const res = await fetch('/admin/workers/action', {
+                method: 'POST',
+                headers: {
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                body: formData
+            });
+
+            const data = await res.json();
+            showToast(data.message || (data.success ? 'Done.' : 'Action failed.'), !data.success);
+            await fetchLiveStatus(false);
+        } catch (err) {
+            showToast('Error: ' + err.message, true);
+        } finally {
+            btnElem.disabled = false;
+            btnElem.innerHTML = originalText;
+        }
+    }
 </script>
 {% endblock %}
