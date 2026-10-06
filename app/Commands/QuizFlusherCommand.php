@@ -37,6 +37,12 @@ class QuizFlusherCommand
         echo "QuizFlusher started" . ($once ? " (single pass)" : " (daemon mode)") . "...\n";
 
         do {
+            try {
+                $redis->setEx('worker:heartbeat:flusher', 30, (string) time());
+            } catch (\Throwable $e) {
+                // Ignore transient heartbeat failure
+            }
+
             $flushedAnswers = $this->flushAnswers($redis);
             $flushedAttempts = $this->flushAttempts($redis);
 

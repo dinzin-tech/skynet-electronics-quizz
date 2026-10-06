@@ -63,4 +63,15 @@ ln -sf /etc/nginx/sites-available/corpquiz.conf /etc/nginx/sites-enabled/corpqui
 rm -f /etc/nginx/sites-enabled/default
 nginx -t && systemctl reload nginx
 
+if [ -f /var/www/corpquiz/ops/sudoers.d/corpquiz ]; then
+    cp /var/www/corpquiz/ops/sudoers.d/corpquiz /etc/sudoers.d/corpquiz
+    chmod 0440 /etc/sudoers.d/corpquiz
+fi
+
+if [ -f /var/www/corpquiz/ops/observability/setup-observability.sh ]; then
+    OBS_MODE="${OBS_MODE:---local}"
+    bash /var/www/corpquiz/ops/observability/setup-observability.sh "$OBS_MODE"
+fi
+
 echo ">>> CorpQuiz server provisioned successfully!"
+

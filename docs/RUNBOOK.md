@@ -55,13 +55,27 @@ This runbook defines the standard operating procedures, assessment-day checklist
 ---
 
 ### T-0 to T+Window: Live Monitoring
-1. Monitor live dashboard: `https://quiz.corp.local/admin/dashboard`
-2. Monitor Redis operation latency:
+1. **Live Terminal Monitor (Recommended):**
+   ```bash
+   php /var/www/corpquiz/bin/console quiz:monitor
+   ```
+   Provides a real-time (1s refresh) colorized status of all 4 workers, queue depths (`dirty_att`, `dirty`, `fq`, `dlq`), Redis memory/ops, and MySQL threads.
+
+2. **Grafana Dashboard:**
+   Open the imported `CorpQuiz - Production Observability Dashboard` (refresh 5s).
+
+3. **Prometheus / App Metrics Endpoint:**
+   ```bash
+   curl -s http://127.0.0.1/metrics | grep -E "^quiz_"
+   ```
+
+4. Monitor Redis operation latency:
    ```bash
    redis-cli -s /run/redis/redis-server.sock --latency
    ```
    Expected latency: $\le 0.5$ ms.
-3. Monitor worker queues:
+
+5. Monitor worker queues directly:
    ```bash
    # Pending writes to MySQL
    redis-cli -s /run/redis/redis-server.sock scard dirty_att

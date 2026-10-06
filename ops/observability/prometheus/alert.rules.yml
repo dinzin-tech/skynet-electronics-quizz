@@ -1,0 +1,130 @@
+# ==============================================================================
+# CorpQuiz Prometheus Alerting Rules
+# Optimized for 2 vCPU VPS (2,000 Concurrent Users Target)
+# ==============================================================================
+groups:
+  - name: corpquiz_worker_alerts
+    rules:
+      - alert: CorpQuizWorkerDown
+        expr: quiz_worker_status == 0 or quiz_worker_heartbeat_age_seconds > 20
+        for: 30s
+        labels:
+          severity: critical
+        annotations:
+          summary: "CorpQuiz worker daemon {{ $labels.worker }} is down or hung"
+          description: "Worker {{ $labels.worker }} has not sent a heartbeat in over 20 seconds. Run 'systemctl restart quiz-{{ $labels.worker }}' immediately."
+          runbook_url: "docs/RUNBOOK.md#1-assessment-day-checklist"
+
+      - alert: CorpQuizDirtyAttemptsLag
+        expr: quiz_queue_dirty_attempts > 500
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "MySQL write-behind queue lag is high (dirty_att > 500)"
+          description: "There are {{ $value }} unwritten attempts pending in Redis dirty_att set. MySQL write-behind flusher may be lagging or MySQL is locked."
+          runbook_url: "docs/RUNBOOK.md#scenario-b-dirty-attempt-queue-dirty_att-growing"
+
+      - alert: CorpQuizFinalizerQueueLag
+        expr: quiz_queue_finalizer_length > 200
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Finalizer queue lag is high (fq > 200)"
+          description: "There are {{ $value }} submitted attempts waiting in finalizer queue. Grading and score generation is lagging. Check finalizer logs or spawn auxiliary finalizer."
+          runbook_url: "docs/RUNBOOK.md#scenario-a-finalizer-queue-fq-lagging"
+
+      - alert: CorpQuizDeadLetterQueueNotEmpty
+        expr: quiz_queue_dead_letter_length > 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Dead Letter Queue has {{ $value }} failed attempt(s)"
+          description: "One or more writes or finalizations failed permanently and were pushed to dlq. Inspect logs in /var/log/corpquiz/."
+          runbook_url: "docs/RUNBOOK.md"
+
+  - name: corpquiz_storage_alerts
+    rules:
+      - alert: CorpQuizRedisDown
+        expr: quiz_redis_up == 0
+        for: 15s
+        labels:
+          severity: critical
+        annotations:
+          summary: "Redis in-memory engine is unreachable"
+          description: "The Redis instance is down or unix socket is inaccessible. Quiz hot path is halted. Restart redis-server immediately."
+          runbook_url: "docs/RUNBOOK.md#scenario-c-unexpected-redis-restart-mid-quiz"
+
+      - alert: CorpQuizRedisMemoryHigh
+        expr: quiz_redis_used_memory_bytes > 850 * 1024 * 1024
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Redis memory usage exceeds 850 MB (cap is 1024 MB)"
+          description: "Redis allocated memory is {{ $value | humanize1024 }}B, nearing the 1 GB VPS memory budget. Inspect warm keys or session leaks."
+          runbook_url: "docs/RUNBOOK.md#t-60-minutes-infrastructure-health-audit"
+
+      - alert: CorpQuizDatabaseDown
+        expr: quiz_db_up == 0
+        for: 30s
+        labels:
+          severity: critical
+        annotations:
+          summary: "MySQL database is unreachable"
+          description: "MySQL connection failed. Background flusher and admin console will fail. Restart mysql immediately."
+          runbook_url: "docs/RUNBOOK.md"
+
+      - alert: CorpQuizMySQLSlowQueriesSpike
+        expr: rate(quiz_mysql_slow_queries_total[2m]) > 2
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "MySQL slow queries detected"
+          description: "MySQL is executing slow queries (> 0.5s). Review /var/log/mysql/mysql-slow.log."
+          runbook_url: "docs/RUNBOOK.md"
+
+  - name: corpquiz_infrastructure_alerts
+    rules:
+      - alert: HostHighCpuUsage
+        expr: (100 - (avg by (instance) (rate(node_cpu_seconds_total{mode="idle"}[1m])) * 100)) > 85
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Host CPU utilization > 85% on 2 vCPU VPS"
+          description: "Sustained CPU usage is {{ $value | printf \"%.1f\" }}%. Exceeds the §2 load model budget of < 85% sustained CPU."
+          runbook_url: "docs/RUNBOOK.md"
+
+      - alert: HostLowDiskSpace
+        expr: (node_filesystem_free_bytes{mountpoint="/"} / (1024 * 1024 * 1024)) < 15
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "NVMe free disk space is below 15 GB"
+          description: "Free disk space is {{ $value | printf \"%.1f\" }} GB. RUNBOOK requirement is at least 15 GB free for AOF and log files."
+          runbook_url: "docs/RUNBOOK.md#t-60-minutes-infrastructure-health-audit"
+
+      - alert: PhpFpmPoolStarvation
+        expr: php_fpm_max_children_reached > 0 or php_fpm_listen_queue > 0
+        for: 30s
+        labels:
+          severity: critical
+        annotations:
+          summary: "PHP-FPM pool max_children reached or listen queue backlog growing"
+          description: "Pool {{ $labels.pool }} reached max children or has waiting requests in queue. Requests are queuing."
+          runbook_url: "docs/RUNBOOK.md"
+
+      - alert: Http5xxErrorRateHigh
+        expr: sum(rate(nginx_http_requests_total{status=~"5.."}[1m])) / sum(rate(nginx_http_requests_total[1m])) * 100 > 0.1
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "HTTP 5xx error rate exceeds 0.1%"
+          description: "Current 5xx error rate is {{ $value | printf \"%.2f\" }}%. Violates target SLO (< 0.1% errors)."
+          runbook_url: "docs/RUNBOOK.md"

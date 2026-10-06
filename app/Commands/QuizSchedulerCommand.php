@@ -42,6 +42,12 @@ class QuizSchedulerCommand
         echo "QuizScheduler started" . ($once ? " (single pass)" : " (daemon mode)") . "...\n";
 
         do {
+            try {
+                $redis->setEx('worker:heartbeat:scheduler', 30, (string) time());
+            } catch (\Throwable $e) {
+                // Ignore transient heartbeat failure
+            }
+
             $nowMs = Clock::nowMs();
 
             // 1. Sweep expired attempt deadlines

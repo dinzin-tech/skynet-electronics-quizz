@@ -1,0 +1,31 @@
+# ==============================================================================
+# Sudoers configuration for CorpQuiz CI/CD Deployments
+# Location on VPS: /etc/sudoers.d/corpquiz
+# Permissions: 0440 (chmod 0440 /etc/sudoers.d/corpquiz)
+# ==============================================================================
+
+# Allow members of corpquiz-deploy group or runner user to reload PHP, Nginx, Prometheus, and restart daemons
+%corpquiz-deploy ALL=(ALL) NOPASSWD: /usr/bin/systemctl reload php8.2-fpm, \
+                                     /usr/bin/systemctl reload php8.3-fpm, \
+                                     /usr/bin/systemctl reload nginx, \
+                                     /usr/sbin/nginx -t, \
+                                     /usr/bin/systemctl reload prometheus, \
+                                     /usr/bin/systemctl restart quiz-flusher quiz-scheduler quiz-finalizer quiz-jobs, \
+                                     /usr/bin/systemctl status quiz-flusher quiz-scheduler quiz-finalizer quiz-jobs, \
+                                     /usr/bin/cp /var/www/corpquiz/ops/nginx/corpquiz.conf /etc/nginx/sites-available/corpquiz.conf, \
+                                     /usr/bin/cp /var/www/corpquiz/ops/observability/prometheus/alert.rules.yml /etc/prometheus/alert.rules.yml, \
+                                     /usr/bin/chown -R www-data\:www-data /var/www/corpquiz/storage /var/www/corpquiz/public, \
+                                     /usr/bin/chmod -R 775 /var/www/corpquiz/storage
+
+# Allow runner user (if named 'runner') passwordless execution of the deployment script and essential services
+runner ALL=(ALL) NOPASSWD: /var/www/corpquiz/ops/deploy.sh, \
+                           /usr/bin/systemctl reload php8.2-fpm, \
+                           /usr/bin/systemctl reload php8.3-fpm, \
+                           /usr/bin/systemctl reload nginx, \
+                           /usr/sbin/nginx -t, \
+                           /usr/bin/systemctl reload prometheus, \
+                           /usr/bin/systemctl restart quiz-flusher quiz-scheduler quiz-finalizer quiz-jobs, \
+                           /usr/bin/cp /var/www/corpquiz/ops/nginx/corpquiz.conf /etc/nginx/sites-available/corpquiz.conf, \
+                           /usr/bin/cp /var/www/corpquiz/ops/observability/prometheus/alert.rules.yml /etc/prometheus/alert.rules.yml, \
+                           /usr/bin/chown -R www-data\:www-data /var/www/corpquiz/storage /var/www/corpquiz/public, \
+                           /usr/bin/chmod -R 775 /var/www/corpquiz/storage
