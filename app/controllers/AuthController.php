@@ -30,20 +30,19 @@ class AuthController extends Controller
         $identifier = (string) (
             $input['identifier'] ?? $input['login'] ?? $input['employee_code'] ?? $input['email'] ?? $input['username'] ?? ''
         );
-        $password = (string) ($input['password'] ?? '');
 
-        if ($identifier === '' || $password === '') {
+        if ($identifier === '') {
             return (new Response())
                 ->setStatusCode(400)
                 ->json([
                     'error' => [
                         'code' => 'missing_credentials',
-                        'message' => 'Identifier and password are required',
+                        'message' => 'Employee identifier is required',
                     ]
                 ], 400);
         }
 
-        $result = $this->authService->loginEmployee($identifier, $password);
+        $result = $this->authService->loginEmployee($identifier);
 
         if (!$result) {
             return (new Response())

@@ -10,7 +10,7 @@ use App\Middlewares\AuthToken;
 use App\Middlewares\RequireRole;
 use App\Services\Auth\AdminAuthProvider;
 use App\Services\Auth\AuthService;
-use App\Services\Auth\PasswordAuthProvider;
+use App\Services\Auth\EmployeeCodeAuthProvider;
 use Core\Database;
 use Core\Http\Request;
 use Core\Http\Response;
@@ -31,7 +31,7 @@ class AuthServiceTest extends TestCase
         $this->db = Database::getInstance()->getConnection();
         $this->origAppSecret = $_ENV['APP_SECRET'] ?? null;
         $this->authService = new AuthService(
-            new PasswordAuthProvider($this->db),
+            new EmployeeCodeAuthProvider($this->db),
             new AdminAuthProvider($this->db),
             $this->secret,
             'v1'
@@ -41,12 +41,11 @@ class AuthServiceTest extends TestCase
         $stmt = $this->db->prepare("SELECT id FROM employees WHERE employee_code = 'EMP0001'");
         $stmt->execute();
         if (!$stmt->fetch()) {
-            $hash = password_hash('QuizPass2026!', PASSWORD_BCRYPT, ['cost' => 10]);
             $ins = $this->db->prepare(
                 'INSERT INTO employees (public_id, employee_code, name, email, username, password_hash, status, created_at, updated_at) ' .
-                "VALUES ('01ARZ3NDEKTSV4RRFFQ69G5FAV', 'EMP0001', 'Employee 1', 'emp1@corp.local', 'emp0001', :hash, 'active', NOW(), NOW())"
+                "VALUES ('01ARZ3NDEKTSV4RRFFQ69G5FAV', 'EMP0001', 'Employee 1', 'emp1@corp.local', 'emp0001', NULL, 'active', NOW(), NOW())"
             );
-            $ins->execute(['hash' => $hash]);
+            $ins->execute();
         }
     }
 
@@ -64,33 +63,33 @@ class AuthServiceTest extends TestCase
     public function test_employee_can_login_with_code_email_or_username(): void
     {
         // 1. By employee_code
-        $res1 = $this->authService->loginEmployee('EMP0001', 'QuizPass2026!');
+        $res1 = $this->authService->loginEmployee('EMP0001');
         $this->assertNotNull($res1);
         $this->assertArrayHasKey('token', $res1);
         $this->assertSame('EMP0001', $res1['user']['employee_code']);
         $this->assertSame('employee', $res1['user']['role']);
 
         // 2. By email
-        $res2 = $this->authService->loginEmployee('emp1@corp.local', 'QuizPass2026!');
+        $res2 = $this->authService->loginEmployee('emp1@corp.local');
         $this->assertNotNull($res2);
         $this->assertSame('EMP0001', $res2['user']['employee_code']);
 
         // 3. By username
-        $res3 = $this->authService->loginEmployee('emp0001', 'QuizPass2026!');
+        $res3 = $this->authService->loginEmployee('emp0001');
         $this->assertNotNull($res3);
         $this->assertSame('EMP0001', $res3['user']['employee_code']);
     }
 
-    public function test_employee_login_fails_with_wrong_password(): void
+    public function test_employee_login_fails_for_unknown_identifier(): void
     {
-        $res = $this->authService->loginEmployee('EMP0001', 'WrongPassword!');
+        $res = $this->authService->loginEmployee('NONEXISTENT_EMP_99999');
         $this->assertNull($res);
     }
 
     public function test_employee_login_fails_for_inactive_user(): void
     {
         // EMP2500 is seeded as inactive
-        $res = $this->authService->loginEmployee('EMP2500', 'QuizPass2026!');
+        $res = $this->authService->loginEmployee('EMP2500');
         $this->assertNull($res);
     }
 

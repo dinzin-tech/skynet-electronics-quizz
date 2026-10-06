@@ -112,10 +112,10 @@ async function request<T>(
 }
 
 export const api = {
-  async login(login: string, password: string):Promise<AuthResponse> {
+  async login(identifier: string): Promise<AuthResponse> {
     const res = await request<AuthResponse>('/api/auth/login', {
       method: 'POST',
-      body: JSON.stringify({ login, password }),
+      body: JSON.stringify({ identifier }),
     });
     setStoredAuth(res);
     return res;

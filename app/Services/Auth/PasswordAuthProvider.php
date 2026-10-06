@@ -23,7 +23,7 @@ class PasswordAuthProvider implements AuthProviderInterface
         $this->bcryptCost = $bcryptCost;
     }
 
-    public function authenticate(string $identifier, string $password): ?array
+    public function authenticate(string $identifier, string $password = ''): ?array
     {
         $identifier = trim($identifier);
         if ($identifier === '' || $password === '') {

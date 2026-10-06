@@ -8,14 +8,13 @@ interface LoginViewProps {
 
 export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess, defaultQuizCode }) => {
   const [login, setLogin] = useState('');
-  const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!login.trim() || !password) {
-      setError('Please provide your Employee Code/Email and password');
+    if (!login.trim()) {
+      setError('Please enter your Employee Code');
       return;
     }
 
@@ -23,10 +22,10 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess, defaultQui
     setLoading(true);
 
     try {
-      await api.login(login.trim(), password);
+      await api.login(login.trim());
       onLoginSuccess();
     } catch (err: any) {
-      setError(err?.message || 'Login failed. Please verify credentials.');
+      setError(err?.message || 'Login failed. Please verify your employee code.');
     } finally {
       setLoading(false);
     }
@@ -76,7 +75,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess, defaultQui
             EMPLOYEE ASSESSMENT PORTAL
           </h2>
           <p style={{ fontSize: '0.8125rem', color: 'rgba(255,255,255,0.7)', marginTop: '0.375rem' }}>
-            Sign in with your employee credentials to start your exam
+            Enter your employee code to start your assessment
           </p>
         </div>
 
@@ -104,26 +103,11 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess, defaultQui
               type="text"
               className="form-input"
               style={{ background: 'rgba(255,255,255,0.95)', border: '1px solid rgba(212, 175, 55, 0.3)' }}
-              placeholder="e.g. EMP0001 or email@corp.local"
+              placeholder="e.g. EMP0001"
               value={login}
               onChange={(e) => setLogin(e.target.value)}
               disabled={loading}
               autoFocus
-            />
-          </div>
-
-          <div>
-            <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 700, color: 'var(--gold-primary)', marginBottom: '0.375rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-              Password
-            </label>
-            <input
-              type="password"
-              className="form-input"
-              style={{ background: 'rgba(255,255,255,0.95)', border: '1px solid rgba(212, 175, 55, 0.3)' }}
-              placeholder="••••••••••••"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              disabled={loading}
             />
           </div>
 
@@ -133,7 +117,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess, defaultQui
             style={{ width: '100%', padding: '0.875rem', marginTop: '0.5rem', fontSize: '1rem' }}
             disabled={loading}
           >
-            {loading ? 'Authenticating...' : 'Sign In to Assessment'}
+            {loading ? 'Verifying...' : 'Sign In to Assessment'}
           </button>
         </form>
 

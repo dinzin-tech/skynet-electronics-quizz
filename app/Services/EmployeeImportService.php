@@ -226,8 +226,6 @@ class EmployeeImportService
         )->fetchAll(PDO::FETCH_COLUMN);
         $existingEmailsSet = array_fill_keys(array_map('strtolower', array_map('strval', $existingEmails)), true);
 
-        $defaultPasswordHash = password_hash('QuizPass2026!', PASSWORD_BCRYPT, ['cost' => 10]);
-
         $total = 0;
         $imported = 0;
         $failed = 0;
@@ -271,13 +269,12 @@ class EmployeeImportService
             }
 
             $publicId = Ulid::generate();
-            $batchRows[] = '(?, ?, ?, ?, ?, ?, ?, ?, ?)';
+            $batchRows[] = '(?, ?, ?, ?, ?, ?, ?, ?)';
             $batchBindings[] = $publicId;
             $batchBindings[] = $code;
             $batchBindings[] = $name;
             $batchBindings[] = $email;
             $batchBindings[] = $username;
-            $batchBindings[] = $defaultPasswordHash;
             $batchBindings[] = $status;
             $batchBindings[] = $now;
             $batchBindings[] = $now;
@@ -338,7 +335,7 @@ class EmployeeImportService
     private function executeEmployeeBatch(array $batchRows, array $batchBindings): void
     {
         $sql = 'INSERT INTO employees ' .
-               '(public_id, employee_code, name, email, username, password_hash, status, created_at, updated_at) ' .
+               '(public_id, employee_code, name, email, username, status, created_at, updated_at) ' .
                'VALUES ' . implode(', ', $batchRows) . ' ' .
                'ON DUPLICATE KEY UPDATE name=VALUES(name)';
         $stmt = $this->db->prepare($sql);
