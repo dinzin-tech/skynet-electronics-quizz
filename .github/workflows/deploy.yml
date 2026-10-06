@@ -45,6 +45,8 @@ jobs:
           script: |
             TARGET_BRANCH="${{ github.event.inputs.target_branch || github.ref_name || 'master' }}"
             echo ">>> Executing deployment for branch: $TARGET_BRANCH"
+            sudo chown -R $(whoami):www-data /var/www/corpquiz 2>/dev/null || true
+            sudo chmod -R u+rwX,g+rX /var/www/corpquiz 2>/dev/null || true
             cd /var/www/corpquiz
             git reset --hard HEAD
             git fetch origin "$TARGET_BRANCH"
@@ -67,6 +69,8 @@ jobs:
         run: |
           TARGET_BRANCH="${{ github.event.inputs.target_branch || github.ref_name || 'master' }}"
           echo ">>> Executing local deployment on VPS runner for branch: $TARGET_BRANCH"
+          sudo chown -R $(whoami):www-data /var/www/corpquiz 2>/dev/null || true
+          sudo chmod -R u+rwX,g+rX /var/www/corpquiz 2>/dev/null || true
           cd /var/www/corpquiz
           git reset --hard HEAD
           git fetch origin "$TARGET_BRANCH"

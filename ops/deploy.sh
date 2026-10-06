@@ -91,8 +91,10 @@ $SUDO systemctl restart quiz-flusher quiz-scheduler quiz-finalizer quiz-jobs
 
 # Ensure proper permissions for web server and storage
 echo ">>> Updating file permissions for storage & public assets..."
-$SUDO chown -R www-data:www-data "$APP_DIR/storage" "$APP_DIR/public" 2>/dev/null || true
+$SUDO chown -R "$(whoami):www-data" "$APP_DIR" 2>/dev/null || true
+$SUDO chown -R www-data:www-data "$APP_DIR/storage" 2>/dev/null || true
 $SUDO chmod -R 775 "$APP_DIR/storage" 2>/dev/null || true
+$SUDO chmod -R 775 "$APP_DIR/public" 2>/dev/null || true
 
 echo ">>> [7/7] Verifying application health endpoint..."
 # Try health check with Host header first, then fallback to direct IP
