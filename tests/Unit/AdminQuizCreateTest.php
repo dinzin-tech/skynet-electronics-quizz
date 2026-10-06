@@ -34,6 +34,13 @@ class AdminQuizCreateTest extends TestCase
         $this->db->exec("DELETE FROM quizzes WHERE code LIKE 'TESTQZ%'");
     }
 
+    private function getResponseBody(\Core\Http\Response $response): string
+    {
+        $ref = new \ReflectionProperty($response, 'content');
+        $ref->setAccessible(true);
+        return (string) $ref->getValue($response);
+    }
+
     public function test_empty_dates_does_not_throw_gmdate_type_error(): void
     {
         $_SERVER['REQUEST_METHOD'] = 'POST';
@@ -49,12 +56,10 @@ class AdminQuizCreateTest extends TestCase
         $response = $this->controller->quizCreate($request);
 
         $this->assertSame(200, $response->getStatusCode());
-        ob_start();
-        $response->send();
-        $body = ob_get_clean();
+        $body = $this->getResponseBody($response);
         // Ensure the error message is clean and not a gmdate TypeError
-        $this->assertStringNotContainsString('gmdate()', (string) $body);
-        $this->assertStringContainsString('Window Start is required', (string) $body);
+        $this->assertStringNotContainsString('gmdate()', $body);
+        $this->assertStringContainsString('Window Start is required', $body);
     }
 
     public function test_valid_datetime_local_creates_quiz_successfully(): void
@@ -106,10 +111,8 @@ class AdminQuizCreateTest extends TestCase
         $response = $this->controller->quizCreate($request);
 
         $this->assertSame(200, $response->getStatusCode());
-        ob_start();
-        $response->send();
-        $body = ob_get_clean();
-        $this->assertStringNotContainsString('gmdate()', (string) $body);
-        $this->assertStringContainsString('end time must be after start time', (string) $body);
+        $body = $this->getResponseBody($response);
+        $this->assertStringNotContainsString('gmdate()', $body);
+        $this->assertStringContainsString('end time must be after start time', $body);
     }
 }

@@ -398,7 +398,7 @@ class AdminController extends Controller
                 $endUtc = $this->parseWindowDateTime($windowEnd, 'Window End');
 
                 if ($endUtc <= $startUtc) {
-                    throw new InvalidArgumentException('Quiz window end time must be after start time.');
+                    throw new InvalidArgumentException('Quiz window end time must be after start time. Please correct the dates and try again.');
                 }
 
                 $targetAudience = (string) $request->get('target_audience', 'all');
@@ -428,7 +428,12 @@ class AdminController extends Controller
                 Session::set('flash_success', 'Quiz created successfully. Now add questions below before publishing.');
                 return $this->redirect("/admin/quizzes/{$created['id']}/questions");
             } catch (\Throwable $e) {
-                $groups = $this->db->query('SELECT id, name, description FROM `groups` ORDER BY name ASC')->fetchAll(PDO::FETCH_ASSOC);
+                $groups = [];
+                try {
+                    $groups = $this->db->query('SELECT id, name, description FROM `groups` ORDER BY name ASC')->fetchAll(PDO::FETCH_ASSOC);
+                } catch (\Throwable $ignored) {
+                    $groups = [];
+                }
                 return $this->render('admin/quizzes/form.html.twig', [
                     'admin' => $this->getAdminUser(),
                     'current_route' => 'quizzes',
