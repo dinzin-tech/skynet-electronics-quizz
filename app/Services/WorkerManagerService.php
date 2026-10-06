@@ -74,10 +74,14 @@ class WorkerManagerService
             $systemdState = $this->getSystemdStatus($meta['service']);
 
             // Determine health:
-            // - If systemd is available, use it as the ground truth (active = running).
-            // - If systemd is unavailable (n/a / Windows dev), fall back to Redis heartbeat.
-            if ($systemdState !== 'n/a' && $systemdState !== 'unknown' && $systemdState !== '') {
-                $healthy = ($systemdState === 'active');
+            // - Only trust systemd when it gives a definitive answer ('active' or 'failed').
+            // - For all other states ('n/a', 'unknown', 'inactive', '') — which includes
+            //   services not installed on the current host (e.g. CI runners) — fall back
+            //   to the Redis heartbeat so a live heartbeat is never wrongly suppressed.
+            if ($systemdState === 'active') {
+                $healthy = true;
+            } elseif ($systemdState === 'failed') {
+                $healthy = false;
             } else {
                 $healthy = $workerInfo['healthy'];
             }
