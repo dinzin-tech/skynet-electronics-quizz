@@ -19,6 +19,9 @@ use Core\Database;
 use Core\Http\Request;
 use Core\Http\Response;
 use Core\Session;
+use DateTimeImmutable;
+use DateTimeZone;
+use InvalidArgumentException;
 use PDO;
 
 class AdminController extends Controller
@@ -391,8 +394,12 @@ class AdminController extends Controller
                     'randomize_options' => (bool) $request->get('randomize_options', false),
                 ];
 
-                $startUtc = gmdate('Y-m-d H:i:s', strtotime($windowStart));
-                $endUtc = gmdate('Y-m-d H:i:s', strtotime($windowEnd));
+                $startUtc = $this->parseWindowDateTime($windowStart, 'Window Start');
+                $endUtc = $this->parseWindowDateTime($windowEnd, 'Window End');
+
+                if ($endUtc <= $startUtc) {
+                    throw new InvalidArgumentException('Quiz window end time must be after start time.');
+                }
 
                 $targetAudience = (string) $request->get('target_audience', 'all');
                 $selectedGroups = (array) $request->get('target_groups', []);
@@ -827,5 +834,47 @@ class AdminController extends Controller
             'Content-Type' => 'text/csv',
             'Content-Disposition' => 'attachment; filename="' . $fileName . '"',
         ]);
+    }
+
+    /**
+     * Parse a datetime string from the form and convert it to UTC 'Y-m-d H:i:s'.
+     */
+    private function parseWindowDateTime(string $datetime, string $fieldName = 'Window date'): string
+    {
+        $datetime = trim($datetime);
+        if ($datetime === '') {
+            throw new InvalidArgumentException("{$fieldName} is required.");
+        }
+
+        $companyTz = new DateTimeZone($_ENV['COMPANY_TZ'] ?? 'Asia/Kolkata');
+        $utcTz = new DateTimeZone('UTC');
+
+        // Check common format strings first
+        $formats = [
+            'Y-m-d\TH:i:s',
+            'Y-m-d\TH:i',
+            'Y-m-d H:i:s',
+            'Y-m-d H:i',
+            'd/m/Y H:i:s',
+            'd/m/Y H:i',
+            'd-m-Y H:i:s',
+            'd-m-Y H:i',
+        ];
+
+        foreach ($formats as $fmt) {
+            $dt = DateTimeImmutable::createFromFormat($fmt, $datetime, $companyTz);
+            if ($dt !== false) {
+                return $dt->setTimezone($utcTz)->format('Y-m-d H:i:s');
+            }
+        }
+
+        try {
+            $dt = new DateTimeImmutable($datetime, $companyTz);
+            return $dt->setTimezone($utcTz)->format('Y-m-d H:i:s');
+        } catch (\Throwable $e) {
+            throw new InvalidArgumentException(
+                "Invalid format for {$fieldName}: '{$datetime}'. Expected YYYY-MM-DD HH:MM."
+            );
+        }
     }
 }
