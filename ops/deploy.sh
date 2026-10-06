@@ -32,9 +32,10 @@ if [ "$(id -u)" -ne 0 ]; then
 fi
 
 echo ">>> [1/7] Fetching and updating git branch: $TARGET_BRANCH..."
+git reset --hard HEAD
 git fetch origin "$TARGET_BRANCH"
-git checkout "$TARGET_BRANCH"
-git pull origin "$TARGET_BRANCH"
+git checkout -f "$TARGET_BRANCH"
+git reset --hard "origin/$TARGET_BRANCH"
 
 echo ">>> [2/7] Installing production PHP dependencies via Composer..."
 composer install --no-dev --optimize-autoloader --no-interaction --quiet
@@ -90,8 +91,10 @@ $SUDO systemctl restart quiz-flusher quiz-scheduler quiz-finalizer quiz-jobs
 
 # Ensure proper permissions for web server and storage
 echo ">>> Updating file permissions for storage & public assets..."
-$SUDO chown -R www-data:www-data "$APP_DIR/storage" "$APP_DIR/public" 2>/dev/null || true
+$SUDO chown -R "$(whoami):www-data" "$APP_DIR" 2>/dev/null || true
+$SUDO chown -R www-data:www-data "$APP_DIR/storage" 2>/dev/null || true
 $SUDO chmod -R 775 "$APP_DIR/storage" 2>/dev/null || true
+$SUDO chmod -R 775 "$APP_DIR/public" 2>/dev/null || true
 
 echo ">>> [7/7] Verifying application health endpoint..."
 # Try health check with Host header first, then fallback to direct IP
