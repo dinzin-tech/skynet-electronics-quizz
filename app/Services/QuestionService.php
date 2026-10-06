@@ -76,7 +76,7 @@ class QuestionService
     /**
      * Update an existing question and its options.
      */
-    public function updateQuestion(int $questionId, string $questionText, array $options): array
+    public function updateQuestion(int $questionId, string $questionText, array $options, ?string $imagePath = null, bool $removeImage = false): array
     {
         $questionText = trim($questionText);
         if ($questionText === '') {
@@ -93,8 +93,16 @@ class QuestionService
 
         $this->db->beginTransaction();
         try {
-            $updateQ = $this->db->prepare('UPDATE questions SET question_text = :text WHERE id = :id');
-            $updateQ->execute(['text' => $questionText, 'id' => $questionId]);
+            if ($imagePath !== null) {
+                $updateQ = $this->db->prepare('UPDATE questions SET question_text = :text, image_path = :img WHERE id = :id');
+                $updateQ->execute(['text' => $questionText, 'img' => $imagePath, 'id' => $questionId]);
+            } elseif ($removeImage) {
+                $updateQ = $this->db->prepare('UPDATE questions SET question_text = :text, image_path = NULL WHERE id = :id');
+                $updateQ->execute(['text' => $questionText, 'id' => $questionId]);
+            } else {
+                $updateQ = $this->db->prepare('UPDATE questions SET question_text = :text WHERE id = :id');
+                $updateQ->execute(['text' => $questionText, 'id' => $questionId]);
+            }
 
             // Replace options
             $this->db->prepare('DELETE FROM answer_options WHERE question_id = :qid')->execute(['qid' => $questionId]);
