@@ -36,11 +36,22 @@ class QuizFlusherCommand
 
         echo "QuizFlusher started" . ($once ? " (single pass)" : " (daemon mode)") . "...\n";
 
+        // Recover orphaned items left in processing sets on startup
+        $this->recoverProcessingSets($redis);
+
+        $lastRecoveryTime = time();
+
         do {
             try {
                 $redis->setEx('worker:heartbeat:flusher', 30, (string) time());
             } catch (\Throwable $e) {
                 // Ignore transient heartbeat failure
+            }
+
+            // Periodically re-queue orphaned processing items every 30 seconds
+            if (time() - $lastRecoveryTime >= 30) {
+                $this->recoverProcessingSets($redis);
+                $lastRecoveryTime = time();
             }
 
             $flushedAnswers = $this->flushAnswers($redis);
@@ -65,7 +76,7 @@ class QuizFlusherCommand
      */
     public function flushAnswers($redis, int $limit = 500): int
     {
-        // Pop up to $limit dirty answer keys
+        // Pop up to $limit dirty answer keys and track in processing set
         $members = method_exists($redis, 'sPop') ? $redis->sPop('dirty', $limit) : [];
         if (empty($members)) {
             return 0;
@@ -73,6 +84,12 @@ class QuizFlusherCommand
 
         if (is_string($members)) {
             $members = [$members];
+        }
+
+        if (method_exists($redis, 'sAdd')) {
+            foreach ($members as $item) {
+                $redis->sAdd('dirty:processing', (string) $item);
+            }
         }
 
         $rows = [];
@@ -102,7 +119,7 @@ class QuizFlusherCommand
                 $stmt = $this->db->prepare('SELECT id FROM attempts WHERE public_id = :pid');
                 $stmt->execute(['pid' => $aid]);
                 $numericAttId = (int) $stmt->fetchColumn();
-                if ($numericAttId > 0) {
+                if ($numericAttId > 0 && method_exists($redis, 'hSet')) {
                     $redis->hSet("att:{$aid}", 'id', (string) $numericAttId);
                 }
             }
@@ -125,6 +142,11 @@ class QuizFlusherCommand
         }
 
         if (empty($rows)) {
+            if (method_exists($redis, 'sRem')) {
+                foreach ($members as $item) {
+                    $redis->sRem('dirty:processing', (string) $item);
+                }
+            }
             return 0;
         }
 
@@ -136,8 +158,41 @@ class QuizFlusherCommand
                'answered_at = IF(VALUES(seq) >= seq, VALUES(answered_at), answered_at), ' .
                'seq = IF(VALUES(seq) >= seq, VALUES(seq), seq)';
 
-        $stmt = $this->db->prepare($sql);
-        $stmt->execute($bindings);
+        $inTx = $this->db->inTransaction();
+        if (!$inTx) {
+            $this->db->beginTransaction();
+        }
+
+        try {
+            $stmt = $this->db->prepare($sql);
+            $stmt->execute($bindings);
+            if (!$inTx) {
+                $this->db->commit();
+            }
+        } catch (\Throwable $e) {
+            if (!$inTx && $this->db->inTransaction()) {
+                $this->db->rollBack();
+            }
+            // Re-enqueue into dirty set so items are never lost on DB failure
+            if (method_exists($redis, 'sAdd')) {
+                foreach ($members as $item) {
+                    $redis->sAdd('dirty', (string) $item);
+                }
+            }
+            if (method_exists($redis, 'sRem')) {
+                foreach ($members as $item) {
+                    $redis->sRem('dirty:processing', (string) $item);
+                }
+            }
+            throw $e;
+        }
+
+        // Successfully committed: remove from processing set
+        if (method_exists($redis, 'sRem')) {
+            foreach ($members as $item) {
+                $redis->sRem('dirty:processing', (string) $item);
+            }
+        }
 
         return count($rows);
     }
@@ -158,6 +213,12 @@ class QuizFlusherCommand
             $aids = [$aids];
         }
 
+        if (method_exists($redis, 'sAdd')) {
+            foreach ($aids as $aid) {
+                $redis->sAdd('dirty_att:processing', (string) $aid);
+            }
+        }
+
         $updateCount = 0;
         $upStmt = $this->db->prepare(
             'UPDATE attempts SET ' .
@@ -176,51 +237,118 @@ class QuizFlusherCommand
             'WHERE public_id = :pid'
         );
 
-        foreach ($aids as $aid) {
-            $att = $redis->hGetAll("att:{$aid}");
-            if (empty($att)) {
-                continue;
+        $inTx = $this->db->inTransaction();
+        if (!$inTx) {
+            $this->db->beginTransaction();
+        }
+
+        try {
+            foreach ($aids as $aid) {
+                $att = $redis->hGetAll("att:{$aid}");
+                if (empty($att)) {
+                    continue;
+                }
+
+                $startMs = (int) ($att['started_ms'] ?? 0);
+                $deadlineMs = (int) ($att['deadline_ms'] ?? 0);
+                $submittedMs = (int) ($att['submitted_ms'] ?? 0);
+
+                $sat = $startMs > 0
+                    ? (new DateTimeImmutable('@' . (int) ($startMs / 1000)))->format('Y-m-d H:i:s') .
+                      '.' . sprintf('%03d', $startMs % 1000)
+                    : null;
+                $dat = $deadlineMs > 0
+                    ? (new DateTimeImmutable('@' . (int) ($deadlineMs / 1000)))->format('Y-m-d H:i:s') .
+                      '.' . sprintf('%03d', $deadlineMs % 1000)
+                    : null;
+                $subat = $submittedMs > 0
+                    ? (new DateTimeImmutable('@' . (int) ($submittedMs / 1000)))->format('Y-m-d H:i:s') .
+                      '.' . sprintf('%03d', $submittedMs % 1000)
+                    : null;
+
+                $isGraded = ($att['graded'] ?? '') === '1';
+                $gradat = $isGraded ? gmdate('Y-m-d H:i:s.000') : null;
+
+                $upStmt->execute([
+                    'status' => $att['status'] ?? 'NOT_STARTED',
+                    'sat' => $sat,
+                    'dat' => $dat,
+                    'subat' => $subat,
+                    'reason' => !empty($att['reason']) ? $att['reason'] : null,
+                    'layout' => !empty($att['layout']) ? $att['layout'] : null,
+                    'mseq' => (int) ($att['max_seq'] ?? 0),
+                    'cor' => $isGraded ? (int) ($att['correct'] ?? 0) : null,
+                    'score' => $isGraded ? (float) ($att['score'] ?? 0) : null,
+                    'acc' => $isGraded ? (float) ($att['accuracy'] ?? 0) : null,
+                    'ctime' => $isGraded ? (int) ($att['time_s'] ?? 0) : null,
+                    'gradat' => $gradat,
+                    'pid' => $aid,
+                ]);
+                $updateCount++;
             }
 
-            $startMs = (int) ($att['started_ms'] ?? 0);
-            $deadlineMs = (int) ($att['deadline_ms'] ?? 0);
-            $submittedMs = (int) ($att['submitted_ms'] ?? 0);
+            if (!$inTx) {
+                $this->db->commit();
+            }
+        } catch (\Throwable $e) {
+            if (!$inTx && $this->db->inTransaction()) {
+                $this->db->rollBack();
+            }
+            // Re-enqueue into dirty_att set so work is not lost
+            if (method_exists($redis, 'sAdd')) {
+                foreach ($aids as $aid) {
+                    $redis->sAdd('dirty_att', (string) $aid);
+                }
+            }
+            if (method_exists($redis, 'sRem')) {
+                foreach ($aids as $aid) {
+                    $redis->sRem('dirty_att:processing', (string) $aid);
+                }
+            }
+            throw $e;
+        }
 
-            $sat = $startMs > 0
-                ? (new DateTimeImmutable('@' . (int) ($startMs / 1000)))->format('Y-m-d H:i:s') .
-                  '.' . sprintf('%03d', $startMs % 1000)
-                : null;
-            $dat = $deadlineMs > 0
-                ? (new DateTimeImmutable('@' . (int) ($deadlineMs / 1000)))->format('Y-m-d H:i:s') .
-                  '.' . sprintf('%03d', $deadlineMs % 1000)
-                : null;
-            $subat = $submittedMs > 0
-                ? (new DateTimeImmutable('@' . (int) ($submittedMs / 1000)))->format('Y-m-d H:i:s') .
-                  '.' . sprintf('%03d', $submittedMs % 1000)
-                : null;
-
-            $isGraded = ($att['graded'] ?? '') === '1';
-            $gradat = $isGraded ? gmdate('Y-m-d H:i:s.000') : null;
-
-            $upStmt->execute([
-                'status' => $att['status'] ?? 'NOT_STARTED',
-                'sat' => $sat,
-                'dat' => $dat,
-                'subat' => $subat,
-                'reason' => !empty($att['reason']) ? $att['reason'] : null,
-                'layout' => !empty($att['layout']) ? $att['layout'] : null,
-                'mseq' => (int) ($att['max_seq'] ?? 0),
-                'cor' => $isGraded ? (int) ($att['correct'] ?? 0) : null,
-                'score' => $isGraded ? (float) ($att['score'] ?? 0) : null,
-                'acc' => $isGraded ? (float) ($att['accuracy'] ?? 0) : null,
-                'ctime' => $isGraded ? (int) ($att['time_s'] ?? 0) : null,
-                'gradat' => $gradat,
-                'pid' => $aid,
-            ]);
-            $updateCount++;
+        // Successfully committed: remove from processing set
+        if (method_exists($redis, 'sRem')) {
+            foreach ($aids as $aid) {
+                $redis->sRem('dirty_att:processing', (string) $aid);
+            }
         }
 
         return $updateCount;
+    }
+
+    /**
+     * Recover orphaned items left in processing sets due to prior crashes.
+     *
+     * @param mixed $redis
+     * @return array{answers_recovered: int, attempts_recovered: int}
+     */
+    public function recoverProcessingSets($redis): array
+    {
+        $recoveredAnswers = 0;
+        $recoveredAttempts = 0;
+
+        if (method_exists($redis, 'sMembers') && method_exists($redis, 'sAdd') && method_exists($redis, 'sRem')) {
+            $staleAnswers = $redis->sMembers('dirty:processing') ?: [];
+            foreach ($staleAnswers as $item) {
+                $redis->sAdd('dirty', (string) $item);
+                $redis->sRem('dirty:processing', (string) $item);
+                $recoveredAnswers++;
+            }
+
+            $staleAttempts = $redis->sMembers('dirty_att:processing') ?: [];
+            foreach ($staleAttempts as $aid) {
+                $redis->sAdd('dirty_att', (string) $aid);
+                $redis->sRem('dirty_att:processing', (string) $aid);
+                $recoveredAttempts++;
+            }
+        }
+
+        return [
+            'answers_recovered' => $recoveredAnswers,
+            'attempts_recovered' => $recoveredAttempts,
+        ];
     }
 
     private function getRedis()

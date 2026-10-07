@@ -183,3 +183,20 @@ If a bad deployment occurs:
    /var/www/corpquiz/ops/deploy.sh
    ```
 3. Verify `/healthz` returns 200 OK.
+
+---
+
+## 10. Data Reset (Admin Tool)
+
+The `/admin/data-reset` page allows permanently deleting data by scope (employees,
+quizzes, reports, logs, cache, or everything).
+
+**Before any purge:**
+```bash
+mysqldump -u quizz_user -p corp_quizz > backup_$(date +%Y%m%d_%H%M%S).sql
+```
+
+**Always stop workers first** (from the Workers page or `systemctl stop quiz-*`).
+
+See **[docs/DATA_RESET.md](DATA_RESET.md)** for the full scope inventory, security
+model, and recovery instructions.

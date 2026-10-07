@@ -171,5 +171,21 @@ if (!class_exists('Redis')) {
         {
             return true;
         }
+
+        public function scan(&$cursor, array $options = []): array|false
+        {
+            $cursor = 0; // signal iteration complete on first call
+            return [];
+        }
+
+        public function unlink(string ...$keys): int
+        {
+            return count($keys);
+        }
+
+        public function zCard(string $key): int|false
+        {
+            return 0;
+        }
     }
 }
