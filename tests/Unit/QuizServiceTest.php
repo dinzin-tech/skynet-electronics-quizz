@@ -183,4 +183,28 @@ class QuizServiceTest extends TestCase
         // Clean up
         $this->quizService->delete($quizId);
     }
+
+    public function test_can_create_and_update_feedback_question(): void
+    {
+        $uniqueCode = 'FB' . substr(Ulid::generate(), -6);
+        $quiz = $this->quizService->create([
+            'code' => $uniqueCode,
+            'title' => 'Feedback Question Quiz',
+            'feedback_question' => 'How was your experience taking this assessment?',
+            'duration_seconds' => 600,
+            'start_at' => gmdate('Y-m-d H:i:s'),
+            'end_at' => gmdate('Y-m-d H:i:s', time() + 3600),
+            'settings' => [],
+        ], $this->adminId);
+
+        $this->assertSame('How was your experience taking this assessment?', $quiz['feedback_question']);
+
+        $updated = $this->quizService->update((int) $quiz['id'], [
+            'feedback_question' => 'Updated feedback question prompt?',
+        ], $this->adminId);
+
+        $this->assertSame('Updated feedback question prompt?', $updated['feedback_question']);
+
+        $this->quizService->delete((int) $quiz['id']);
+    }
 }

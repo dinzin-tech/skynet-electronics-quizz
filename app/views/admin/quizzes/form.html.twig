@@ -33,6 +33,14 @@
             <textarea id="description" name="description" rows="3" class="form-control" placeholder="Instructions shown on employee entry screen...">{{ old.description|default(quiz.description|default('')) }}</textarea>
         </div>
 
+        <div class="form-group">
+            <label class="form-label" for="feedback_question">Participant Feedback Question</label>
+            <textarea id="feedback_question" name="feedback_question" rows="2" class="form-control" placeholder="e.g. Please share your thoughts and feedback regarding this assessment...">{{ old.feedback_question|default(quiz.feedback_question|default('')) }}</textarea>
+            <small style="color: #64748b; font-size: 0.8125rem; display: block; margin-top: 4px;">
+                💬 Admin feedback question: Displayed to participants as a textarea after finishing all multiple-choice questions. This step is not constrained by the quiz timer.
+            </small>
+        </div>
+
         <h3 style="font-size: 1.1rem; font-weight: 600; margin: 24px 0 16px 0; border-bottom: 1px solid var(--border-color); padding-bottom: 8px;">
             Window & Timing ({{ company_tz }} Display, Stored in UTC)
         </h3>

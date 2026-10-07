@@ -27,6 +27,10 @@ export const QuizTakingView: React.FC<QuizTakingViewProps> = ({ attemptId, onSub
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [zoomImage, setZoomImage] = useState<string | null>(null);
+
+  // Dedicated Feedback Stage State
+  const [isFeedbackStage, setIsFeedbackStage] = useState(false);
+  const [finishReason, setFinishReason] = useState<'manual' | 'timeout'>('manual');
   const [feedback, setFeedback] = useState('');
   const [feedbackError, setFeedbackError] = useState<string | null>(null);
 
@@ -58,6 +62,11 @@ export const QuizTakingView: React.FC<QuizTakingViewProps> = ({ attemptId, onSub
           initialAnswers[qid] = ans.selected_option_id;
         }
         setAnswers(initialAnswers);
+
+        // Pre-populate feedback if saved previously
+        if (stateData.feedback) {
+          setFeedback(stateData.feedback);
+        }
 
         // Initialize sync manager
         await syncManager.init(attemptId, stateData.max_seq || 0);
@@ -129,7 +138,7 @@ export const QuizTakingView: React.FC<QuizTakingViewProps> = ({ attemptId, onSub
   // 3. Select Answer Option
   const handleSelectOption = useCallback(
     async (optionId: number) => {
-      if (!currentQuestion || submitting) return;
+      if (!currentQuestion || submitting || isFeedbackStage) return;
 
       const qid = currentQuestion.id;
       // Optimistic state update
@@ -138,36 +147,53 @@ export const QuizTakingView: React.FC<QuizTakingViewProps> = ({ attemptId, onSub
       // Queue answer in sync manager
       await syncManager.queueAnswer(qid, optionId);
     },
-    [currentQuestion, submitting]
+    [currentQuestion, submitting, isFeedbackStage]
   );
 
-  // 4. Submit Attempt
-  const handleSubmit = async (reason: 'manual' | 'timeout' = 'manual') => {
+  // 4. Transition to the Feedback Stage (outside the timer)
+  const handleProceedToFeedback = async (reason: 'manual' | 'timeout' = 'manual') => {
+    setShowReviewModal(false);
+    setShowMobileDrawer(false);
+    setFinishReason(reason);
+
+    // Flush any pending unacked answers
+    try {
+      await syncManager.flush();
+    } catch {
+      // Ignore flush network error so user can continue to feedback
+    }
+
+    setIsFeedbackStage(true);
+  };
+
+  // 5. Final Submission (including admin feedback question response)
+  const handleFinalSubmit = async () => {
     if (submitting) return;
 
-    if (reason === 'manual' && !feedback.trim()) {
-      setFeedbackError('Feedback is compulsory. Please enter your feedback before submitting.');
+    const trimmedFeedback = feedback.trim();
+    if (!trimmedFeedback) {
+      setFeedbackError('Feedback is required. Please share your response before submitting.');
       return;
     }
 
     setSubmitting(true);
-    setShowReviewModal(false);
+    setFeedbackError(null);
 
     try {
-      // Flush any pending unacked answers
+      // Flush answers if any remain
       await syncManager.flush();
-      await api.submitAttempt(attemptId, reason, feedback.trim());
+      await api.submitAttempt(attemptId, finishReason, trimmedFeedback);
       onSubmitted(attemptId);
     } catch (err: any) {
-      setError(err?.message || 'Submission failed. Please retry.');
+      setFeedbackError(err?.message || 'Submission failed. Please retry.');
       setSubmitting(false);
     }
   };
 
-  // 5. Keyboard Navigation (1-4, A-D)
+  // 6. Keyboard Navigation (1-4, A-D) - disabled during feedback stage
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (showReviewModal || submitting || !currentQuestion) return;
+      if (showReviewModal || submitting || !currentQuestion || isFeedbackStage) return;
 
       const key = e.key.toUpperCase();
       let optIndex = -1;
@@ -185,7 +211,7 @@ export const QuizTakingView: React.FC<QuizTakingViewProps> = ({ attemptId, onSub
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [currentQuestion, showReviewModal, submitting, handleSelectOption]);
+  }, [currentQuestion, showReviewModal, submitting, isFeedbackStage, handleSelectOption]);
 
   if (loading) {
     return (
@@ -200,7 +226,7 @@ export const QuizTakingView: React.FC<QuizTakingViewProps> = ({ attemptId, onSub
     );
   }
 
-  if (error && !currentQuestion) {
+  if (error && !currentQuestion && !isFeedbackStage) {
     return (
       <div>
         <Navbar />
@@ -216,6 +242,169 @@ export const QuizTakingView: React.FC<QuizTakingViewProps> = ({ attemptId, onSub
     );
   }
 
+  // =========================================================================
+  // FEEDBACK STAGE VIEW (NOT UNDER THE TIMER)
+  // =========================================================================
+  if (isFeedbackStage) {
+    const feedbackPrompt = bundle?.feedback_question?.trim() || 'Please share your feedback and suggestions regarding this assessment:';
+
+    return (
+      <div style={{ minHeight: '100dvh', display: 'flex', flexDirection: 'column', background: 'var(--gray-50)' }}>
+        <Navbar>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+            <span style={{
+              fontSize: '0.8125rem',
+              fontWeight: 700,
+              color: 'var(--gold-primary)',
+              background: 'rgba(212, 175, 55, 0.1)',
+              padding: '0.35rem 0.75rem',
+              borderRadius: '20px',
+              border: '1px solid rgba(212, 175, 55, 0.3)',
+            }}>
+              Final Step: Feedback
+            </span>
+          </div>
+        </Navbar>
+
+        <main style={{ maxWidth: '720px', width: '100%', margin: '2rem auto', padding: '0 1.25rem', flex: 1 }}>
+          <div className="glass-card" style={{ padding: '2.25rem 1.75rem' }}>
+            {/* Status Notice */}
+            {finishReason === 'timeout' ? (
+              <div style={{
+                padding: '0.875rem 1.25rem',
+                background: '#fffbeb',
+                border: '1px solid #fde68a',
+                borderRadius: '12px',
+                color: '#92400e',
+                fontSize: '0.875rem',
+                fontWeight: 600,
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.75rem',
+                marginBottom: '1.5rem',
+              }}>
+                <span style={{ fontSize: '1.25rem' }}>⏱️</span>
+                <div>
+                  <strong>Time expired for multiple-choice questions.</strong> All your answered questions have been recorded. Please answer the feedback question below to finalize your assessment.
+                </div>
+              </div>
+            ) : (
+              <div style={{
+                padding: '0.875rem 1.25rem',
+                background: '#ecfdf5',
+                border: '1px solid #a7f3d0',
+                borderRadius: '12px',
+                color: '#065f46',
+                fontSize: '0.875rem',
+                fontWeight: 600,
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.75rem',
+                marginBottom: '1.5rem',
+              }}>
+                <span style={{ fontSize: '1.25rem' }}>✓</span>
+                <div>
+                  <strong>Multiple-choice questions completed!</strong> ({answeredCount}/{totalQuestions} questions answered). Please answer the feedback question below to finalize your assessment.
+                </div>
+              </div>
+            )}
+
+            {/* Admin-Added Feedback Question */}
+            <div style={{ marginBottom: '1.5rem', textAlign: 'left' }}>
+              <div style={{
+                fontSize: '0.75rem',
+                fontWeight: 800,
+                color: 'var(--gold-primary)',
+                textTransform: 'uppercase',
+                letterSpacing: '0.05em',
+                marginBottom: '0.5rem',
+              }}>
+                Participant Feedback
+              </div>
+              <h2 style={{
+                fontSize: '1.25rem',
+                fontWeight: 700,
+                color: 'var(--gray-900)',
+                margin: 0,
+                lineHeight: 1.5,
+              }}>
+                {feedbackPrompt}
+              </h2>
+              <p style={{ fontSize: '0.8125rem', color: 'var(--gray-500)', marginTop: '0.375rem', marginBottom: 0 }}>
+                This section is untimed. Please share your detailed response below.
+              </p>
+            </div>
+
+            {/* Response Textarea */}
+            <div style={{ marginBottom: '1.75rem', textAlign: 'left' }}>
+              <label
+                htmlFor="admin-feedback-textarea"
+                style={{
+                  display: 'block',
+                  fontSize: '0.875rem',
+                  fontWeight: 600,
+                  color: 'var(--gray-700)',
+                  marginBottom: '0.5rem',
+                }}
+              >
+                Your Answer <span style={{ color: 'var(--danger)' }}>*</span>
+              </label>
+              <textarea
+                id="admin-feedback-textarea"
+                rows={5}
+                value={feedback}
+                onChange={(e) => {
+                  setFeedback(e.target.value);
+                  if (feedbackError && e.target.value.trim()) {
+                    setFeedbackError(null);
+                  }
+                }}
+                placeholder="Type your response here..."
+                style={{
+                  width: '100%',
+                  padding: '0.875rem 1rem',
+                  borderRadius: '12px',
+                  border: feedbackError ? '1.5px solid var(--danger)' : '1px solid var(--gray-300)',
+                  fontFamily: 'inherit',
+                  fontSize: '0.9375rem',
+                  lineHeight: 1.5,
+                  resize: 'vertical',
+                  boxSizing: 'border-box',
+                  outline: 'none',
+                }}
+              />
+              {feedbackError && (
+                <div style={{ color: 'var(--danger)', fontSize: '0.8125rem', fontWeight: 600, marginTop: '0.375rem' }}>
+                  {feedbackError}
+                </div>
+              )}
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+              <button
+                onClick={handleFinalSubmit}
+                disabled={submitting}
+                className="btn btn-primary"
+                style={{
+                  padding: '0.875rem 2rem',
+                  fontSize: '1rem',
+                  fontWeight: 700,
+                  width: '100%',
+                  maxWidth: '320px',
+                }}
+              >
+                {submitting ? 'Submitting Assessment...' : 'Submit Assessment'}
+              </button>
+            </div>
+          </div>
+        </main>
+      </div>
+    );
+  }
+
+  // =========================================================================
+  // MULTIPLE-CHOICE QUESTION VIEW (UNDER THE TIMER)
+  // =========================================================================
   const selectedOptionId = currentQuestion ? answers[currentQuestion.id.toString()] : undefined;
   const questionImage = currentQuestion?.image_url || currentQuestion?.image_path;
 
@@ -233,11 +422,11 @@ export const QuizTakingView: React.FC<QuizTakingViewProps> = ({ attemptId, onSub
             {syncStatus === 'error' && 'Sync error'}
           </div>
 
-          {/* Calibrated Server Timer */}
+          {/* Calibrated Server Timer (Applies only to Multiple-Choice) */}
           {attemptState?.deadline_ms && (
             <Timer
               deadlineMs={attemptState.deadline_ms}
-              onExpire={() => handleSubmit('timeout')}
+              onExpire={() => handleProceedToFeedback('timeout')}
             />
           )}
 
@@ -252,36 +441,41 @@ export const QuizTakingView: React.FC<QuizTakingViewProps> = ({ attemptId, onSub
         </div>
       </Navbar>
 
-      {/* Main Examination Layout */}
-      <div className="quiz-layout-grid" style={{
-        maxWidth: '1240px',
-        width: '100%',
-        margin: '1.25rem auto 5rem auto',
-        padding: '0 1.25rem',
-        display: 'grid',
-        gridTemplateColumns: '1fr 320px',
-        gap: '1.5rem',
-        flex: 1,
-      }}>
-        {/* Left Column: Active Question */}
-        <div>
-          <div className="glass-card" style={{ padding: '2rem 1.75rem', marginBottom: '1.25rem' }}>
+      {/* Main Examination Viewport */}
+      <div style={{ flex: 1, display: 'flex', maxWidth: '1440px', width: '100%', margin: '0 auto', padding: '1.25rem' }}>
+        {/* Left: Active Question Canvas */}
+        <main style={{ flex: 1, marginRight: '1.5rem', display: 'flex', flexDirection: 'column' }}>
+          {/* Question Card */}
+          <div className="glass-card" style={{ padding: '2rem 1.75rem', marginBottom: '1.25rem', flex: 1 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-              <span style={{ 
-                fontSize: '0.875rem', 
-                fontWeight: 800, 
-                color: 'var(--primary)', 
+              <span style={{
+                fontSize: '0.8125rem',
+                fontWeight: 800,
+                color: 'var(--gold-primary)',
                 textTransform: 'uppercase',
-                letterSpacing: '0.04em',
+                letterSpacing: '0.05em',
               }}>
                 Question {currentIndex + 1} of {totalQuestions}
               </span>
-              <span style={{ fontSize: '0.8125rem', color: 'var(--gold-primary)', fontWeight: 700 }}>
-                PEAK PURSUIT 4.0
+              <span style={{
+                fontSize: '0.75rem',
+                fontWeight: 600,
+                color: selectedOptionId ? 'var(--success)' : 'var(--gray-400)',
+                background: selectedOptionId ? 'var(--success-light)' : 'var(--gray-100)',
+                padding: '0.2rem 0.6rem',
+                borderRadius: '12px',
+              }}>
+                {selectedOptionId ? 'Answered' : 'Not Answered'}
               </span>
             </div>
 
-            <h3 style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--gray-900)', marginBottom: '1.75rem', lineHeight: 1.5 }}>
+            <h3 style={{
+              fontSize: '1.25rem',
+              fontWeight: 700,
+              color: 'var(--gray-900)',
+              lineHeight: 1.5,
+              marginBottom: '1.5rem',
+            }}>
               {currentQuestion?.text}
             </h3>
 
@@ -312,10 +506,18 @@ export const QuizTakingView: React.FC<QuizTakingViewProps> = ({ attemptId, onSub
                     key={option.id}
                     onClick={() => handleSelectOption(option.id)}
                     className={`option-card ${isSelected ? 'selected' : ''}`}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'flex-start',
+                      padding: '1rem 1.25rem',
+                      borderRadius: '12px',
+                      cursor: 'pointer',
+                      border: isSelected ? '2px solid var(--primary)' : '1px solid var(--gray-200)',
+                      background: isSelected ? '#fffdf7' : '#ffffff',
+                      boxShadow: isSelected ? '0 0 0 1px var(--primary)' : 'var(--shadow-sm)',
+                      transition: 'all 0.15s ease',
+                    }}
                   >
-                    <div className="option-radio">
-                      {isSelected && <div className="option-radio-dot" />}
-                    </div>
                     <span style={{
                       fontWeight: 800,
                       marginRight: '0.75rem',
@@ -382,18 +584,18 @@ export const QuizTakingView: React.FC<QuizTakingViewProps> = ({ attemptId, onSub
                   disabled={submitting}
                   className="btn btn-primary"
                 >
-                  Finish & Submit
+                  Finish & Review
                 </button>
               )}
             </div>
           </div>
-        </div>
+        </main>
 
-        {/* Right Column: Question Palette Matrix (Desktop Sidebar) */}
-        <div className="desktop-sidebar">
-          <div className="glass-card" style={{ padding: '1.5rem', position: 'sticky', top: '90px' }}>
-            <h4 style={{ fontSize: '1rem', fontWeight: 800, color: 'var(--gray-900)', marginBottom: '1rem' }}>
-              Question Matrix
+        {/* Right Desktop Question Palette */}
+        <aside style={{ width: '280px', display: 'none' }} className="desktop-palette">
+          <div className="glass-card" style={{ padding: '1.25rem', position: 'sticky', top: '5.5rem' }}>
+            <h4 style={{ fontSize: '0.875rem', fontWeight: 800, color: 'var(--gray-700)', textTransform: 'uppercase', marginBottom: '1rem' }}>
+              Question Palette
             </h4>
 
             <div style={{
@@ -409,6 +611,7 @@ export const QuizTakingView: React.FC<QuizTakingViewProps> = ({ attemptId, onSub
               <span>Remaining: <strong style={{ color: 'var(--warning)' }}>{unansweredCount}</strong></span>
             </div>
 
+            {/* Question Matrix Numbers */}
             <div className="matrix-grid">
               {orderedQuestions.map((q, idx) => {
                 const isAnswered = answers[q.id.toString()] !== undefined;
@@ -419,7 +622,7 @@ export const QuizTakingView: React.FC<QuizTakingViewProps> = ({ attemptId, onSub
                     key={q.id}
                     onClick={() => setCurrentIndex(idx)}
                     className={`matrix-btn ${isAnswered ? 'answered' : ''} ${isCurrent ? 'current' : ''}`}
-                    title={`Question ${idx + 1}`}
+                    title={`Question ${idx + 1}: ${isAnswered ? 'Answered' : 'Unanswered'}`}
                   >
                     {idx + 1}
                   </button>
@@ -427,28 +630,38 @@ export const QuizTakingView: React.FC<QuizTakingViewProps> = ({ attemptId, onSub
               })}
             </div>
 
-            <div style={{ marginTop: '1.5rem', paddingTop: '1rem', borderTop: '1px solid var(--gray-200)' }}>
-              <button
-                onClick={() => setShowReviewModal(true)}
-                disabled={submitting}
-                className="btn btn-primary"
-                style={{ width: '100%', padding: '0.75rem' }}
-              >
-                Review & Submit Assessment
-              </button>
-            </div>
+            <button
+              onClick={() => setShowReviewModal(true)}
+              disabled={submitting}
+              className="btn btn-primary"
+              style={{ width: '100%', marginTop: '1.5rem', padding: '0.75rem' }}
+            >
+              Finish & Review
+            </button>
           </div>
-        </div>
+        </aside>
       </div>
 
-      {/* Mobile Fixed Bottom Navigation Bar */}
-      <div className="mobile-bottom-nav">
+      {/* Mobile Bottom Bar */}
+      <div className="mobile-bottom-bar" style={{
+        position: 'fixed',
+        bottom: 0,
+        left: 0,
+        right: 0,
+        background: '#ffffff',
+        borderTop: '1px solid var(--gray-200)',
+        padding: '0.75rem 1rem',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        zIndex: 90,
+      }}>
         {allowBack && (
           <button
             onClick={() => setCurrentIndex((prev) => Math.max(0, prev - 1))}
             disabled={currentIndex === 0 || submitting}
             className="btn btn-secondary"
-            style={{ padding: '0.5rem 0.875rem', fontSize: '0.875rem' }}
+            style={{ padding: '0.5rem 0.875rem' }}
           >
             ← Prev
           </button>
@@ -457,9 +670,9 @@ export const QuizTakingView: React.FC<QuizTakingViewProps> = ({ attemptId, onSub
         <button
           onClick={() => setShowMobileDrawer(true)}
           className="btn btn-secondary"
-          style={{ padding: '0.5rem 0.875rem', fontSize: '0.875rem', background: 'var(--gold-light)', borderColor: 'var(--gold-primary)' }}
+          style={{ padding: '0.5rem 0.75rem', fontSize: '0.8125rem' }}
         >
-          Grid ({answeredCount}/{totalQuestions})
+          {currentIndex + 1} / {totalQuestions}
         </button>
 
         {currentIndex < totalQuestions - 1 ? (
@@ -467,7 +680,7 @@ export const QuizTakingView: React.FC<QuizTakingViewProps> = ({ attemptId, onSub
             onClick={() => setCurrentIndex((prev) => Math.min(totalQuestions - 1, prev + 1))}
             disabled={submitting}
             className="btn btn-crimson"
-            style={{ padding: '0.5rem 1rem', fontSize: '0.875rem' }}
+            style={{ padding: '0.5rem 1rem' }}
           >
             Next →
           </button>
@@ -476,25 +689,40 @@ export const QuizTakingView: React.FC<QuizTakingViewProps> = ({ attemptId, onSub
             onClick={() => setShowReviewModal(true)}
             disabled={submitting}
             className="btn btn-primary"
-            style={{ padding: '0.5rem 1rem', fontSize: '0.875rem' }}
+            style={{ padding: '0.5rem 1rem' }}
           >
-            Submit
+            Review & Submit
           </button>
         )}
       </div>
 
-      {/* Mobile Question Matrix Drawer Overlay */}
+      {/* Mobile Palette Slide-over Drawer */}
       {showMobileDrawer && (
-        <div className="drawer-overlay" onClick={() => setShowMobileDrawer(false)}>
-          <div className="drawer-content" onClick={(e) => e.stopPropagation()}>
+        <div style={{
+          position: 'fixed',
+          inset: 0,
+          background: 'rgba(15, 23, 42, 0.5)',
+          backdropFilter: 'blur(2px)',
+          zIndex: 100,
+          display: 'flex',
+          justifyContent: 'flex-end',
+        }}>
+          <div style={{
+            background: '#ffffff',
+            width: '85%',
+            maxWidth: '320px',
+            height: '100%',
+            padding: '1.5rem',
+            display: 'flex',
+            flexDirection: 'column',
+          }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
-              <h4 style={{ fontSize: '1.125rem', fontWeight: 800, color: 'var(--gray-900)' }}>
-                Question Matrix
-              </h4>
+              <h3 style={{ fontSize: '1rem', fontWeight: 800, margin: 0, color: 'var(--gray-800)' }}>
+                Question Palette
+              </h3>
               <button
                 onClick={() => setShowMobileDrawer(false)}
-                className="btn btn-secondary"
-                style={{ padding: '0.25rem 0.5rem', minHeight: 'auto', fontSize: '1.25rem', border: 'none' }}
+                style={{ background: 'none', border: 'none', fontSize: '1.25rem', cursor: 'pointer', color: 'var(--gray-500)' }}
               >
                 ✕
               </button>
@@ -563,10 +791,10 @@ export const QuizTakingView: React.FC<QuizTakingViewProps> = ({ attemptId, onSub
         }}>
           <div className="glass-card" style={{ maxWidth: '480px', width: '100%', padding: '2rem 1.5rem' }}>
             <h3 style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--gray-900)', marginBottom: '0.75rem' }}>
-              Confirm Assessment Submission
+              Complete Multiple-Choice Section
             </h3>
             <p style={{ fontSize: '0.9375rem', color: 'var(--gray-600)', marginBottom: '1.25rem' }}>
-              Are you sure you want to finish and submit your answers? Once submitted, your attempt will be permanently locked.
+              Are you ready to finish your multiple-choice questions? Once you proceed, your multiple-choice answers will be saved, and you will answer the final feedback question.
             </p>
 
             <div style={{
@@ -603,57 +831,9 @@ export const QuizTakingView: React.FC<QuizTakingViewProps> = ({ attemptId, onSub
                 marginBottom: '1.5rem',
                 border: '1px solid rgba(245, 158, 11, 0.3)',
               }}>
-                Warning: You have {unansweredCount} unanswered question(s). Unanswered questions may receive penalty points depending on scoring policies.
+                Warning: You have {unansweredCount} unanswered question(s).
               </div>
             )}
-
-            {/* Compulsory Feedback Textarea Input Field */}
-            <div style={{ marginBottom: '1.25rem', textAlign: 'left' }}>
-              <label 
-                htmlFor="attempt-feedback"
-                style={{ 
-                  display: 'block', 
-                  fontSize: '0.875rem', 
-                  fontWeight: 700, 
-                  color: 'var(--gray-900)', 
-                  marginBottom: '0.375rem' 
-                }}
-              >
-                Participant Feedback <span style={{ color: 'var(--danger)', fontWeight: 800 }}>*</span>
-              </label>
-              <p style={{ fontSize: '0.8125rem', color: 'var(--gray-500)', marginBottom: '0.5rem' }}>
-                Please provide your feedback and comments on this quiz before submitting. (Compulsory)
-              </p>
-              <textarea
-                id="attempt-feedback"
-                value={feedback}
-                onChange={(e) => {
-                  setFeedback(e.target.value);
-                  if (feedbackError && e.target.value.trim()) {
-                    setFeedbackError(null);
-                  }
-                }}
-                rows={3}
-                placeholder="Share your experience, thoughts, or suggestions about this quiz (required)..."
-                style={{
-                  width: '100%',
-                  padding: '0.75rem',
-                  borderRadius: '10px',
-                  border: feedbackError ? '1.5px solid var(--danger)' : '1px solid var(--gray-300)',
-                  fontFamily: 'inherit',
-                  fontSize: '0.875rem',
-                  lineHeight: '1.4',
-                  resize: 'vertical',
-                  boxSizing: 'border-box',
-                  outline: 'none',
-                }}
-              />
-              {feedbackError && (
-                <div style={{ color: 'var(--danger)', fontSize: '0.8125rem', fontWeight: 600, marginTop: '0.25rem' }}>
-                  {feedbackError}
-                </div>
-              )}
-            </div>
 
             <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
               <button
@@ -662,20 +842,15 @@ export const QuizTakingView: React.FC<QuizTakingViewProps> = ({ attemptId, onSub
                 className="btn btn-secondary"
                 style={{ flex: 1 }}
               >
-                Back
+                Back to Questions
               </button>
               <button
-                onClick={() => handleSubmit('manual')}
-                disabled={submitting || !feedback.trim()}
+                onClick={() => handleProceedToFeedback('manual')}
+                disabled={submitting}
                 className="btn btn-primary"
-                style={{ 
-                  flex: 1,
-                  opacity: (!feedback.trim() && !submitting) ? 0.6 : 1,
-                  cursor: (!feedback.trim() && !submitting) ? 'not-allowed' : 'pointer'
-                }}
-                title={!feedback.trim() ? 'Please provide feedback to submit' : undefined}
+                style={{ flex: 1 }}
               >
-                {submitting ? 'Submitting...' : 'Yes, Submit Answers'}
+                Proceed to Feedback →
               </button>
             </div>
           </div>
@@ -747,4 +922,3 @@ export const QuizTakingView: React.FC<QuizTakingViewProps> = ({ attemptId, onSub
     </div>
   );
 };
-

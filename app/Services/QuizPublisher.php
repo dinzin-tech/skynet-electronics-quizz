@@ -146,6 +146,7 @@ class QuizPublisher
             'title' => $quiz['title'],
             'description' => $quiz['description'] ?? '',
             'instructions' => $quiz['instructions'] ?? '',
+            'feedback_question' => !empty($quiz['feedback_question']) ? (string) $quiz['feedback_question'] : null,
             'duration_seconds' => (int) $quiz['duration_seconds'],
             'start_at' => $quiz['start_at'],
             'end_at' => $quiz['end_at'],

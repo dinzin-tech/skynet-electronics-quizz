@@ -110,6 +110,7 @@ class QuizWarmer
             'duration_s' => (string) $quiz['duration_seconds'],
             'title' => (string) $quiz['title'],
             'instructions' => (string) ($quiz['instructions'] ?? ''),
+            'feedback_question' => (string) ($quiz['feedback_question'] ?? ''),
             'settings' => (string) $quiz['settings'],
             'total_questions' => (string) $snapshot['question_count'],
             'bundle_sha256' => (string) $snapshot['bundle_sha256'],

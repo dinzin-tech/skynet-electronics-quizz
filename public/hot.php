@@ -179,6 +179,7 @@ $router->get('/api/quiz/{code}', function (array $params, array $config, mixed $
         'code' => $quizMeta['code'],
         'title' => $quizMeta['title'],
         'instructions' => $quizMeta['instructions'] ?? '',
+        'feedback_question' => !empty($quizMeta['feedback_question']) ? (string) $quizMeta['feedback_question'] : null,
         'duration_seconds' => (int) $quizMeta['duration_s'],
         'total_questions' => (int) $quizMeta['total_questions'],
         'opens_at_ms' => $startMs,
@@ -380,19 +381,6 @@ $router->get('/api/attempts/{aid}', function (array $params, array $config, mixe
     }
 
     $feedback = !empty($att['feedback']) ? (string) $att['feedback'] : null;
-    if ($feedback === null) {
-        try {
-            $db = \Core\Database::getInstance()->getConnection();
-            $stmt = $db->prepare('SELECT feedback FROM attempts WHERE public_id = :pid');
-            $stmt->execute(['pid' => $aid]);
-            $fb = $stmt->fetchColumn();
-            if ($fb) {
-                $feedback = (string) $fb;
-                $redis->hSet("att:{$aid}", 'feedback', $feedback);
-            }
-        } catch (\Throwable) {
-        }
-    }
 
     $status = $att['status'] ?? 'NOT_STARTED';
     $data = [
@@ -586,12 +574,6 @@ $router->post('/api/attempts/{aid}/submit', function (array $params, array $conf
     if ($feedback !== '') {
         $redis->hSet("att:{$aid}", 'feedback', $feedback);
         $redis->sAdd('dirty_att', $aid);
-        try {
-            $db = \Core\Database::getInstance()->getConnection();
-            $stmt = $db->prepare('UPDATE attempts SET feedback = :fb WHERE public_id = :pid');
-            $stmt->execute(['fb' => $feedback, 'pid' => $aid]);
-        } catch (\Throwable) {
-        }
     }
 
     HotRouter::json(200, [
@@ -631,13 +613,6 @@ $router->post('/api/attempts/{aid}/feedback', function (array $params, array $co
 
     $redis->hSet("att:{$aid}", 'feedback', $feedback);
     $redis->sAdd('dirty_att', $aid);
-
-    try {
-        $db = \Core\Database::getInstance()->getConnection();
-        $stmt = $db->prepare('UPDATE attempts SET feedback = :fb WHERE public_id = :pid');
-        $stmt->execute(['fb' => $feedback, 'pid' => $aid]);
-    } catch (\Throwable) {
-    }
 
     HotRouter::json(200, [
         'ok' => true,

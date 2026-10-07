@@ -166,12 +166,17 @@ class QuizService
         $now = gmdate('Y-m-d H:i:s');
 
         $stmt = $this->db->prepare(
-            'INSERT INTO quizzes (public_id, code, title, description, instructions, ' .
+            'INSERT INTO quizzes (public_id, code, title, description, instructions, feedback_question, ' .
             'duration_seconds, start_at, end_at, status, settings, current_version, ' .
             'created_by, created_at, updated_at) ' .
-            'VALUES (:pid, :code, :title, :desc, :inst, :dur, :start, :end, :status, ' .
+            'VALUES (:pid, :code, :title, :desc, :inst, :fbq, :dur, :start, :end, :status, ' .
             ':settings, 0, :uid, :cat, :uat)'
         );
+
+        $fbQuestion = isset($data['feedback_question']) ? trim((string) $data['feedback_question']) : null;
+        if ($fbQuestion === '') {
+            $fbQuestion = null;
+        }
 
         $stmt->execute([
             'pid' => $publicId,
@@ -179,6 +184,7 @@ class QuizService
             'title' => $title,
             'desc' => $data['description'] ?? null,
             'inst' => $data['instructions'] ?? null,
+            'fbq' => $fbQuestion,
             'dur' => $durationSeconds,
             'start' => $startAt,
             'end' => $endAt,
@@ -249,6 +255,12 @@ class QuizService
         if (array_key_exists('instructions', $data)) {
             $fields[] = 'instructions = :inst';
             $params['inst'] = $data['instructions'];
+        }
+
+        if (array_key_exists('feedback_question', $data)) {
+            $fbq = trim((string) ($data['feedback_question'] ?? ''));
+            $fields[] = 'feedback_question = :fbq';
+            $params['fbq'] = $fbq !== '' ? $fbq : null;
         }
 
         if (isset($data['duration_seconds'])) {
