@@ -164,7 +164,7 @@ class QuizFinalizerServiceTest extends TestCase
                 return 1;
             }
 
-            public function lRem(string $key, int $count, string $val): int
+            public function lRem(string $key, string $val, int $count = 0): int
             {
                 $this->fq = array_diff($this->fq, [$val]);
                 return 1;

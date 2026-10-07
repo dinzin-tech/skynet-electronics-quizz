@@ -297,7 +297,7 @@ class QuizFinalizerService
                     $redis->sRem('dirty_att', $aid);
                 }
                 if (method_exists($redis, 'lRem')) {
-                    $redis->lRem('fq', 0, $aid);
+                    $redis->lRem('fq', $aid, 0);
                 }
 
                 if (method_exists($redis, 'exists') && $redis->exists("qstat:{$quizId}")) {
