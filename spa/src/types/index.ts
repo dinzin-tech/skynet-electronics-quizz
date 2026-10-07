@@ -26,6 +26,7 @@ export interface QuizMeta {
   title: string;
   description?: string;
   instructions?: string;
+  feedback_question?: string | null;
   duration_seconds: number;
   total_questions: number;
   opens_at_ms: number;
@@ -66,6 +67,7 @@ export interface QuizBundle {
   title: string;
   description?: string;
   instructions?: string;
+  feedback_question?: string | null;
   duration_seconds: number;
   version: number;
   total_questions: number;

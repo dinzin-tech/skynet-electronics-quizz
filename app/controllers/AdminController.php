@@ -697,6 +697,7 @@ class AdminController extends Controller
                 $title = trim((string) ($request->get('title') ?: ($request->getPostData()['title'] ?? ($_POST['title'] ?? ''))));
                 $code = strtoupper(trim((string) ($request->get('code') ?: ($request->getPostData()['code'] ?? ($_POST['code'] ?? '')))));
                 $desc = trim((string) ($request->get('description') ?: ($request->getPostData()['description'] ?? ($_POST['description'] ?? ''))));
+                $feedbackQuestion = trim((string) ($request->get('feedback_question') ?: ($request->getPostData()['feedback_question'] ?? ($_POST['feedback_question'] ?? ''))));
                 $windowStart = trim((string) ($request->get('window_start') ?: ($request->getPostData()['window_start'] ?? ($_POST['window_start'] ?? ''))));
                 $windowEnd = trim((string) ($request->get('window_end') ?: ($request->getPostData()['window_end'] ?? ($_POST['window_end'] ?? ''))));
                 $duration = (int) ($request->get('duration_minutes') ?: ($request->getPostData()['duration_minutes'] ?? ($_POST['duration_minutes'] ?? 30)));
@@ -742,6 +743,7 @@ class AdminController extends Controller
                     'title' => $title,
                     'code' => $code,
                     'description' => $desc,
+                    'feedback_question' => $feedbackQuestion,
                     'duration_minutes' => $duration,
                     'duration_seconds' => $duration * 60,
                     'start_at' => $startUtc,
@@ -814,6 +816,7 @@ class AdminController extends Controller
                 $title = trim((string) ($request->input('title') ?? $request->get('title', '')));
                 $code = strtoupper(trim((string) ($request->input('code') ?? $request->get('code', ''))));
                 $desc = trim((string) ($request->input('description') ?? $request->get('description', '')));
+                $feedbackQuestion = trim((string) ($request->input('feedback_question') ?? $request->get('feedback_question', '')));
                 $windowStart = (string) ($request->input('window_start') ?? $request->get('window_start', ''));
                 $windowEnd = (string) ($request->input('window_end') ?? $request->get('window_end', ''));
                 $duration = (int) ($request->input('duration_minutes') ?? $request->get('duration_minutes', 30));
@@ -857,6 +860,7 @@ class AdminController extends Controller
                     'title' => $title,
                     'code' => $code,
                     'description' => $desc,
+                    'feedback_question' => $feedbackQuestion,
                     'duration_minutes' => $duration,
                     'duration_seconds' => $duration * 60,
                     'start_at' => $startUtc,

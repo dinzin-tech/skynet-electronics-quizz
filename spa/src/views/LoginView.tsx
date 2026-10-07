@@ -56,17 +56,17 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess, defaultQui
 
       <div className="glass-card-dark" style={{ width: '100%', maxWidth: '440px', padding: '2.5rem 2rem' }}>
         <div style={{ textAlign: 'center', marginBottom: '1.75rem' }}>
-          <img 
-            src="/app/logo.png" 
-            alt="PEAK PURSUIT 4.0" 
+          <img
+            src="/app/logo.png"
+            alt="PEAK PURSUIT 4.0"
             className="login-logo-img"
             onError={(e) => {
               (e.target as HTMLImageElement).src = '/logo.png';
             }}
           />
-          <h2 style={{ 
-            fontSize: '1.375rem', 
-            fontWeight: 800, 
+          <h2 style={{
+            fontSize: '1.375rem',
+            fontWeight: 800,
             background: 'var(--gold-gradient)',
             WebkitBackgroundClip: 'text',
             WebkitTextFillColor: 'transparent',
@@ -97,7 +97,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess, defaultQui
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
           <div>
             <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 700, color: 'var(--gold-primary)', marginBottom: '0.375rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-              Employee Identifier
+              Employee Code
             </label>
             <input
               type="text"
@@ -123,7 +123,8 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess, defaultQui
 
         {defaultQuizCode && (
           <div style={{ marginTop: '1.75rem', textAlign: 'center', fontSize: '0.8125rem', color: 'rgba(255,255,255,0.6)' }}>
-            Assessment Code: <strong style={{ color: 'var(--gold-primary)' }}>{defaultQuizCode}</strong>
+            <p>Quiz Code: <strong style={{ color: 'var(--gold-primary)' }}>{defaultQuizCode}</strong></p>
+            <p style={{ fontSize: '0.8125rem', color: 'rgba(255,255,255,0.6)', marginTop: '0.375rem' }}>Enter your employee code to start</p>
           </div>
         )}
       </div>
