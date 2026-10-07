@@ -172,7 +172,7 @@ if (!class_exists('Redis')) {
             return true;
         }
 
-        public function scan(&$cursor, array $options = []): array|false
+        public function scan(&$cursor, string|array|null $pattern = null, int $count = 0): array|false
         {
             $cursor = 0; // signal iteration complete on first call
             return [];

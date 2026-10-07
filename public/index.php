@@ -2,6 +2,8 @@
 
 require_once __DIR__ . '/../vendor/autoload.php';
 
+date_default_timezone_set('UTC');
+
 use Core\Kernel;
 use Core\Http\Request;
 use Dotenv\Dotenv;

@@ -836,10 +836,12 @@ class AdminController extends Controller
                     'randomize_options' => (bool) ($request->input('randomize_options') ?? $request->get('randomize_options', false)),
                 ];
 
-                $startTs = strtotime(str_replace('T', ' ', $windowStart)) ?: time();
-                $endTs = strtotime(str_replace('T', ' ', $windowEnd)) ?: (time() + 86400);
-                $startUtc = gmdate('Y-m-d H:i:s', $startTs);
-                $endUtc = gmdate('Y-m-d H:i:s', $endTs);
+                $startUtc = $this->parseWindowDateTime($windowStart, 'Window Start');
+                $endUtc = $this->parseWindowDateTime($windowEnd, 'Window End');
+
+                if ($endUtc <= $startUtc) {
+                    throw new InvalidArgumentException('Quiz window end time must be after start time. Please correct the dates and try again.');
+                }
 
                 $targetAudience = (string) ($request->input('target_audience') ?? $request->get('target_audience', 'all'));
                 $selectedGroups = (array) ($request->input('target_groups') ?? $request->get('target_groups', []));

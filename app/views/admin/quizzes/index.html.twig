@@ -53,7 +53,7 @@
                             <strong>End:</strong> {{ q.end_at|company_date('d M Y, h:i A') }}
                         </div>
                     </td>
-                    <td>{{ q.duration_minutes }} mins</td>
+                    <td>{{ (q.duration_seconds / 60)|round }} mins</td>
                     <td>
                         {% if q.status == 'published' %}
                             <span class="badge badge-success">Published</span>
