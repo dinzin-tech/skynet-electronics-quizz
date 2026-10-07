@@ -379,6 +379,21 @@ $router->get('/api/attempts/{aid}', function (array $params, array $config, mixe
         ];
     }
 
+    $feedback = !empty($att['feedback']) ? (string) $att['feedback'] : null;
+    if ($feedback === null) {
+        try {
+            $db = \Core\Database::getInstance()->getConnection();
+            $stmt = $db->prepare('SELECT feedback FROM attempts WHERE public_id = :pid');
+            $stmt->execute(['pid' => $aid]);
+            $fb = $stmt->fetchColumn();
+            if ($fb) {
+                $feedback = (string) $fb;
+                $redis->hSet("att:{$aid}", 'feedback', $feedback);
+            }
+        } catch (\Throwable) {
+        }
+    }
+
     $status = $att['status'] ?? 'NOT_STARTED';
     $data = [
         'attempt_id' => $aid,
@@ -389,6 +404,7 @@ $router->get('/api/attempts/{aid}', function (array $params, array $config, mixe
         'max_seq' => (int) ($att['max_seq'] ?? 0),
         'layout' => !empty($att['layout']) ? json_decode($att['layout'], true) : null,
         'answers' => $answers,
+        'feedback' => $feedback,
         'server_now_ms' => $nowMs,
     ];
 
@@ -566,11 +582,66 @@ $router->post('/api/attempts/{aid}/submit', function (array $params, array $conf
         return;
     }
 
+    $feedback = trim((string) ($payload['feedback'] ?? ''));
+    if ($feedback !== '') {
+        $redis->hSet("att:{$aid}", 'feedback', $feedback);
+        $redis->sAdd('dirty_att', $aid);
+        try {
+            $db = \Core\Database::getInstance()->getConnection();
+            $stmt = $db->prepare('UPDATE attempts SET feedback = :fb WHERE public_id = :pid');
+            $stmt->execute(['fb' => $feedback, 'pid' => $aid]);
+        } catch (\Throwable) {
+        }
+    }
+
     HotRouter::json(200, [
         'ok' => true,
         'submitted' => true,
         'submitted_ms' => (int) ($res['submitted_ms'] ?? $nowMs),
         'already_completed' => (bool) ($res['already_completed'] ?? false),
+        'feedback' => $feedback !== '' ? $feedback : null,
+        'server_now_ms' => $nowMs,
+    ], $nowMs);
+});
+
+// 8. POST /api/attempts/{aid}/feedback (Participant feedback submission)
+$router->post('/api/attempts/{aid}/feedback', function (array $params, array $config, mixed $redis, int $nowMs): void {
+    $claims = getHotAuth($config, $nowMs);
+    if (!$claims) {
+        return;
+    }
+
+    $uid = (string) $claims['uid'];
+    $aid = trim((string) ($params['aid'] ?? ''));
+    $att = $redis->hGetAll("att:{$aid}");
+
+    if (empty($att) || ((string) $att['eid']) !== $uid) {
+        HotRouter::error(404, 'attempt_not_found', 'Attempt not found', $nowMs);
+        return;
+    }
+
+    $body = (string) file_get_contents('php://input');
+    $payload = $body !== '' ? json_decode($body, true) : [];
+    $feedback = trim((string) ($payload['feedback'] ?? ''));
+
+    if ($feedback === '') {
+        HotRouter::error(422, 'validation_error', 'Feedback cannot be empty', $nowMs);
+        return;
+    }
+
+    $redis->hSet("att:{$aid}", 'feedback', $feedback);
+    $redis->sAdd('dirty_att', $aid);
+
+    try {
+        $db = \Core\Database::getInstance()->getConnection();
+        $stmt = $db->prepare('UPDATE attempts SET feedback = :fb WHERE public_id = :pid');
+        $stmt->execute(['fb' => $feedback, 'pid' => $aid]);
+    } catch (\Throwable) {
+    }
+
+    HotRouter::json(200, [
+        'ok' => true,
+        'feedback' => $feedback,
         'server_now_ms' => $nowMs,
     ], $nowMs);
 });

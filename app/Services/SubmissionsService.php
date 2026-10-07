@@ -84,7 +84,7 @@ class SubmissionsService
         }
 
         $sql = "SELECT a.id, a.quiz_id, a.employee_id, a.status, a.score, a.accuracy, "
-            . "a.completion_time_s, a.started_at, a.submitted_at, a.graded_at, "
+            . "a.completion_time_s, a.started_at, a.submitted_at, a.graded_at, a.feedback, "
             . "e.employee_code, e.name AS employee_name, e.email AS employee_email, "
             . "q.title AS quiz_title, q.code AS quiz_code, "
             . "r.`rank` "

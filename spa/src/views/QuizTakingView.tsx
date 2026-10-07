@@ -27,6 +27,8 @@ export const QuizTakingView: React.FC<QuizTakingViewProps> = ({ attemptId, onSub
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [zoomImage, setZoomImage] = useState<string | null>(null);
+  const [feedback, setFeedback] = useState('');
+  const [feedbackError, setFeedbackError] = useState<string | null>(null);
 
   // 1. Initial Load: Bundle + Attempt State
   useEffect(() => {
@@ -142,13 +144,19 @@ export const QuizTakingView: React.FC<QuizTakingViewProps> = ({ attemptId, onSub
   // 4. Submit Attempt
   const handleSubmit = async (reason: 'manual' | 'timeout' = 'manual') => {
     if (submitting) return;
+
+    if (reason === 'manual' && !feedback.trim()) {
+      setFeedbackError('Feedback is compulsory. Please enter your feedback before submitting.');
+      return;
+    }
+
     setSubmitting(true);
     setShowReviewModal(false);
 
     try {
       // Flush any pending unacked answers
       await syncManager.flush();
-      await api.submitAttempt(attemptId, reason);
+      await api.submitAttempt(attemptId, reason, feedback.trim());
       onSubmitted(attemptId);
     } catch (err: any) {
       setError(err?.message || 'Submission failed. Please retry.');
@@ -599,6 +607,54 @@ export const QuizTakingView: React.FC<QuizTakingViewProps> = ({ attemptId, onSub
               </div>
             )}
 
+            {/* Compulsory Feedback Textarea Input Field */}
+            <div style={{ marginBottom: '1.25rem', textAlign: 'left' }}>
+              <label 
+                htmlFor="attempt-feedback"
+                style={{ 
+                  display: 'block', 
+                  fontSize: '0.875rem', 
+                  fontWeight: 700, 
+                  color: 'var(--gray-900)', 
+                  marginBottom: '0.375rem' 
+                }}
+              >
+                Participant Feedback <span style={{ color: 'var(--danger)', fontWeight: 800 }}>*</span>
+              </label>
+              <p style={{ fontSize: '0.8125rem', color: 'var(--gray-500)', marginBottom: '0.5rem' }}>
+                Please provide your feedback and comments on this quiz before submitting. (Compulsory)
+              </p>
+              <textarea
+                id="attempt-feedback"
+                value={feedback}
+                onChange={(e) => {
+                  setFeedback(e.target.value);
+                  if (feedbackError && e.target.value.trim()) {
+                    setFeedbackError(null);
+                  }
+                }}
+                rows={3}
+                placeholder="Share your experience, thoughts, or suggestions about this quiz (required)..."
+                style={{
+                  width: '100%',
+                  padding: '0.75rem',
+                  borderRadius: '10px',
+                  border: feedbackError ? '1.5px solid var(--danger)' : '1px solid var(--gray-300)',
+                  fontFamily: 'inherit',
+                  fontSize: '0.875rem',
+                  lineHeight: '1.4',
+                  resize: 'vertical',
+                  boxSizing: 'border-box',
+                  outline: 'none',
+                }}
+              />
+              {feedbackError && (
+                <div style={{ color: 'var(--danger)', fontSize: '0.8125rem', fontWeight: 600, marginTop: '0.25rem' }}>
+                  {feedbackError}
+                </div>
+              )}
+            </div>
+
             <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
               <button
                 onClick={() => setShowReviewModal(false)}
@@ -610,9 +666,14 @@ export const QuizTakingView: React.FC<QuizTakingViewProps> = ({ attemptId, onSub
               </button>
               <button
                 onClick={() => handleSubmit('manual')}
-                disabled={submitting}
+                disabled={submitting || !feedback.trim()}
                 className="btn btn-primary"
-                style={{ flex: 1 }}
+                style={{ 
+                  flex: 1,
+                  opacity: (!feedback.trim() && !submitting) ? 0.6 : 1,
+                  cursor: (!feedback.trim() && !submitting) ? 'not-allowed' : 'pointer'
+                }}
+                title={!feedback.trim() ? 'Please provide feedback to submit' : undefined}
               >
                 {submitting ? 'Submitting...' : 'Yes, Submit Answers'}
               </button>

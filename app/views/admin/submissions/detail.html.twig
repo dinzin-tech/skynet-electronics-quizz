@@ -33,6 +33,25 @@
     </div>
 </div>
 
+<div class="card" style="margin-bottom: 24px;">
+    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px;">
+        <h3 style="font-size: 1.15rem; font-weight: 600; display: flex; align-items: center; gap: 8px;">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color: #2563eb;"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+            Participant Feedback
+        </h3>
+        {% if attempt.feedback is not empty %}
+            <span class="badge badge-success" style="font-size: 0.75rem; padding: 4px 10px;">Submitted</span>
+        {% else %}
+            <span class="badge badge-warning" style="font-size: 0.75rem; padding: 4px 10px;">No Feedback</span>
+        {% endif %}
+    </div>
+    {% if attempt.feedback is not empty %}
+        <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; font-size: 0.95rem; color: #1e293b; line-height: 1.6; white-space: pre-wrap;">{{ attempt.feedback }}</div>
+    {% else %}
+        <p style="color: #64748b; font-size: 0.9rem; margin: 0; font-style: italic;">No feedback was recorded for this assessment attempt.</p>
+    {% endif %}
+</div>
+
 <div class="card" style="padding: 0;">
     <div style="padding: 16px 20px; border-bottom: 1px solid var(--border-color);">
         <h3 style="font-size: 1.05rem; font-weight: 600;">Recorded Answers ({{ attempt.answers|length }})</h3>

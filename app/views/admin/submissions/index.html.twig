@@ -55,6 +55,7 @@
                     <th>Score</th>
                     <th>Accuracy</th>
                     <th>Time</th>
+                    <th>Feedback</th>
                     <th>Actions</th>
                 </tr>
             </thead>
@@ -112,12 +113,21 @@
                         {% endif %}
                     </td>
                     <td>
+                        {% if item.feedback is not empty %}
+                            <span title="{{ item.feedback }}" style="display: inline-block; max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.8rem; color: #1e293b; background: #f1f5f9; padding: 2px 8px; border-radius: 6px; border: 1px solid #e2e8f0; vertical-align: middle;">
+                                💬 {{ item.feedback }}
+                            </span>
+                        {% else %}
+                            <span style="color: #94a3b8; font-size: 0.8rem;">—</span>
+                        {% endif %}
+                    </td>
+                    <td>
                         <a href="/admin/submissions/{{ item.id }}" class="btn btn-secondary" style="padding: 4px 10px; font-size: 0.775rem;">Details</a>
                     </td>
                 </tr>
                 {% else %}
                 <tr>
-                    <td colspan="9" style="text-align: center; color: #64748b; padding: 32px;">No submissions match the selected filters.</td>
+                    <td colspan="10" style="text-align: center; color: #64748b; padding: 32px;">No submissions match the selected filters.</td>
                 </tr>
                 {% endfor %}
             </tbody>

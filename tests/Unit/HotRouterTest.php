@@ -49,11 +49,19 @@ class HotRouterTest extends TestCase
             $putCalled = true;
         });
 
+        $this->router->post('/api/attempts/{aid}/feedback', function ($params) use (&$feedbackCalled, &$capturedAid) {
+            $feedbackCalled = true;
+            $capturedAid = $params['aid'];
+        });
+
         $this->router->dispatch('POST', '/api/quiz/XYZ/start', [], $this->mockRedis);
         $this->router->dispatch('PUT', '/api/attempts/01AN4Z07BY79KA1307SR9X4MV3/answers', [], $this->mockRedis);
+        $this->router->dispatch('POST', '/api/attempts/01AN4Z07BY79KA1307SR9X4MV3/feedback', [], $this->mockRedis);
 
         $this->assertTrue($postCalled);
         $this->assertTrue($putCalled);
+        $this->assertTrue($feedbackCalled);
+        $this->assertSame('01AN4Z07BY79KA1307SR9X4MV3', $capturedAid);
     }
 
     public function test_unmatched_route_triggers_404_error(): void

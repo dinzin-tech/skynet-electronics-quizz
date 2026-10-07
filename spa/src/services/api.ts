@@ -158,13 +158,27 @@ export const api = {
 
   async submitAttempt(
     aid: string,
-    reason: 'manual' | 'timeout' = 'manual'
-  ): Promise<{ ok: boolean; submitted: boolean; submitted_ms: number }> {
-    return request<{ ok: boolean; submitted: boolean; submitted_ms: number }>(
+    reason: 'manual' | 'timeout' = 'manual',
+    feedback?: string
+  ): Promise<{ ok: boolean; submitted: boolean; submitted_ms: number; feedback?: string | null }> {
+    return request<{ ok: boolean; submitted: boolean; submitted_ms: number; feedback?: string | null }>(
       `/api/attempts/${encodeURIComponent(aid)}/submit`,
       {
         method: 'POST',
-        body: JSON.stringify({ reason }),
+        body: JSON.stringify({ reason, feedback }),
+      }
+    );
+  },
+
+  async submitFeedback(
+    aid: string,
+    feedback: string
+  ): Promise<{ ok: boolean; feedback: string }> {
+    return request<{ ok: boolean; feedback: string }>(
+      `/api/attempts/${encodeURIComponent(aid)}/feedback`,
+      {
+        method: 'POST',
+        body: JSON.stringify({ feedback }),
       }
     );
   },

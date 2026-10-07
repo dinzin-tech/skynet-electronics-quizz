@@ -233,6 +233,7 @@ class QuizFlusherCommand
             'score = :score, ' .
             'accuracy = :acc, ' .
             'completion_time_s = :ctime, ' .
+            'feedback = COALESCE(:feedback, feedback), ' .
             'graded_at = :gradat ' .
             'WHERE public_id = :pid'
         );
@@ -281,6 +282,7 @@ class QuizFlusherCommand
                     'score' => $isGraded ? (float) ($att['score'] ?? 0) : null,
                     'acc' => $isGraded ? (float) ($att['accuracy'] ?? 0) : null,
                     'ctime' => $isGraded ? (int) ($att['time_s'] ?? 0) : null,
+                    'feedback' => !empty($att['feedback']) ? (string) $att['feedback'] : null,
                     'gradat' => $gradat,
                     'pid' => $aid,
                 ]);
