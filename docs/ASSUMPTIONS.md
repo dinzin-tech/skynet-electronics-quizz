@@ -112,3 +112,28 @@ This document records the confirmed decisions, architectural assumptions, and co
 - **OS:** Ubuntu 22.04 / 24.04 LTS.
 - **Edge:** Cloudflare proxy with Full-Strict SSL, static caching of bundles (`storage/bundles/*.json.gz`), and IP restoration (`CF-Connecting-IP`).
 - **PHP-FPM Pools:** `hot` (10 children), `auth` (3 children), `main` (4 children).
+
+---
+
+## Approved Scope Addition: Data Reset Admin Feature
+
+> **Per Agents.md §0 rule 1:** "The development team should not silently add functionality."
+> This entry records an explicitly requested and approved addition.
+
+### What was added
+
+A new **"Data Reset"** admin menu item at `/admin/data-reset` that allows administrators
+to permanently delete data by scope. This is an operations/maintenance feature — not a
+product feature visible to employees.
+
+### Why it is safe to add
+
+- Explicitly requested in the task specification with full scope and security requirements.
+- Fails closed if `PASS_CODE` is unset — no default passcode, no accidental activation.
+- Does not add, remove, or change any employee-facing quiz logic.
+
+### Follow-up items
+
+1. **CSRF protection for the rest of the admin panel** — currently absent.
+   `app/Services/Csrf.php` is wired only into Data Reset routes; retrofitting the
+   full admin panel is a separate, agreed task.

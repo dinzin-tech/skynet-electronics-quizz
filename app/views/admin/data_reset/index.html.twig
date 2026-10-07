@@ -1,0 +1,615 @@
+{% extends "admin/layout.html.twig" %}
+
+{% block title %}Data Reset{% endblock %}
+{% block page_title %}Data Reset{% endblock %}
+
+{% block stylesheets %}
+<style>
+    /* ── Danger palette ──────────────────────────────────────────── */
+    :root {
+        --purge-red:        #dc2626;
+        --purge-red-light:  #fee2e2;
+        --purge-red-border: #fecaca;
+        --purge-amber:      #d97706;
+        --purge-amber-bg:   #fffbeb;
+        --purge-green:      #16a34a;
+    }
+
+    .purge-disabled-banner {
+        background: var(--purge-amber-bg);
+        border: 1px solid #fcd34d;
+        border-radius: 10px;
+        padding: 20px 24px;
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        margin-bottom: 28px;
+        color: #92400e;
+        font-size: 0.925rem;
+    }
+
+    /* ── Lock screen ─────────────────────────────────────────────── */
+    .lock-card {
+        max-width: 460px;
+        margin: 48px auto;
+        background: var(--card-bg);
+        border: 1px solid var(--border-color);
+        border-radius: 14px;
+        padding: 36px;
+        box-shadow: 0 4px 24px rgba(0,0,0,0.06);
+        text-align: center;
+    }
+    .lock-icon {
+        font-size: 3rem;
+        margin-bottom: 16px;
+    }
+    .lock-title {
+        font-size: 1.3rem;
+        font-weight: 700;
+        color: var(--text-main);
+        margin-bottom: 8px;
+    }
+    .lock-desc {
+        font-size: 0.875rem;
+        color: var(--text-muted);
+        margin-bottom: 24px;
+        line-height: 1.55;
+    }
+    .passcode-input {
+        width: 100%;
+        padding: 11px 14px;
+        font-size: 1rem;
+        letter-spacing: 0.15em;
+        border: 2px solid var(--border-color);
+        border-radius: 8px;
+        margin-bottom: 16px;
+        background: #fff;
+        text-align: center;
+    }
+    .passcode-input:focus {
+        outline: none;
+        border-color: var(--purge-red);
+        box-shadow: 0 0 0 3px rgba(220,38,38,0.12);
+    }
+    .btn-unlock {
+        width: 100%;
+        padding: 11px;
+        background: var(--purge-red);
+        color: #fff;
+        font-size: 0.95rem;
+        font-weight: 600;
+        border: none;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: background 0.15s;
+    }
+    .btn-unlock:hover { background: #b91c1c; }
+
+    /* ── Unlocked header strip ───────────────────────────────────── */
+    .unlock-strip {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        gap: 12px;
+        background: #fef2f2;
+        border: 1px solid var(--purge-red-border);
+        border-radius: 10px;
+        padding: 14px 20px;
+        margin-bottom: 24px;
+    }
+    .unlock-strip-label {
+        font-size: 0.9rem;
+        font-weight: 600;
+        color: var(--purge-red);
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+    .btn-lock-now {
+        padding: 7px 16px;
+        background: #fff;
+        color: var(--purge-red);
+        border: 1px solid var(--purge-red-border);
+        border-radius: 6px;
+        font-size: 0.85rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.15s;
+    }
+    .btn-lock-now:hover { background: var(--purge-red-light); }
+
+    /* ── Live-activity warning ───────────────────────────────────── */
+    .live-warn {
+        background: #fef9c3;
+        border: 1px solid #fde047;
+        border-radius: 8px;
+        padding: 13px 16px;
+        font-size: 0.875rem;
+        color: #713f12;
+        margin-bottom: 20px;
+        display: flex;
+        align-items: flex-start;
+        gap: 10px;
+    }
+
+    /* ── Worker heartbeats ───────────────────────────────────────── */
+    .workers-bar {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-bottom: 24px;
+    }
+    .hb-chip {
+        padding: 5px 12px;
+        border-radius: 20px;
+        font-size: 0.8rem;
+        font-weight: 600;
+        border: 1px solid;
+    }
+    .hb-ok   { background: #dcfce7; color: #15803d; border-color: #bbf7d0; }
+    .hb-warn { background: #fef3c7; color: #b45309; border-color: #fde68a; }
+    .hb-down { background: var(--purge-red-light); color: var(--purge-red); border-color: var(--purge-red-border); }
+
+    /* ── Scope card grid ─────────────────────────────────────────── */
+    .scope-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(420px, 1fr));
+        gap: 22px;
+        margin-bottom: 32px;
+    }
+    .scope-card {
+        background: var(--card-bg);
+        border: 1px solid var(--purge-red-border);
+        border-radius: 12px;
+        padding: 22px;
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+        box-shadow: 0 1px 4px rgba(220,38,38,0.05);
+    }
+    .scope-card.everything {
+        border-color: var(--purge-red);
+        background: #fff7f7;
+        box-shadow: 0 0 0 3px rgba(220,38,38,0.08);
+    }
+    .scope-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+    }
+    .scope-title {
+        font-size: 1rem;
+        font-weight: 700;
+        color: var(--text-main);
+    }
+    .scope-badge {
+        font-size: 0.72rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        padding: 3px 9px;
+        border-radius: 12px;
+        background: var(--purge-red-light);
+        color: var(--purge-red);
+    }
+    .scope-badge.everything { background: var(--purge-red); color: #fff; }
+
+    .scope-detail {
+        font-size: 0.825rem;
+        color: var(--text-muted);
+        line-height: 1.55;
+    }
+    .scope-detail ul { padding-left: 16px; margin: 4px 0 0; }
+    .scope-detail li { margin-bottom: 2px; }
+    .scope-detail code {
+        font-size: 0.775rem;
+        background: #f1f5f9;
+        padding: 1px 5px;
+        border-radius: 3px;
+    }
+
+    .preview-counts {
+        background: #f8fafc;
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        padding: 10px 14px;
+        font-size: 0.82rem;
+    }
+    .preview-counts table { width: 100%; border-collapse: collapse; }
+    .preview-counts td { padding: 2px 0; }
+    .preview-counts td:last-child { text-align: right; font-weight: 600; color: var(--purge-red); }
+
+    /* ── Confirm form ────────────────────────────────────────────── */
+    .confirm-form { margin-top: 6px; }
+    .confirm-input {
+        width: 100%;
+        padding: 9px 12px;
+        border: 1.5px solid var(--purge-red-border);
+        border-radius: 6px;
+        font-size: 0.9rem;
+        margin-bottom: 10px;
+        font-family: monospace;
+        letter-spacing: 0.05em;
+    }
+    .confirm-input:focus {
+        outline: none;
+        border-color: var(--purge-red);
+        box-shadow: 0 0 0 3px rgba(220,38,38,0.1);
+    }
+    .force-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 0.82rem;
+        color: var(--purge-red);
+        margin-bottom: 10px;
+        font-weight: 500;
+    }
+    .btn-execute {
+        width: 100%;
+        padding: 10px;
+        background: var(--purge-red);
+        color: #fff;
+        border: none;
+        border-radius: 7px;
+        font-size: 0.9rem;
+        font-weight: 700;
+        cursor: pointer;
+        transition: background 0.15s;
+        letter-spacing: 0.01em;
+    }
+    .btn-execute:hover { background: #b91c1c; }
+    .btn-execute.everything { background: #7f1d1d; }
+    .btn-execute.everything:hover { background: #6b1616; }
+
+    /* ── Results panel ───────────────────────────────────────────── */
+    .result-panel {
+        background: #f0fdf4;
+        border: 1px solid #bbf7d0;
+        border-radius: 12px;
+        padding: 22px;
+        margin-bottom: 28px;
+    }
+    .result-panel.has-errors {
+        background: var(--purge-red-light);
+        border-color: var(--purge-red-border);
+    }
+    .result-title {
+        font-size: 1rem;
+        font-weight: 700;
+        margin-bottom: 14px;
+        color: var(--purge-green);
+    }
+    .result-panel.has-errors .result-title { color: var(--purge-red); }
+
+    .step-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+    .step-table th {
+        text-align: left;
+        padding: 6px 10px;
+        background: #f8fafc;
+        color: var(--text-muted);
+        font-weight: 600;
+        font-size: 0.775rem;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        border-bottom: 1px solid var(--border-color);
+    }
+    .step-table td { padding: 8px 10px; border-bottom: 1px solid var(--border-color); }
+    .step-table tr:last-child td { border-bottom: none; }
+    .step-err { color: var(--purge-red); font-size: 0.8rem; margin-top: 4px; }
+
+    /* ── Throttle notice ─────────────────────────────────────────── */
+    .throttle-notice {
+        background: var(--purge-red-light);
+        border: 1px solid var(--purge-red-border);
+        border-radius: 8px;
+        padding: 13px 16px;
+        font-size: 0.875rem;
+        color: #991b1b;
+        margin-bottom: 18px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+
+{# ── Page header ───────────────────────────────────────────────────────── #}
+<div style="display:flex;align-items:center;gap:12px;margin-bottom:24px;">
+    <div style="padding:10px;background:var(--purge-red-light);border-radius:10px;">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#dc2626" stroke-width="2">
+            <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+            <path d="M10 11v6M14 11v6M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
+        </svg>
+    </div>
+    <div>
+        <h2 style="font-size:1.2rem;font-weight:700;color:#0f172a;margin:0;">Data Reset</h2>
+        <p style="font-size:0.82rem;color:#64748b;margin:2px 0 0;">
+            Permanently delete data by scope. <strong style="color:var(--purge-red);">These actions are irreversible.</strong>
+            Take a MySQL backup before proceeding.
+        </p>
+    </div>
+</div>
+
+{# ── Flash messages ────────────────────────────────────────────────────── #}
+{% if flash is defined and flash %}
+    {% if flash.error is defined %}
+        <div class="alert alert-error" style="margin-bottom:20px;">⚠️ {{ flash.error }}</div>
+    {% endif %}
+    {% if flash.success is defined %}
+        <div class="alert alert-success" style="margin-bottom:20px;">✓ {{ flash.success }}</div>
+    {% endif %}
+    {% if flash.result is defined %}
+        {% set r = flash.result %}
+        {% set hasErrors = false %}
+        {% for stepKey, step in r.steps %}
+            {% if step.errors is defined and step.errors|length > 0 %}{% set hasErrors = true %}{% endif %}
+            {% if step.failed is defined and step.failed > 0 %}{% set hasErrors = true %}{% endif %}
+        {% endfor %}
+        <div class="result-panel {{ hasErrors ? 'has-errors' : '' }}">
+            <div class="result-title">
+                {{ hasErrors ? '⚠️ Purge completed with errors' : '✓ Purge completed successfully' }}
+                — scope: <code>{{ r.scope }}</code>
+            </div>
+            <table class="step-table">
+                <thead>
+                    <tr><th>Step</th><th>Deleted / Truncated</th><th>Failed</th><th>Notes</th></tr>
+                </thead>
+                <tbody>
+                {% for stepKey, step in r.steps %}
+                    <tr>
+                        <td><strong>{{ stepKey }}</strong></td>
+                        <td>
+                            {% if step.deleted is defined %}{{ step.deleted }}{% endif %}
+                            {% if step.truncated is defined and step.truncated > 0 %} / {{ step.truncated }} log(s) truncated{% endif %}
+                            {% if step.tables is defined %}
+                                {% for tbl, t in step.tables %}
+                                    <div>{{ tbl }}: {{ t.deleted }}</div>
+                                {% endfor %}
+                            {% endif %}
+                            {% if step.reseeded is defined %}{{ step.reseeded }} qstat hash(es) reseeded{% endif %}
+                            {% if step.cleared is defined and step.cleared %}APCu cleared{% endif %}
+                        </td>
+                        <td style="color:{{ (step.failed is defined and step.failed > 0) ? 'var(--purge-red)' : '#16a34a' }};">
+                            {{ step.failed is defined ? step.failed : 0 }}
+                        </td>
+                        <td>
+                            {% if step.errors is defined and step.errors|length > 0 %}
+                                {% for err in step.errors %}
+                                    <div class="step-err">{{ err }}</div>
+                                {% endfor %}
+                            {% endif %}
+                        </td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+            {% if r.scope == 'employees' %}
+                <p style="font-size:0.82rem;color:#92400e;margin-top:12px;padding:10px;background:#fffbeb;border-radius:6px;">
+                    ⚠️ Published quizzes now have an empty roster. They will show zero stats until
+                    re-published or re-warmed. If any quiz settings referenced deleted groups,
+                    those references remain — review quiz target_audience settings manually.
+                </p>
+            {% endif %}
+        </div>
+    {% endif %}
+{% endif %}
+
+{# ── DISABLED banner ───────────────────────────────────────────────────── #}
+{% if disabled %}
+    <div class="purge-disabled-banner">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/>
+            <line x1="12" y1="16" x2="12.01" y2="16"/>
+        </svg>
+        <span>{{ disabled_msg }}</span>
+    </div>
+{% elseif not unlocked %}
+    {# ── Lock screen ──────────────────────────────────────────────────── #}
+    {% if throttled %}
+        <div class="throttle-notice">
+            🔒 Too many incorrect attempts. Locked for {{ (throttle_ttl / 60)|round(0, 'ceil') }} more minute(s).
+        </div>
+    {% endif %}
+    <div class="lock-card">
+        <div class="lock-icon">🔐</div>
+        <div class="lock-title">Data Reset — Locked</div>
+        <div class="lock-desc">
+            Enter the administrator passcode to unlock Data Reset for 10 minutes.<br>
+            5 incorrect attempts will lock access for 15 minutes.
+        </div>
+        {% if flash is defined and flash.error is defined %}
+            <div class="alert alert-error" style="text-align:left;margin-bottom:14px;font-size:0.85rem;">{{ flash.error }}</div>
+        {% endif %}
+        <form method="POST" action="/admin/data-reset/unlock" autocomplete="off">
+            <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+            <input
+                type="password"
+                name="passcode"
+                class="passcode-input"
+                placeholder="Enter passcode"
+                required
+                autofocus
+                {{ throttled ? 'disabled' : '' }}
+            >
+            <button type="submit" class="btn-unlock" {{ throttled ? 'disabled' : '' }}>
+                🔓 Unlock Data Reset
+            </button>
+        </form>
+    </div>
+{% else %}
+    {# ── UNLOCKED VIEW ─────────────────────────────────────────────────── #}
+
+    {# Unlock strip + lock button #}
+    <div class="unlock-strip">
+        <div class="unlock-strip-label">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                <path d="M7 11V7a5 5 0 0 1 9.9-1"/>
+            </svg>
+            Data Reset Unlocked — session expires in 10 minutes
+        </div>
+        <form method="POST" action="/admin/data-reset/lock" style="margin:0;">
+            <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+            <button type="submit" class="btn-lock-now">🔒 Lock Now</button>
+        </form>
+    </div>
+
+    {# Worker heartbeats #}
+    {% if heartbeats is defined %}
+    <div style="margin-bottom:6px;font-size:0.8rem;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:#64748b;">
+        Worker Heartbeats (stop workers before purging)
+        <a href="/admin/workers" style="font-size:0.8rem;font-weight:500;text-transform:none;color:#2563eb;margin-left:8px;">→ Workers page</a>
+    </div>
+    <div class="workers-bar">
+        {% for w, age in heartbeats %}
+            <span class="hb-chip {{ age >= 0 and age <= 35 ? 'hb-ok' : (age >= 0 ? 'hb-warn' : 'hb-down') }}">
+                {{ w }}: {{ age >= 0 ? age ~ 's ago' : 'never' }}
+            </span>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    {# Live-activity warning #}
+    {% if live is defined and (live.live_attempts or live.open_windows) %}
+    <div class="live-warn">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" flex-shrink="0">
+            <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+            <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+        </svg>
+        <div>
+            <strong>Live activity detected!</strong>
+            {% if live.live_attempts %}<br>• {{ live.deadlines_count }} attempt(s) currently IN_PROGRESS (Redis deadlines ZCARD = {{ live.deadlines_count }}).{% endif %}
+            {% if live.open_windows %}<br>• One or more quiz windows are currently open.{% endif %}
+            <br>Scopes marked "requires force" will show a confirmation checkbox.
+            <strong>Stop workers from the <a href="/admin/workers">Workers page</a> before purging.</strong>
+        </div>
+    </div>
+    {% endif %}
+
+    {# Scope cards #}
+    <div class="scope-grid">
+    {% for scope, info in manifest %}
+        <div class="scope-card {{ scope == 'everything' ? 'everything' : '' }}">
+            <div class="scope-header">
+                <div class="scope-title">
+                    {% if scope == 'everything' %}🔴{% elseif scope == 'logs' %}📋{% elseif scope == 'cache' %}🗑️{% else %}⚠️{% endif %}
+                    {{ info.label }}
+                </div>
+                <span class="scope-badge {{ scope == 'everything' ? 'everything' : '' }}">{{ scope }}</span>
+            </div>
+
+            <div class="scope-detail">
+                {% if info.mysql|length > 0 %}
+                    <strong>MySQL TRUNCATE:</strong>
+                    <ul>{% for t in info.mysql %}<li><code>{{ t }}</code></li>{% endfor %}</ul>
+                {% endif %}
+                {% if info.mysql_nullify|length > 0 %}
+                    <strong>MySQL NULLIFY:</strong>
+                    <ul>{% for tbl, cols in info.mysql_nullify %}
+                        <li><code>{{ tbl }}</code> → set {% for c in cols %}<code>{{ c }}</code>{% if not loop.last %}, {% endif %}{% endfor %} = NULL</li>
+                    {% endfor %}</ul>
+                {% endif %}
+                {% if info.redis_patterns|length > 0 %}
+                    <strong>Redis (SCAN+UNLINK):</strong>
+                    {% for p in info.redis_patterns %}<code>{{ p }}</code> {% endfor %}
+                {% endif %}
+                {% if info.redis_exact|length > 0 %}
+                    <strong>Redis exact:</strong>
+                    {% for k in info.redis_exact %}<code>{{ k }}</code> {% endfor %}
+                {% endif %}
+                {% if info.file_dirs|length > 0 %}
+                    <strong>Files (delete):</strong>
+                    <ul>{% for dir, glob in info.file_dirs %}<li><code>{{ dir }}/{{ glob }}</code></li>{% endfor %}</ul>
+                {% endif %}
+                {% if info.log_dirs|length > 0 %}
+                    <strong>Logs (truncate in-place):</strong>
+                    <ul>{% for d in info.log_dirs %}<li><code>{{ d }}/*.log</code></li>{% endfor %}
+                    <li><code>/var/log/corpquiz/*.log</code></li></ul>
+                {% endif %}
+                {% if scope == 'cache' %}
+                    <br><em>Also calls <code>apcu_clear_cache()</code> if available.</em>
+                {% endif %}
+                {% if scope == 'employees' %}
+                    <br><em>Re-seeds empty <code>qstat:{quizId}</code> for published quizzes after purge.</em>
+                {% endif %}
+            </div>
+
+            {# Preview counts #}
+            {% if previews is defined and previews[scope] is defined %}
+                {% set pv = previews[scope] %}
+                {% if pv.error is defined %}
+                    <div style="font-size:0.8rem;color:var(--purge-red);">Preview error: {{ pv.error }}</div>
+                {% else %}
+                    <div class="preview-counts">
+                        <strong style="font-size:0.8rem;display:block;margin-bottom:6px;color:#64748b;">Live preview counts</strong>
+                        <table>
+                            {% for tbl, cnt in pv.mysql %}
+                                <tr><td>{{ tbl }}</td><td>{{ cnt }}</td></tr>
+                            {% endfor %}
+                            {% for key, cnt in pv.redis %}
+                                <tr><td>Redis <code>{{ key }}</code></td><td>{{ cnt }}</td></tr>
+                            {% endfor %}
+                            {% for dir, fc in pv.files %}
+                                <tr><td>{{ dir }}</td><td>{{ fc.count }} file(s) / {{ (fc.bytes / 1024)|round(1) }} KB</td></tr>
+                            {% endfor %}
+                        </table>
+                    </div>
+                {% endif %}
+            {% endif %}
+
+            {# Confirm form #}
+            <form method="POST" action="/admin/data-reset/execute" class="confirm-form"
+                  onsubmit="return confirmExecute(this, '{{ info.confirm_phrase }}')">
+                <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+                <input type="hidden" name="scope" value="{{ scope }}">
+
+                <label style="font-size:0.8rem;font-weight:600;display:block;margin-bottom:5px;color:#334155;">
+                    Type <code style="color:var(--purge-red);">{{ info.confirm_phrase }}</code> to confirm:
+                </label>
+                <input
+                    type="text"
+                    name="confirm_phrase"
+                    class="confirm-input"
+                    placeholder="{{ info.confirm_phrase }}"
+                    autocomplete="off"
+                    required
+                >
+
+                {% if info.needs_force and live is defined and (live.live_attempts or live.open_windows) %}
+                    <div class="force-row">
+                        <input type="checkbox" name="force" value="1" id="force_{{ scope }}" required>
+                        <label for="force_{{ scope }}">I understand there are live attempts / open windows — proceed anyway</label>
+                    </div>
+                {% endif %}
+
+                <button type="submit" class="btn-execute {{ scope == 'everything' ? 'everything' : '' }}">
+                    🗑️ Execute {{ info.label }}
+                </button>
+            </form>
+        </div>
+    {% endfor %}
+    </div>
+
+{% endif %}{# end unlocked #}
+{% endblock %}
+
+{% block javascripts %}
+<script>
+function confirmExecute(form, phrase) {
+    const input = form.querySelector('input[name="confirm_phrase"]');
+    if (!input || input.value.trim() !== phrase) {
+        alert('Confirmation phrase does not match. Nothing deleted.');
+        return false;
+    }
+    const scope = form.querySelector('input[name="scope"]').value;
+    const label = scope === 'everything' ? 'FACTORY RESET' : 'DELETE ' + scope.toUpperCase();
+    return window.confirm(
+        '⚠️ FINAL WARNING\n\n' +
+        'You are about to: ' + phrase + '\n\n' +
+        'This action is IRREVERSIBLE.\n\n' +
+        'Click OK only if you have taken a MySQL backup.'
+    );
+}
+</script>
+{% endblock %}
