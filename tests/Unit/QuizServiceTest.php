@@ -184,4 +184,3 @@ class QuizServiceTest extends TestCase
         $this->quizService->delete($quizId);
     }
 }
-

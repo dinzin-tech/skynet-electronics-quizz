@@ -156,4 +156,3 @@ class AdminQuizCreateTest extends TestCase
         $this->assertEquals([1, 2], $settings['target_groups']);
     }
 }
-

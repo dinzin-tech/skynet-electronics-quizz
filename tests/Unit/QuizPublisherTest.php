@@ -277,4 +277,3 @@ class QuizPublisherTest extends TestCase
         $this->db->exec("DELETE FROM `groups` WHERE id = {$testGroupId}");
     }
 }
-
