@@ -1342,13 +1342,16 @@ class AdminController extends Controller
         $status = trim((string) $request->get('status', ''));
         $search = trim((string) $request->get('search', ''));
         $cursor = (int) $request->get('cursor', 0);
+        $page = max(1, (int) $request->get('page', 1));
 
         $filters = [
             'quiz_id' => $quizId > 0 ? $quizId : null,
             'status' => $status !== '' ? $status : null,
             'search' => $search !== '' ? $search : null,
             'cursor' => $cursor > 0 ? $cursor : null,
+            'page' => $page,
             'limit' => 25,
+            'sort_by_rank' => true,
         ];
 
         $data = $this->submissionsService->getSubmissions($filters);
@@ -1362,6 +1365,8 @@ class AdminController extends Controller
             'current_route' => 'submissions',
             'items' => $data['items'],
             'next_cursor' => $data['next_cursor'],
+            'has_more' => $data['has_more'],
+            'current_page' => $page,
             'total_count' => $data['total_count'],
             'quizzes' => $quizzes,
             'filters' => $filters,

@@ -18,15 +18,16 @@ class SubmissionsService
     }
 
     /**
-     * Keyset-paginated list of submissions.
-     * Uses `WHERE id < :cursor ORDER BY id DESC LIMIT :limit` to prevent heavy table scans.
+     * List of submissions with optional keyset or rank-based pagination.
      *
      * @param array{
      *     quiz_id?: int|null,
      *     status?: string|null,
      *     search?: string|null,
      *     cursor?: int|null,
-     *     limit?: int
+     *     page?: int|null,
+     *     limit?: int,
+     *     sort_by_rank?: bool
      * } $filters
      * @return array{
      *     items: array<int, array<string, mixed>>,
@@ -39,9 +40,11 @@ class SubmissionsService
     {
         $limit = max(1, min(100, (int) ($filters['limit'] ?? 25)));
         $cursor = isset($filters['cursor']) && (int) $filters['cursor'] > 0 ? (int) $filters['cursor'] : null;
+        $page = isset($filters['page']) && (int) $filters['page'] > 0 ? (int) $filters['page'] : 1;
         $quizId = isset($filters['quiz_id']) && (int) $filters['quiz_id'] > 0 ? (int) $filters['quiz_id'] : null;
         $status = !empty($filters['status']) ? strtoupper(trim((string) $filters['status'])) : null;
         $search = !empty($filters['search']) ? trim((string) $filters['search']) : null;
+        $sortByRank = !empty($filters['sort_by_rank']) || (($filters['sort'] ?? '') === 'rank');
 
         $where = ['1=1'];
         $params = [];
@@ -62,8 +65,8 @@ class SubmissionsService
             $params['search_code'] = "%{$search}%";
         }
 
-        // Keyset pagination condition
-        if ($cursor !== null) {
+        // Keyset pagination condition (when not sorting by rank)
+        if (!$sortByRank && $cursor !== null) {
             $where[] = 'a.id < :cursor';
             $params['cursor'] = $cursor;
         }
@@ -72,25 +75,59 @@ class SubmissionsService
 
         // Fetch limit + 1 to determine if there are more items
         $fetchLimit = $limit + 1;
+
+        $rankSubqueryWhere = 'WHERE status = "COMPLETED"';
+        $rankSubqueryParams = [];
+        if ($quizId !== null) {
+            $rankSubqueryWhere .= ' AND quiz_id = :rank_quiz_id';
+            $rankSubqueryParams['rank_quiz_id'] = $quizId;
+        }
+
         $sql = "SELECT a.id, a.quiz_id, a.employee_id, a.status, a.score, a.accuracy, "
             . "a.completion_time_s, a.started_at, a.submitted_at, a.graded_at, "
             . "e.employee_code, e.name AS employee_name, e.email AS employee_email, "
-            . "q.title AS quiz_title, q.code AS quiz_code "
+            . "q.title AS quiz_title, q.code AS quiz_code, "
+            . "r.`rank` "
             . "FROM attempts a "
             . "JOIN employees e ON e.id = a.employee_id "
             . "JOIN quizzes q ON q.id = a.quiz_id "
-            . "WHERE {$whereSql} "
-            . "ORDER BY a.id DESC "
-            . "LIMIT {$fetchLimit}";
+            . "LEFT JOIN ( "
+            . "    SELECT id, DENSE_RANK() OVER ( "
+            . "        PARTITION BY quiz_id "
+            . "        ORDER BY COALESCE(score, 0) DESC, "
+            . "                 COALESCE(completion_time_s, 999999) ASC, "
+            . "                 COALESCE(accuracy, 0) DESC "
+            . "    ) AS `rank` "
+            . "    FROM attempts "
+            . "    {$rankSubqueryWhere} "
+            . ") r ON r.id = a.id "
+            . "WHERE {$whereSql} ";
+
+        if ($sortByRank) {
+            $offset = ($page - 1) * $limit;
+            $sql .= "ORDER BY "
+                . "CASE WHEN r.`rank` IS NOT NULL THEN 0 ELSE 1 END ASC, "
+                . "r.`rank` ASC, "
+                . "a.id DESC "
+                . "LIMIT {$fetchLimit} OFFSET {$offset}";
+        } else {
+            $sql .= "ORDER BY a.id DESC LIMIT {$fetchLimit}";
+        }
 
         $stmt = $this->db->prepare($sql);
-        $stmt->execute($params);
+        $stmt->execute(array_merge($params, $rankSubqueryParams));
         $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
         $hasMore = count($rows) > $limit;
         if ($hasMore) {
             array_pop($rows);
         }
+
+        // Format rank as integer or null
+        foreach ($rows as &$row) {
+            $row['rank'] = $row['rank'] !== null ? (int) $row['rank'] : null;
+        }
+        unset($row);
 
         $nextCursor = null;
         if (!empty($rows)) {
