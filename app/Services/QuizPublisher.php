@@ -252,26 +252,44 @@ class QuizPublisher
             $settings = $rawSettings ? json_decode((string) $rawSettings, true) : [];
         }
 
-        $targetGroups = $settings['target_groups'] ?? [];
+        $targetAudience = (string) ($settings['target_audience'] ?? 'all');
+        $targetGroups = array_values(array_filter(array_map('intval', (array) ($settings['target_groups'] ?? [])), static fn($gid) => $gid > 0));
+        $targetDepts = array_values(array_filter(array_map('trim', (array) ($settings['target_departments'] ?? [])), static fn($d) => $d !== ''));
+        $targetZones = array_values(array_filter(array_map('trim', (array) ($settings['target_zones'] ?? [])), static fn($z) => $z !== ''));
 
         // Determine eligible employees
-        if (empty($targetGroups) || in_array('all', $targetGroups, true)) {
+        if ($targetAudience === 'all' || (empty($targetGroups) && empty($targetDepts) && empty($targetZones))) {
             $empStmt = $this->db->query("SELECT id FROM employees WHERE status = 'active' ORDER BY id ASC");
             $eligibleEmpIds = $empStmt->fetchAll(PDO::FETCH_COLUMN);
         } else {
-            $groupIds = array_filter(array_map('intval', $targetGroups), static fn($gid) => $gid > 0);
-            if (empty($groupIds)) {
-                $empStmt = $this->db->query("SELECT id FROM employees WHERE status = 'active' ORDER BY id ASC");
-                $eligibleEmpIds = $empStmt->fetchAll(PDO::FETCH_COLUMN);
-            } else {
-                $placeholders = implode(',', array_fill(0, count($groupIds), '?'));
-                $sql = "SELECT DISTINCT e.id FROM employees e " .
-                       "INNER JOIN employee_groups eg ON e.id = eg.employee_id " .
-                       "WHERE e.status = 'active' AND eg.group_id IN ({$placeholders}) ORDER BY e.id ASC";
-                $empStmt = $this->db->prepare($sql);
-                $empStmt->execute($groupIds);
-                $eligibleEmpIds = $empStmt->fetchAll(PDO::FETCH_COLUMN);
+            $where = ["e.status = 'active'"];
+            $params = [];
+
+            if (!empty($targetDepts)) {
+                $deptPlaceholders = implode(',', array_fill(0, count($targetDepts), '?'));
+                $where[] = "e.department IN ({$deptPlaceholders})";
+                $params = array_merge($params, $targetDepts);
             }
+
+            if (!empty($targetZones)) {
+                $zonePlaceholders = implode(',', array_fill(0, count($targetZones), '?'));
+                $where[] = "e.zone_region IN ({$zonePlaceholders})";
+                $params = array_merge($params, $targetZones);
+            }
+
+            $joinGroup = '';
+            if (!empty($targetGroups)) {
+                $groupPlaceholders = implode(',', array_fill(0, count($targetGroups), '?'));
+                $joinGroup = "INNER JOIN employee_groups eg ON e.id = eg.employee_id ";
+                $where[] = "eg.group_id IN ({$groupPlaceholders})";
+                $params = array_merge($params, $targetGroups);
+            }
+
+            $whereSql = implode(' AND ', $where);
+            $sql = "SELECT DISTINCT e.id FROM employees e {$joinGroup}WHERE {$whereSql} ORDER BY e.id ASC";
+            $empStmt = $this->db->prepare($sql);
+            $empStmt->execute($params);
+            $eligibleEmpIds = $empStmt->fetchAll(PDO::FETCH_COLUMN);
         }
 
         $totalEligible = count($eligibleEmpIds);

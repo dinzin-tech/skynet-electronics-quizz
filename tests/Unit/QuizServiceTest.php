@@ -141,4 +141,47 @@ class QuizServiceTest extends TestCase
         // Clean up
         $this->db->prepare('DELETE FROM quizzes WHERE id = :id')->execute(['id' => $quiz['id']]);
     }
+
+    public function test_quiz_target_audience_normalization_and_update(): void
+    {
+        $quiz = $this->quizService->create([
+            'title' => 'Audience Settings Test',
+            'duration_seconds' => 600,
+            'start_at' => gmdate('Y-m-d H:i:s'),
+            'end_at' => gmdate('Y-m-d H:i:s', time() + 3600),
+            'settings' => [
+                'target_audience' => 'custom',
+                'target_departments' => [' HR ', 'FINANCE'],
+                'target_zones' => ['ZONE 1', ''],
+                'target_groups' => ['1', 0, '2'],
+            ],
+        ], $this->adminId);
+
+        $quizId = (int) $quiz['id'];
+
+        // Verify creation normalization
+        $this->assertSame('custom', $quiz['settings']['target_audience']);
+        $this->assertEquals(['HR', 'FINANCE'], $quiz['settings']['target_departments']);
+        $this->assertEquals(['ZONE 1'], $quiz['settings']['target_zones']);
+        $this->assertEquals([1, 2], $quiz['settings']['target_groups']);
+
+        // Update settings: override departments and clear zones
+        $updated = $this->quizService->update($quizId, [
+            'settings' => [
+                'target_audience' => 'custom',
+                'target_departments' => ['OPERATIONS'],
+                'target_zones' => [],
+                'target_groups' => [3],
+            ],
+        ], $this->adminId);
+
+        $this->assertSame('custom', $updated['settings']['target_audience']);
+        $this->assertEquals(['OPERATIONS'], $updated['settings']['target_departments']);
+        $this->assertSame([], $updated['settings']['target_zones']);
+        $this->assertEquals([3], $updated['settings']['target_groups']);
+
+        // Clean up
+        $this->quizService->delete($quizId);
+    }
 }
+

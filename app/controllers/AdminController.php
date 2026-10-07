@@ -578,6 +578,36 @@ class AdminController extends Controller
     }
 
     /**
+     * @return array<int, string>
+     */
+    private function getDistinctDepartments(): array
+    {
+        try {
+            $stmt = $this->db->query(
+                "SELECT DISTINCT department FROM employees WHERE status = 'active' AND department IS NOT NULL AND department != '' ORDER BY department ASC"
+            );
+            return $stmt->fetchAll(PDO::FETCH_COLUMN) ?: [];
+        } catch (\Throwable $e) {
+            return [];
+        }
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function getDistinctZones(): array
+    {
+        try {
+            $stmt = $this->db->query(
+                "SELECT DISTINCT zone_region FROM employees WHERE status = 'active' AND zone_region IS NOT NULL AND zone_region != '' ORDER BY zone_region ASC"
+            );
+            return $stmt->fetchAll(PDO::FETCH_COLUMN) ?: [];
+        } catch (\Throwable $e) {
+            return [];
+        }
+    }
+
+    /**
      * @Route(path="/admin/quizzes", methods="GET", name="admin.quizzes")
      */
     public function quizzes(Request $request): Response
@@ -597,17 +627,33 @@ class AdminController extends Controller
 
         foreach ($quizzes as &$q) {
             $settings = json_decode((string) ($q['settings'] ?? ''), true) ?: [];
+            $targetAudience = $settings['target_audience'] ?? 'all';
             $targetGroups = $settings['target_groups'] ?? [];
-            if (empty($targetGroups) || in_array('all', $targetGroups, true)) {
+            $targetDepts = $settings['target_departments'] ?? [];
+            $targetZones = $settings['target_zones'] ?? [];
+
+            if ($targetAudience === 'all' || (empty($targetGroups) && empty($targetDepts) && empty($targetZones))) {
                 $q['audience_label'] = 'All Active Employees';
             } else {
-                $names = [];
-                foreach ($targetGroups as $gid) {
-                    if (isset($groupNames[$gid])) {
-                        $names[] = $groupNames[$gid];
+                $labels = [];
+                if (!empty($targetDepts)) {
+                    $labels[] = 'Depts: ' . (count($targetDepts) <= 2 ? implode(', ', $targetDepts) : count($targetDepts) . ' depts');
+                }
+                if (!empty($targetZones)) {
+                    $labels[] = 'Zones: ' . (count($targetZones) <= 2 ? implode(', ', $targetZones) : count($targetZones) . ' zones');
+                }
+                if (!empty($targetGroups)) {
+                    $names = [];
+                    foreach ($targetGroups as $gid) {
+                        if (isset($groupNames[$gid])) {
+                            $names[] = $groupNames[$gid];
+                        }
+                    }
+                    if (!empty($names)) {
+                        $labels[] = 'Groups: ' . (count($names) <= 2 ? implode(', ', $names) : count($names) . ' groups');
                     }
                 }
-                $q['audience_label'] = !empty($names) ? implode(', ', $names) : 'Specific Groups';
+                $q['audience_label'] = !empty($labels) ? implode(' • ', $labels) : 'Specific Criteria';
             }
         }
         unset($q);
@@ -671,9 +717,17 @@ class AdminController extends Controller
 
                 $targetAudience = (string) ($request->input('target_audience') ?? $request->get('target_audience', 'all'));
                 $selectedGroups = (array) ($request->input('target_groups') ?? $request->get('target_groups', []));
+                $selectedDepts = (array) ($request->input('target_departments') ?? $request->get('target_departments', []));
+                $selectedZones = (array) ($request->input('target_zones') ?? $request->get('target_zones', []));
+
                 $targetGroups = [];
-                if ($targetAudience === 'groups' && !empty($selectedGroups)) {
+                $targetDepts = [];
+                $targetZones = [];
+
+                if ($targetAudience !== 'all') {
                     $targetGroups = array_values(array_filter(array_map('intval', $selectedGroups), fn($g) => $g > 0));
+                    $targetDepts = array_values(array_filter(array_map('trim', $selectedDepts), fn($d) => $d !== ''));
+                    $targetZones = array_values(array_filter(array_map('trim', $selectedZones), fn($z) => $z !== ''));
                 }
 
                 $created = $this->quizService->create([
@@ -689,7 +743,10 @@ class AdminController extends Controller
                     'settings' => [
                         'scoring' => $scoring,
                         'navigation' => $nav,
+                        'target_audience' => $targetAudience,
                         'target_groups' => $targetGroups,
+                        'target_departments' => $targetDepts,
+                        'target_zones' => $targetZones,
                     ],
                 ], $adminId);
 
@@ -706,6 +763,8 @@ class AdminController extends Controller
                     'admin' => $this->getAdminUser(),
                     'current_route' => 'quizzes',
                     'groups' => $groups,
+                    'departments' => $this->getDistinctDepartments(),
+                    'zones' => $this->getDistinctZones(),
                     'error' => $e->getMessage(),
                     'old' => $request->getPostData(),
                 ]);
@@ -717,6 +776,8 @@ class AdminController extends Controller
             'admin' => $this->getAdminUser(),
             'current_route' => 'quizzes',
             'groups' => $groups,
+            'departments' => $this->getDistinctDepartments(),
+            'zones' => $this->getDistinctZones(),
             'old' => null,
         ]);
     }
@@ -771,9 +832,17 @@ class AdminController extends Controller
 
                 $targetAudience = (string) ($request->input('target_audience') ?? $request->get('target_audience', 'all'));
                 $selectedGroups = (array) ($request->input('target_groups') ?? $request->get('target_groups', []));
+                $selectedDepts = (array) ($request->input('target_departments') ?? $request->get('target_departments', []));
+                $selectedZones = (array) ($request->input('target_zones') ?? $request->get('target_zones', []));
+
                 $targetGroups = [];
-                if ($targetAudience === 'groups' && !empty($selectedGroups)) {
+                $targetDepts = [];
+                $targetZones = [];
+
+                if ($targetAudience !== 'all') {
                     $targetGroups = array_values(array_filter(array_map('intval', $selectedGroups), fn($g) => $g > 0));
+                    $targetDepts = array_values(array_filter(array_map('trim', $selectedDepts), fn($d) => $d !== ''));
+                    $targetZones = array_values(array_filter(array_map('trim', $selectedZones), fn($z) => $z !== ''));
                 }
 
                 $this->quizService->update($quizId, [
@@ -789,7 +858,10 @@ class AdminController extends Controller
                     'settings' => [
                         'scoring' => $scoring,
                         'navigation' => $nav,
+                        'target_audience' => $targetAudience,
                         'target_groups' => $targetGroups,
+                        'target_departments' => $targetDepts,
+                        'target_zones' => $targetZones,
                     ],
                 ], $adminId);
 
@@ -802,6 +874,8 @@ class AdminController extends Controller
                     'current_route' => 'quizzes',
                     'quiz' => $quiz,
                     'groups' => $groups,
+                    'departments' => $this->getDistinctDepartments(),
+                    'zones' => $this->getDistinctZones(),
                     'error' => $e->getMessage(),
                     'old' => $request->getPostData(),
                 ]);
@@ -814,6 +888,8 @@ class AdminController extends Controller
             'current_route' => 'quizzes',
             'quiz' => $quiz,
             'groups' => $groups,
+            'departments' => $this->getDistinctDepartments(),
+            'zones' => $this->getDistinctZones(),
             'old' => null,
         ]);
     }
@@ -960,6 +1036,8 @@ class AdminController extends Controller
                     'quiz' => $quiz,
                     'questions' => $questions,
                     'groups' => $groups,
+                    'departments' => $this->getDistinctDepartments(),
+                    'zones' => $this->getDistinctZones(),
                     'error' => $e->getMessage(),
                     'old' => $request->getPostData(),
                 ]);
@@ -979,6 +1057,8 @@ class AdminController extends Controller
             'quiz' => $quiz,
             'questions' => $questions,
             'groups' => $groups,
+            'departments' => $this->getDistinctDepartments(),
+            'zones' => $this->getDistinctZones(),
             'success' => $success,
             'error' => $error,
             'old' => null,
@@ -1000,15 +1080,26 @@ class AdminController extends Controller
 
         $targetAudience = (string) $request->get('target_audience', 'all');
         $selectedGroups = (array) $request->get('target_groups', []);
+        $selectedDepts = (array) $request->get('target_departments', []);
+        $selectedZones = (array) $request->get('target_zones', []);
+
         $targetGroups = [];
-        if ($targetAudience === 'groups' && !empty($selectedGroups)) {
+        $targetDepts = [];
+        $targetZones = [];
+
+        if ($targetAudience !== 'all') {
             $targetGroups = array_values(array_filter(array_map('intval', $selectedGroups), fn($g) => $g > 0));
+            $targetDepts = array_values(array_filter(array_map('trim', $selectedDepts), fn($d) => $d !== ''));
+            $targetZones = array_values(array_filter(array_map('trim', $selectedZones), fn($z) => $z !== ''));
         }
 
         try {
             $this->quizService->update($quizId, [
                 'settings' => [
+                    'target_audience' => $targetAudience,
                     'target_groups' => $targetGroups,
+                    'target_departments' => $targetDepts,
+                    'target_zones' => $targetZones,
                 ],
             ], $adminId);
             Session::set('flash_success', 'Target audience updated successfully.');

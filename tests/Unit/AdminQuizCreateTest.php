@@ -122,4 +122,38 @@ class AdminQuizCreateTest extends TestCase
         $this->assertStringNotContainsString('gmdate()', $body);
         $this->assertStringContainsString('end time must be after start time', $body);
     }
+
+    public function test_create_quiz_with_custom_audience_filters(): void
+    {
+        $_SERVER['REQUEST_METHOD'] = 'POST';
+        $_POST = [
+            'title' => 'Targeted Quiz Test',
+            'code' => 'TESTQZTGT',
+            'description' => 'Targeted Description',
+            'window_start' => '2026-11-01T10:00',
+            'window_end' => '2026-11-01T12:00',
+            'duration_minutes' => 45,
+            'target_audience' => 'custom',
+            'target_departments' => ['ENGINEERING', 'SALES'],
+            'target_zones' => ['NORTH', 'SOUTH'],
+            'target_groups' => ['1', '2'],
+        ];
+
+        $request = new Request();
+        $response = $this->controller->quizCreate($request);
+
+        $this->assertSame(302, $response->getStatusCode());
+
+        $stmt = $this->db->prepare("SELECT * FROM quizzes WHERE code = 'TESTQZTGT'");
+        $stmt->execute();
+        $quiz = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        $this->assertNotEmpty($quiz);
+        $settings = json_decode((string) $quiz['settings'], true);
+        $this->assertSame('custom', $settings['target_audience']);
+        $this->assertEquals(['ENGINEERING', 'SALES'], $settings['target_departments']);
+        $this->assertEquals(['NORTH', 'SOUTH'], $settings['target_zones']);
+        $this->assertEquals([1, 2], $settings['target_groups']);
+    }
 }
+
