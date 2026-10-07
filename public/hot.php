@@ -5,6 +5,8 @@ declare(strict_types=1);
 // Hot Path Entry Point: zero framework bootstrap, zero sessions, zero MySQL on healthy path
 require_once __DIR__ . '/../vendor/autoload.php';
 
+date_default_timezone_set('UTC');
+
 use App\Hot\ApcuCache;
 use App\Hot\Clock;
 use App\Hot\HotRouter;
@@ -92,13 +94,13 @@ $router->get('/api/quiz/list', function (array $params, array $config, mixed $re
 
     $pdo = \Core\Database::getInstance()->getConnection();
     $stmt = $pdo->prepare(
-        'SELECT id, code, title, description, duration_seconds, ' .
-        'UNIX_TIMESTAMP(start_at) * 1000 AS start_ms, UNIX_TIMESTAMP(end_at) * 1000 AS end_ms, status ' .
+        'SELECT id, code, title, description, duration_seconds, start_at, end_at, status ' .
         'FROM quizzes WHERE status = "published" ORDER BY start_at DESC'
     );
     $stmt->execute();
     $quizzes = $stmt->fetchAll(\PDO::FETCH_ASSOC);
 
+    $utcTz = new \DateTimeZone('UTC');
     $items = [];
     foreach ($quizzes as $q) {
         $quizId = (int) $q['id'];
@@ -109,8 +111,12 @@ $router->get('/api/quiz/list', function (array $params, array $config, mixed $re
             $attStatus = $redis->hGet("att:{$aid}", 'status') ?: 'NOT_STARTED';
         }
 
-        $startMs = (int) $q['start_ms'];
-        $endMs = (int) $q['end_ms'];
+        $startMs = !empty($q['start_at'])
+            ? (new \DateTimeImmutable($q['start_at'], $utcTz))->getTimestamp() * 1000
+            : 0;
+        $endMs = !empty($q['end_at'])
+            ? (new \DateTimeImmutable($q['end_at'], $utcTz))->getTimestamp() * 1000
+            : 0;
 
         $category = 'active';
         if ($attStatus === 'COMPLETED') {

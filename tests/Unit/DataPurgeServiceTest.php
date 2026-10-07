@@ -72,9 +72,9 @@ class DataPurgeServiceTest extends TestCase
             public array $store = [];
             public int $zCardReturn = 0;
 
-            public function scan(&$cursor, array $options = []): array|false
+            public function scan(&$cursor, string|array|null $patternOrOptions = null, int $count = 0): array|false
             {
-                $pattern = $options['match'] ?? '*';
+                $pattern = is_array($patternOrOptions) ? ($patternOrOptions['match'] ?? '*') : ($patternOrOptions ?? '*');
                 $this->scanCalls[] = $pattern;
                 $cursor = 0; // one-shot: signal done
                 // Return any stored keys matching the pattern prefix

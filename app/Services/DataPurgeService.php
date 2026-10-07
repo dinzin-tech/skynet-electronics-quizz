@@ -486,7 +486,7 @@ class DataPurgeService
             $cursor = null;
             do {
                 try {
-                    $keys = $this->redis->scan($cursor, ['match' => $pattern, 'count' => self::SCAN_COUNT]);
+                    $keys = $this->redis->scan($cursor, $pattern, self::SCAN_COUNT);
                     if (!is_array($keys) || empty($keys)) {
                         continue;
                     }
@@ -499,8 +499,9 @@ class DataPurgeService
                 } catch (\Throwable $e) {
                     $failed++;
                     $errors[] = "pattern={$pattern}: " . $e->getMessage();
+                    break;
                 }
-            } while ($cursor !== null && $cursor !== false && $cursor !== 0);
+            } while ($cursor !== null && $cursor !== false && $cursor !== 0 && (int) $cursor !== 0);
         }
 
         // Exact key deletions
@@ -777,7 +778,7 @@ class DataPurgeService
 
         do {
             try {
-                $keys = $this->redis->scan($cursor, ['match' => $pattern, 'count' => self::SCAN_COUNT]);
+                $keys = $this->redis->scan($cursor, $pattern, self::SCAN_COUNT);
                 if (is_array($keys)) {
                     $count += count($keys);
                 }
@@ -788,7 +789,7 @@ class DataPurgeService
             if ($count >= self::SCAN_CAP) {
                 return '100k+';
             }
-        } while ($cursor !== null && $cursor !== false && $cursor !== 0);
+        } while ($cursor !== null && $cursor !== false && $cursor !== 0 && (int) $cursor !== 0);
 
         return $count;
     }

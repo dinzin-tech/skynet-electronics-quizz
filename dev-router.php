@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+date_default_timezone_set('UTC');
+
 $uri = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?? '/';
 
 // 1. Hot path endpoints bypass framework bootstrap

@@ -64,12 +64,20 @@ class Redis
 
         // 1. Try persistent unix socket connection first (production hot path)
         if ($socket !== '' && file_exists($socket)) {
-            $connected = $redis->pconnect($socket, -1, $timeout);
+            try {
+                $connected = @$redis->pconnect($socket, -1, $timeout);
+            } catch (\Throwable $e) {
+                $connected = false;
+            }
         }
 
-        // 2. Fall back to TCP connection (local dev / test / docker)
+        // 2. Fall back to TCP connection (local dev / test / docker / socket permission fallback)
         if (!$connected) {
-            $connected = $redis->pconnect($host, $port, $timeout);
+            try {
+                $connected = @$redis->pconnect($host, $port, $timeout);
+            } catch (\Throwable $e) {
+                $connected = false;
+            }
         }
 
         if (!$connected) {
