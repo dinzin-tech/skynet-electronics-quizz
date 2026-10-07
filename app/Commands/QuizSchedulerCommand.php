@@ -20,13 +20,15 @@ class QuizSchedulerCommand
     private $redis;
     private QuizWarmer $warmer;
     private bool $running = true;
+    private int $graceMs;
 
-    public function __construct(?PDO $db = null, $redis = null)
+    public function __construct(?PDO $db = null, $redis = null, ?int $graceMs = null)
     {
         $this->db = $db ?? Database::getInstance()->getConnection();
         $this->db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
         $this->redis = $redis;
         $this->warmer = new QuizWarmer($this->db, $this->redis);
+        $this->graceMs = $graceMs ?? $this->loadGraceMs();
     }
 
     public function execute(array $args = []): void
@@ -81,11 +83,13 @@ class QuizSchedulerCommand
      *
      * @param mixed $redis
      */
-    public function sweepExpiredDeadlines($redis, int $nowMs): int
+    public function sweepExpiredDeadlines($redis, int $nowMs, ?int $graceMs = null): int
     {
-        // Check deadlines zset up to nowMs + 5000 (5s grace)
+        $grace = $graceMs ?? $this->graceMs;
+
+        // Check deadlines zset up to nowMs - grace (attempts past deadline + grace)
         $expiredAids = method_exists($redis, 'zRangeByScore')
-            ? $redis->zRangeByScore('deadlines', '-inf', (string) ($nowMs + 5000), ['limit' => [0, 200]])
+            ? $redis->zRangeByScore('deadlines', '-inf', (string) ($nowMs - $grace), ['limit' => [0, 200]])
             : [];
 
         if (empty($expiredAids)) {
@@ -212,5 +216,23 @@ class QuizSchedulerCommand
         } catch (\Throwable $e) {
             return null;
         }
+    }
+
+    public function getGraceMs(): int
+    {
+        return $this->graceMs;
+    }
+
+    private function loadGraceMs(): int
+    {
+        $configFile = dirname(__DIR__, 2) . '/config/hot.php';
+        if (file_exists($configFile)) {
+            $config = require $configFile;
+            if (isset($config['grace_ms'])) {
+                return (int) $config['grace_ms'];
+            }
+        }
+
+        return (int) ($_ENV['GRACE_MS'] ?? 3000);
     }
 }

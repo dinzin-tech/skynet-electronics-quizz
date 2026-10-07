@@ -103,7 +103,7 @@ $router->get('/api/quiz/list', function (array $params, array $config, mixed $re
     foreach ($quizzes as $q) {
         $quizId = (int) $q['id'];
         $aid = $redis->hGet("qa:{$quizId}", $uid);
-        
+
         $attStatus = 'NOT_STARTED';
         if ($aid) {
             $attStatus = $redis->hGet("att:{$aid}", 'status') ?: 'NOT_STARTED';
@@ -498,7 +498,7 @@ $router->put('/api/attempts/{aid}/answers', function (array $params, array $conf
         ],
         [
             (string) $nowMs,
-            '5000', // 5s network grace
+            (string) ($config['grace_ms'] ?? 3000),
             (string) $itemsJson,
             $aid,
         ]
