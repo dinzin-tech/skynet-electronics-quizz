@@ -100,6 +100,7 @@ export interface AttemptStateResponse {
   max_seq: number;
   layout: AttemptLayout | null;
   answers: Record<string, { selected_option_id: number; seq: number }>;
+  feedback?: string | null;
   server_now_ms: number;
   result?: {
     score: number;
