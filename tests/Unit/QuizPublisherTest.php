@@ -168,4 +168,112 @@ class QuizPublisherTest extends TestCase
         ]);
         $this->db->prepare('DELETE FROM quizzes WHERE id = :id')->execute(['id' => $quizId]);
     }
+
+    public function test_sync_roster_targeted_by_departments_and_zones_combinable(): void
+    {
+        $unique = substr(Ulid::generate(), -6);
+        $deptA = 'DEPT_A_' . $unique;
+        $deptB = 'DEPT_B_' . $unique;
+        $zoneNorth = 'ZONE_N_' . $unique;
+        $zoneSouth = 'ZONE_S_' . $unique;
+
+        // Insert test group
+        $this->db->prepare("INSERT INTO `groups` (name, description, created_at, updated_at) VALUES (:n, :d, NOW(), NOW())")
+            ->execute(['n' => 'GRP_' . $unique, 'd' => 'Test group']);
+        $testGroupId = (int) $this->db->lastInsertId();
+
+        // Employee 1: Dept A, Zone North, In Test Group
+        $emp1Code = 'EMP1_' . $unique;
+        $this->db->prepare("INSERT INTO employees (public_id, employee_code, name, department, zone_region, status, created_at, updated_at) VALUES (:p, :c, 'Emp 1', :d, :z, 'active', NOW(), NOW())")
+            ->execute(['p' => Ulid::generate(), 'c' => $emp1Code, 'd' => $deptA, 'z' => $zoneNorth]);
+        $emp1Id = (int) $this->db->lastInsertId();
+        $this->db->prepare("INSERT INTO employee_groups (employee_id, group_id) VALUES (:e, :g)")
+            ->execute(['e' => $emp1Id, 'g' => $testGroupId]);
+
+        // Employee 2: Dept A, Zone South, NOT in Test Group
+        $emp2Code = 'EMP2_' . $unique;
+        $this->db->prepare("INSERT INTO employees (public_id, employee_code, name, department, zone_region, status, created_at, updated_at) VALUES (:p, :c, 'Emp 2', :d, :z, 'active', NOW(), NOW())")
+            ->execute(['p' => Ulid::generate(), 'c' => $emp2Code, 'd' => $deptA, 'z' => $zoneSouth]);
+        $emp2Id = (int) $this->db->lastInsertId();
+
+        // Employee 3: Dept B, Zone North, In Test Group
+        $emp3Code = 'EMP3_' . $unique;
+        $this->db->prepare("INSERT INTO employees (public_id, employee_code, name, department, zone_region, status, created_at, updated_at) VALUES (:p, :c, 'Emp 3', :d, :z, 'active', NOW(), NOW())")
+            ->execute(['p' => Ulid::generate(), 'c' => $emp3Code, 'd' => $deptB, 'z' => $zoneNorth]);
+        $emp3Id = (int) $this->db->lastInsertId();
+        $this->db->prepare("INSERT INTO employee_groups (employee_id, group_id) VALUES (:e, :g)")
+            ->execute(['e' => $emp3Id, 'g' => $testGroupId]);
+
+        // Create Quiz with Department Filter only (Dept A)
+        $quiz1 = $this->quizService->create([
+            'title' => 'Target Dept A Quiz',
+            'duration_seconds' => 600,
+            'start_at' => gmdate('Y-m-d H:i:s'),
+            'end_at' => gmdate('Y-m-d H:i:s', time() + 3600),
+            'settings' => [
+                'target_audience' => 'custom',
+                'target_departments' => [$deptA],
+            ],
+        ], $this->adminId);
+        $qId1 = (int) $quiz1['id'];
+        $this->questionService->addQuestion($qId1, 'Q1?', [['text' => 'A', 'is_correct' => true], ['text' => 'B', 'is_correct' => false]]);
+
+        $count1 = $this->quizPublisher->syncRoster($qId1, 1, 1);
+        $this->assertSame(2, $count1);
+        $enrolled1 = $this->db->query("SELECT employee_id FROM attempts WHERE quiz_id = {$qId1}")->fetchAll(PDO::FETCH_COLUMN);
+        $this->assertContains((string) $emp1Id, array_map('strval', $enrolled1));
+        $this->assertContains((string) $emp2Id, array_map('strval', $enrolled1));
+        $this->assertNotContains((string) $emp3Id, array_map('strval', $enrolled1));
+
+        // Create Quiz with Combinable Filter: Dept A AND Zone North
+        $quiz2 = $this->quizService->create([
+            'title' => 'Target Dept A + Zone North Quiz',
+            'duration_seconds' => 600,
+            'start_at' => gmdate('Y-m-d H:i:s'),
+            'end_at' => gmdate('Y-m-d H:i:s', time() + 3600),
+            'settings' => [
+                'target_audience' => 'custom',
+                'target_departments' => [$deptA],
+                'target_zones' => [$zoneNorth],
+            ],
+        ], $this->adminId);
+        $qId2 = (int) $quiz2['id'];
+        $this->questionService->addQuestion($qId2, 'Q1?', [['text' => 'A', 'is_correct' => true], ['text' => 'B', 'is_correct' => false]]);
+
+        $count2 = $this->quizPublisher->syncRoster($qId2, 1, 1);
+        $this->assertSame(1, $count2);
+        $enrolled2 = $this->db->query("SELECT employee_id FROM attempts WHERE quiz_id = {$qId2}")->fetchAll(PDO::FETCH_COLUMN);
+        $this->assertContains((string) $emp1Id, array_map('strval', $enrolled2));
+
+        // Create Quiz with Combinable Filter: Zone North AND Group TestGroup
+        $quiz3 = $this->quizService->create([
+            'title' => 'Target Zone North + Group Quiz',
+            'duration_seconds' => 600,
+            'start_at' => gmdate('Y-m-d H:i:s'),
+            'end_at' => gmdate('Y-m-d H:i:s', time() + 3600),
+            'settings' => [
+                'target_audience' => 'custom',
+                'target_zones' => [$zoneNorth],
+                'target_groups' => [$testGroupId],
+            ],
+        ], $this->adminId);
+        $qId3 = (int) $quiz3['id'];
+        $this->questionService->addQuestion($qId3, 'Q1?', [['text' => 'A', 'is_correct' => true], ['text' => 'B', 'is_correct' => false]]);
+
+        $count3 = $this->quizPublisher->syncRoster($qId3, 1, 1);
+        $this->assertSame(2, $count3);
+        $enrolled3 = $this->db->query("SELECT employee_id FROM attempts WHERE quiz_id = {$qId3}")->fetchAll(PDO::FETCH_COLUMN);
+        $this->assertContains((string) $emp1Id, array_map('strval', $enrolled3));
+        $this->assertContains((string) $emp3Id, array_map('strval', $enrolled3));
+        $this->assertNotContains((string) $emp2Id, array_map('strval', $enrolled3));
+
+        // Cleanup
+        $this->db->exec("DELETE FROM attempts WHERE quiz_id IN ({$qId1}, {$qId2}, {$qId3})");
+        $this->db->exec("DELETE FROM answer_options WHERE question_id IN (SELECT id FROM questions WHERE quiz_id IN ({$qId1}, {$qId2}, {$qId3}))");
+        $this->db->exec("DELETE FROM questions WHERE quiz_id IN ({$qId1}, {$qId2}, {$qId3})");
+        $this->db->exec("DELETE FROM quizzes WHERE id IN ({$qId1}, {$qId2}, {$qId3})");
+        $this->db->exec("DELETE FROM employee_groups WHERE employee_id IN ({$emp1Id}, {$emp2Id}, {$emp3Id})");
+        $this->db->exec("DELETE FROM employees WHERE id IN ({$emp1Id}, {$emp2Id}, {$emp3Id})");
+        $this->db->exec("DELETE FROM `groups` WHERE id = {$testGroupId}");
+    }
 }

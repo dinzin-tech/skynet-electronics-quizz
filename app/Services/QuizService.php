@@ -294,6 +294,18 @@ class QuizService
                 throw new RuntimeException('Cannot change quiz settings after attempts have started');
             }
             $mergedSettings = array_replace_recursive($existing['settings'], $data['settings']);
+            if (array_key_exists('target_audience', $data['settings'])) {
+                $mergedSettings['target_audience'] = $data['settings']['target_audience'];
+            }
+            if (array_key_exists('target_groups', $data['settings'])) {
+                $mergedSettings['target_groups'] = $data['settings']['target_groups'];
+            }
+            if (array_key_exists('target_departments', $data['settings'])) {
+                $mergedSettings['target_departments'] = $data['settings']['target_departments'];
+            }
+            if (array_key_exists('target_zones', $data['settings'])) {
+                $mergedSettings['target_zones'] = $data['settings']['target_zones'];
+            }
             $normalized = $this->normalizeSettings($mergedSettings);
             $fields[] = 'settings = :settings';
             $params['settings'] = json_encode($normalized, JSON_THROW_ON_ERROR);
@@ -522,7 +534,10 @@ class QuizService
     {
         $scoring = $settings['scoring'] ?? [];
         $navigation = $settings['navigation'] ?? [];
+        $targetAudience = (string) ($settings['target_audience'] ?? 'all');
         $targetGroups = $settings['target_groups'] ?? [];
+        $targetDepartments = $settings['target_departments'] ?? [];
+        $targetZones = $settings['target_zones'] ?? [];
 
         return [
             'scoring' => [
@@ -539,7 +554,10 @@ class QuizService
                 'randomize_questions' => (bool) ($navigation['randomize_questions'] ?? true),
                 'randomize_options' => (bool) ($navigation['randomize_options'] ?? true),
             ],
-            'target_groups' => is_array($targetGroups) ? array_values($targetGroups) : [],
+            'target_audience' => in_array($targetAudience, ['all', 'custom', 'groups', 'departments', 'zones'], true) ? $targetAudience : 'all',
+            'target_groups' => is_array($targetGroups) ? array_values(array_filter(array_map('intval', $targetGroups), fn($g) => $g > 0)) : [],
+            'target_departments' => is_array($targetDepartments) ? array_values(array_filter(array_map('trim', $targetDepartments), fn($d) => $d !== '')) : [],
+            'target_zones' => is_array($targetZones) ? array_values(array_filter(array_map('trim', $targetZones), fn($z) => $z !== '')) : [],
         ];
     }
 
