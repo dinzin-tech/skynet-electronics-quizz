@@ -87,6 +87,7 @@
                                 <form action="/admin/quizzes/{{ q.id }}/warm" method="POST" style="display: inline;">
                                     <button type="submit" class="btn btn-secondary" style="padding: 4px 10px; font-size: 0.775rem;">Pre-Warm Redis</button>
                                 </form>
+                                <button type="button" class="btn btn-secondary" style="padding: 4px 10px; font-size: 0.775rem; background: #fef3c7; color: #92400e; border: 1px solid #fde68a;" onclick="openFinalizerModal({{ q.id }}, '{{ q.code }}', '{{ q.title|e('js') }}')">⚡ Force Finalizer</button>
                             {% endif %}
 
                             <a href="/admin/submissions?quiz_id={{ q.id }}" class="btn btn-secondary" style="padding: 4px 10px; font-size: 0.775rem;">Submissions</a>
@@ -207,5 +208,238 @@ function copyShareLink() {
         }, 3000);
     }
 }
+
+// --- Force Finalizer Modal Logic ---
+let activeFinalizerQuizId = null;
+let activeFinalizerTotal = 0;
+let isFinalizerRunning = false;
+
+async function openFinalizerModal(quizId, quizCode, quizTitle) {
+    activeFinalizerQuizId = quizId;
+    activeFinalizerTotal = 0;
+    isFinalizerRunning = false;
+
+    const modal = document.getElementById('finalizer-modal');
+    document.getElementById('finalizer-quiz-title').textContent = quizTitle;
+    document.getElementById('finalizer-quiz-code').textContent = `Quiz Code: ${quizCode}`;
+
+    // Reset views
+    document.getElementById('finalizer-initial-view').style.display = 'block';
+    document.getElementById('finalizer-progress-view').style.display = 'none';
+    document.getElementById('finalizer-result-view').style.display = 'none';
+
+    document.getElementById('finalizer-check-status').innerHTML = `
+        <span class="spinner" style="display: inline-block; width: 16px; height: 16px; border: 2px solid #e2e8f0; border-top-color: #f59e0b; border-radius: 50%; animation: spin 0.8s linear infinite;"></span>
+        Scanning pending ungraded submissions...
+    `;
+
+    document.getElementById('finalizer-cancel-btn').style.display = 'inline-block';
+    document.getElementById('finalizer-cancel-btn').textContent = 'Cancel';
+    document.getElementById('finalizer-start-btn').style.display = 'none';
+    document.getElementById('finalizer-done-btn').style.display = 'none';
+
+    modal.style.display = 'flex';
+
+    try {
+        const res = await fetch(`/admin/quizzes/${quizId}/finalize-status`, {
+            headers: { 'Accept': 'application/json' }
+        });
+        const data = await res.json();
+
+        if (!data.success) {
+            document.getElementById('finalizer-check-status').innerHTML = `
+                <span style="color: #dc2626;">⚠ Failed to check status: ${data.message || 'Unknown error'}</span>
+            `;
+            return;
+        }
+
+        activeFinalizerTotal = Number(data.total_pending || 0);
+
+        if (activeFinalizerTotal === 0) {
+            document.getElementById('finalizer-check-status').innerHTML = `
+                <div style="background: #f0fdf4; color: #166534; padding: 10px 14px; border-radius: 6px; border: 1px solid #bbf7d0; font-size: 0.875rem;">
+                    ✓ All completed submissions for this quiz have already been graded! There are no pending submissions.
+                </div>
+            `;
+            document.getElementById('finalizer-cancel-btn').textContent = 'Close';
+        } else {
+            document.getElementById('finalizer-check-status').innerHTML = `
+                <div style="background: #fffbeb; color: #92400e; padding: 12px 14px; border-radius: 6px; border: 1px solid #fef3c7; font-size: 0.875rem;">
+                    Found <strong>${activeFinalizerTotal.toLocaleString()}</strong> submissions awaiting grading.
+                    <div style="font-size: 0.8rem; color: #78350f; margin-top: 4px;">
+                        Click below to begin bulk grading. Submissions will be graded in batches of 100 with live progress tracking.
+                    </div>
+                </div>
+            `;
+            const startBtn = document.getElementById('finalizer-start-btn');
+            startBtn.style.display = 'inline-block';
+            startBtn.textContent = `Grade ${activeFinalizerTotal.toLocaleString()} Submission(s)`;
+        }
+    } catch (err) {
+        document.getElementById('finalizer-check-status').innerHTML = `
+            <span style="color: #dc2626;">⚠ Error communicating with server: ${err.message}</span>
+        `;
+    }
+}
+
+function closeFinalizerModal() {
+    if (isFinalizerRunning) {
+        if (!confirm('Grading is currently in progress. Batches completed so far are already safely saved. Are you sure you want to stop?')) {
+            return;
+        }
+    }
+    document.getElementById('finalizer-modal').style.display = 'none';
+    if (isFinalizerRunning) {
+        window.location.reload();
+    }
+}
+
+async function startFinalizing() {
+    if (!activeFinalizerQuizId || activeFinalizerTotal <= 0) return;
+
+    isFinalizerRunning = true;
+    document.getElementById('finalizer-initial-view').style.display = 'none';
+    document.getElementById('finalizer-progress-view').style.display = 'block';
+    document.getElementById('finalizer-start-btn').style.display = 'none';
+    document.getElementById('finalizer-cancel-btn').textContent = 'Stop';
+
+    const progressBar = document.getElementById('finalizer-progress-bar');
+    const pctText = document.getElementById('finalizer-pct-text');
+    const statusText = document.getElementById('finalizer-status-text');
+    const counterText = document.getElementById('finalizer-counter-text');
+    const batchText = document.getElementById('finalizer-batch-text');
+
+    let gradedSoFar = 0;
+    let totalTarget = activeFinalizerTotal;
+    const batchLimit = 100;
+
+    try {
+        while (isFinalizerRunning) {
+            statusText.textContent = `Processing batch (${batchLimit} at a time)...`;
+            
+            const formData = new FormData();
+            formData.append('limit', batchLimit);
+
+            const res = await fetch(`/admin/quizzes/${activeFinalizerQuizId}/finalize-batch`, {
+                method: 'POST',
+                headers: {
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                body: formData
+            });
+
+            const data = await res.json();
+
+            if (!data.success) {
+                throw new Error(data.message || 'Batch finalization failed on server.');
+            }
+
+            const batchCount = Number(data.batch_graded || 0);
+            const remaining = Number(data.remaining || 0);
+            gradedSoFar += batchCount;
+
+            // Recalculate target if actual total differs slightly
+            if (gradedSoFar + remaining > totalTarget) {
+                totalTarget = gradedSoFar + remaining;
+            }
+
+            const pct = totalTarget > 0 ? Math.min(100, Math.round((gradedSoFar / totalTarget) * 100)) : 100;
+            progressBar.style.width = `${pct}%`;
+            pctText.textContent = `${pct}%`;
+            counterText.textContent = `Graded ${gradedSoFar.toLocaleString()} of ${totalTarget.toLocaleString()}`;
+            batchText.textContent = `Remaining: ${remaining.toLocaleString()}`;
+
+            if (batchCount === 0 || remaining === 0) {
+                break;
+            }
+
+            // Short pause between batches for smooth rendering
+            await new Promise(r => setTimeout(r, 60));
+        }
+
+        isFinalizerRunning = false;
+        progressBar.style.width = '100%';
+        pctText.textContent = '100%';
+        statusText.textContent = 'Grading complete!';
+
+        const resultView = document.getElementById('finalizer-result-view');
+        resultView.style.display = 'block';
+        resultView.style.background = '#f0fdf4';
+        resultView.style.color = '#166534';
+        resultView.style.border = '1px solid #bbf7d0';
+        resultView.innerHTML = `
+            <strong>✓ All Submissions Graded Successfully!</strong><br>
+            A total of <strong>${gradedSoFar.toLocaleString()}</strong> submissions were evaluated against snapshot keys and persisted to MySQL and Redis.
+        `;
+
+        document.getElementById('finalizer-cancel-btn').style.display = 'none';
+        const doneBtn = document.getElementById('finalizer-done-btn');
+        doneBtn.style.display = 'inline-block';
+        doneBtn.textContent = 'Refresh Submissions';
+
+    } catch (err) {
+        isFinalizerRunning = false;
+        const resultView = document.getElementById('finalizer-result-view');
+        resultView.style.display = 'block';
+        resultView.style.background = '#fef2f2';
+        resultView.style.color = '#991b1b';
+        resultView.style.border = '1px solid #fecaca';
+        resultView.innerHTML = `<strong>⚠ Error:</strong> ${err.message}<br><small>Submissions graded prior to this error were safely saved.</small>`;
+        document.getElementById('finalizer-cancel-btn').textContent = 'Close';
+    }
+}
 </script>
+
+<!-- Force Finalizer Modal -->
+<div id="finalizer-modal" style="display: none; position: fixed; inset: 0; background: rgba(15, 23, 42, 0.6); z-index: 9999; align-items: center; justify-content: center; backdrop-filter: blur(4px);">
+    <div style="background: #ffffff; width: 90%; max-width: 520px; border-radius: 12px; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04); overflow: hidden;">
+        <div style="padding: 16px 20px; background: #fffbeb; border-bottom: 1px solid #fef3c7; display: flex; justify-content: space-between; align-items: center;">
+            <h3 style="font-size: 1.1rem; font-weight: 600; margin: 0; color: #92400e;">⚡ Force Finalizer</h3>
+            <button type="button" onclick="closeFinalizerModal()" style="background: none; border: none; font-size: 1.25rem; cursor: pointer; color: #92400e;">&times;</button>
+        </div>
+        <div style="padding: 24px 20px; display: flex; flex-direction: column; gap: 16px;">
+            <div>
+                <h4 id="finalizer-quiz-title" style="margin: 0 0 4px 0; font-size: 1rem; color: #1e293b; font-weight: 600;">Quiz Name</h4>
+                <div id="finalizer-quiz-code" style="font-size: 0.8rem; color: #64748b; font-family: monospace;">CODE</div>
+            </div>
+
+            <div id="finalizer-initial-view">
+                <div id="finalizer-check-status" style="display: flex; align-items: center; gap: 10px; font-size: 0.875rem; color: #64748b;">
+                    <span class="spinner" style="display: inline-block; width: 16px; height: 16px; border: 2px solid #e2e8f0; border-top-color: #f59e0b; border-radius: 50%; animation: spin 0.8s linear infinite;"></span>
+                    Scanning pending submissions...
+                </div>
+            </div>
+
+            <div id="finalizer-progress-view" style="display: none;">
+                <div style="display: flex; justify-content: space-between; font-size: 0.85rem; margin-bottom: 6px; font-weight: 500;">
+                    <span id="finalizer-status-text" style="color: #475569;">Grading in batches...</span>
+                    <span id="finalizer-pct-text" style="color: #0284c7; font-weight: 700;">0%</span>
+                </div>
+                <div style="height: 12px; background: #e2e8f0; border-radius: 6px; overflow: hidden; position: relative;">
+                    <div id="finalizer-progress-bar" style="width: 0%; height: 100%; background: linear-gradient(90deg, #f59e0b, #10b981); transition: width 0.2s ease;"></div>
+                </div>
+                <div style="display: flex; justify-content: space-between; font-size: 0.8rem; color: #64748b; margin-top: 6px;">
+                    <span id="finalizer-counter-text">Graded 0 of 0</span>
+                    <span id="finalizer-batch-text">Batch size: 100</span>
+                </div>
+            </div>
+
+            <div id="finalizer-result-view" style="display: none; padding: 12px 14px; border-radius: 8px; font-size: 0.875rem; font-weight: 500;">
+            </div>
+
+            <div style="display: flex; justify-content: flex-end; gap: 10px; border-top: 1px solid #f1f5f9; padding-top: 16px;">
+                <button type="button" id="finalizer-cancel-btn" class="btn btn-secondary" onclick="closeFinalizerModal()">Cancel</button>
+                <button type="button" id="finalizer-start-btn" class="btn btn-primary" style="display: none; background: #f59e0b; border-color: #d97706;" onclick="startFinalizing()">Start Grading</button>
+                <button type="button" id="finalizer-done-btn" class="btn btn-primary" style="display: none;" onclick="window.location.reload()">Refresh Page</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+</style>
 {% endblock %}

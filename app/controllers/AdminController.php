@@ -9,6 +9,7 @@ use App\Services\DashboardService;
 use App\Services\EmployeeImportService;
 use App\Services\EmployeeService;
 use App\Services\QuestionService;
+use App\Services\QuizFinalizerService;
 use App\Services\QuizPublisher;
 use App\Services\QuizService;
 use App\Services\QuizWarmer;
@@ -40,6 +41,7 @@ class AdminController extends Controller
     private QuizService $quizService;
     private QuizPublisher $quizPublisher;
     private QuizWarmer $quizWarmer;
+    private QuizFinalizerService $quizFinalizerService;
     private SubmissionsService $submissionsService;
     private ReportExportService $exportService;
     private WorkerManagerService $workerManager;
@@ -56,6 +58,7 @@ class AdminController extends Controller
         $this->quizService = new QuizService($this->db);
         $this->quizPublisher = new QuizPublisher($this->db);
         $this->quizWarmer = new QuizWarmer($this->db);
+        $this->quizFinalizerService = new QuizFinalizerService($this->db);
         $this->submissionsService = new SubmissionsService($this->db);
         $this->exportService = new ReportExportService($this->db);
         $this->workerManager = new WorkerManagerService($this->db);
@@ -1139,6 +1142,99 @@ class AdminController extends Controller
         } catch (\Throwable $e) {
             Session::set('flash_error', 'Failed to warm quiz: ' . $e->getMessage());
         }
+        return $this->redirect('/admin/quizzes');
+    }
+
+    /**
+     * @Route(path="/admin/quizzes/{id}/finalize-status", methods="GET", name="admin.quizzes.finalize_status")
+     */
+    public function quizFinalizeStatus(Request $request, string $id): Response
+    {
+        if ($authRedirect = $this->requireAdmin()) {
+            return $authRedirect;
+        }
+
+        $quizId = (int) $id;
+        try {
+            $pending = $this->quizFinalizerService->getUngradedCount($quizId);
+            return new Response(
+                json_encode([
+                    'success' => true,
+                    'quiz_id' => $quizId,
+                    'total_pending' => $pending,
+                ], JSON_UNESCAPED_SLASHES),
+                200,
+                ['Content-Type' => 'application/json; charset=utf-8']
+            );
+        } catch (\Throwable $e) {
+            return new Response(
+                json_encode([
+                    'success' => false,
+                    'message' => $e->getMessage(),
+                ], JSON_UNESCAPED_SLASHES),
+                400,
+                ['Content-Type' => 'application/json; charset=utf-8']
+            );
+        }
+    }
+
+    /**
+     * @Route(path="/admin/quizzes/{id}/finalize-batch", methods="POST", name="admin.quizzes.finalize_batch")
+     */
+    public function quizFinalizeBatch(Request $request, string $id): Response
+    {
+        if ($authRedirect = $this->requireAdmin()) {
+            return $authRedirect;
+        }
+
+        $quizId = (int) $id;
+        $limit = max(1, min(200, (int) ($request->get('limit', 100))));
+
+        try {
+            $result = $this->quizFinalizerService->finalizeBatch($quizId, $limit);
+            return new Response(
+                json_encode($result, JSON_UNESCAPED_SLASHES),
+                200,
+                ['Content-Type' => 'application/json; charset=utf-8']
+            );
+        } catch (\Throwable $e) {
+            return new Response(
+                json_encode([
+                    'success' => false,
+                    'message' => $e->getMessage(),
+                ], JSON_UNESCAPED_SLASHES),
+                400,
+                ['Content-Type' => 'application/json; charset=utf-8']
+            );
+        }
+    }
+
+    /**
+     * @Route(path="/admin/quizzes/{id}/finalize", methods="POST", name="admin.quizzes.finalize")
+     */
+    public function quizForceFinalize(Request $request, string $id): Response
+    {
+        if ($authRedirect = $this->requireAdmin()) {
+            return $authRedirect;
+        }
+
+        $quizId = (int) $id;
+        try {
+            $totalGraded = 0;
+            do {
+                $res = $this->quizFinalizerService->finalizeBatch($quizId, 100);
+                $totalGraded += $res['batch_graded'];
+            } while ($res['batch_graded'] > 0 && $res['remaining'] > 0);
+
+            if ($totalGraded > 0) {
+                Session::set('flash_success', "Force finalizer completed: {$totalGraded} submission(s) graded.");
+            } else {
+                Session::set('flash_success', 'All submissions for this quiz are already graded.');
+            }
+        } catch (\Throwable $e) {
+            Session::set('flash_error', 'Force finalizer failed: ' . $e->getMessage());
+        }
+
         return $this->redirect('/admin/quizzes');
     }
 
