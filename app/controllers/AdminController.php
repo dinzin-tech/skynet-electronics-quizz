@@ -522,8 +522,8 @@ class AdminController extends Controller
             return $authRedirect;
         }
 
-        $filePath = (string) $request->get('file_path', '');
-        if (!file_exists($filePath)) {
+        $filePath = trim((string) ($request->input('file_path') ?? $_POST['file_path'] ?? $request->get('file_path', '')));
+        if ($filePath === '' || !file_exists($filePath) || !is_file($filePath)) {
             return $this->render('admin/employees/import.html.twig', [
                 'admin' => $this->getAdminUser(),
                 'current_route' => 'employees',
@@ -534,24 +534,32 @@ class AdminController extends Controller
         $admin = $this->getAdminUser();
         $adminId = (int) ($admin['id'] ?? 1);
 
-        $jobId = $this->importService->createImportJob($filePath, $adminId);
-        $result = $this->importService->processImportJob($jobId);
+        try {
+            $jobId = $this->importService->createImportJob($filePath, $adminId);
+            $result = $this->importService->processImportJob($jobId);
 
-        $reportUrl = !empty($result['report_path'])
-            ? '/admin/employees/import/report/' . $jobId
-            : null;
+            $reportUrl = !empty($result['report_path'])
+                ? '/admin/employees/import/report/' . $jobId
+                : null;
 
-        return $this->render('admin/employees/import.html.twig', [
-            'admin' => $this->getAdminUser(),
-            'current_route' => 'employees',
-            'result_summary' => [
-                'total' => $result['total'],
-                'imported' => $result['imported'],
-                'failed' => $result['failed'],
-                'report_url' => $reportUrl,
-            ],
-            'success' => "Import complete: {$result['imported']} employees imported.",
-        ]);
+            return $this->render('admin/employees/import.html.twig', [
+                'admin' => $this->getAdminUser(),
+                'current_route' => 'employees',
+                'result_summary' => [
+                    'total' => $result['total'],
+                    'imported' => $result['imported'],
+                    'failed' => $result['failed'],
+                    'report_url' => $reportUrl,
+                ],
+                'success' => "Import complete: {$result['imported']} employees imported.",
+            ]);
+        } catch (\Throwable $e) {
+            return $this->render('admin/employees/import.html.twig', [
+                'admin' => $this->getAdminUser(),
+                'current_route' => 'employees',
+                'error' => 'Import error: ' . $e->getMessage(),
+            ]);
+        }
     }
 
     /**
