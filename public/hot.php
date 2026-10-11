@@ -396,14 +396,14 @@ $router->post('/api/quiz/{code}/start', function (array $params, array $config, 
     $startMs = (int) ($quizMeta['start_ms'] ?? 0);
     $endMs = (int) ($quizMeta['end_ms'] ?? 0);
     $durationMs = ((int) $quizMeta['duration_s']) * 1000;
-    $overtimeGraceMs = 0; // Strictly capped at portal closing window (§ Slide 2 requirement)
+    $overtimeGraceMs = 600000; // 10 minutes overtime allowance (§3 clarification #3)
 
-    if ($startMs > 0 && $nowMs < $startMs) {
+    if ($nowMs < $startMs) {
         HotRouter::error(400, 'quiz_not_open', 'Quiz window has not opened yet', $nowMs);
         return;
     }
 
-    if ($endMs > 0 && $nowMs >= $endMs) {
+    if ($nowMs >= ($endMs + $overtimeGraceMs)) {
         HotRouter::error(400, 'quiz_closed', 'Quiz window has closed', $nowMs);
         return;
     }
@@ -464,7 +464,6 @@ $router->post('/api/quiz/{code}/start', function (array $params, array $config, 
         'status' => $res['status'] ?? 'IN_PROGRESS',
         'started_ms' => (int) ($res['started_ms'] ?? $nowMs),
         'deadline_ms' => (int) ($res['deadline_ms'] ?? ($nowMs + $durationMs)),
-        'portal_closing_ms' => (int) ($res['portal_closing_ms'] ?? $endMs),
         'layout' => is_string($res['layout']) ? json_decode($res['layout'], true) : $res['layout'],
         'bundle_url' => "/api/attempts/{$aid}/bundle",
         'answers' => $answers,
@@ -500,19 +499,12 @@ $router->get('/api/attempts/{aid}', function (array $params, array $config, mixe
 
     $feedback = !empty($att['feedback']) ? (string) $att['feedback'] : null;
 
-    $portalClosingMs = (int) ($att['portal_closing_ms'] ?? 0);
-    if ($portalClosingMs === 0 && !empty($att['code'])) {
-        $qMeta = $redis->hGetAll("quiz:" . $att['code']);
-        $portalClosingMs = (int) ($qMeta['end_ms'] ?? 0);
-    }
-
     $status = $att['status'] ?? 'NOT_STARTED';
     $data = [
         'attempt_id' => $aid,
         'status' => $status,
         'started_ms' => (int) ($att['started_ms'] ?? 0),
         'deadline_ms' => (int) ($att['deadline_ms'] ?? 0),
-        'portal_closing_ms' => $portalClosingMs,
         'submitted_ms' => (int) ($att['submitted_ms'] ?? 0),
         'max_seq' => (int) ($att['max_seq'] ?? 0),
         'layout' => !empty($att['layout']) ? json_decode($att['layout'], true) : null,

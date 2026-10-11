@@ -32,14 +32,6 @@ class LuaScriptTest extends TestCase
         $this->assertStringContainsString('dirtyAttKey', $code);
     }
 
-    public function test_start_script_records_and_returns_portal_closing_ms(): void
-    {
-        $code = Lua::loadScriptCode('start');
-        $this->assertStringContainsString('portal_closing_ms', $code);
-        $this->assertStringContainsString('tostring(endMs)', $code);
-        $this->assertStringContainsString('quiz_closed', $code);
-    }
-
     public function test_save_script_implements_monotonic_seq_last_write_wins(): void
     {
         $code = Lua::loadScriptCode('save');

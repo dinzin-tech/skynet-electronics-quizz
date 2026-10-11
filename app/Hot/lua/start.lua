@@ -33,15 +33,10 @@ if status == 'IN_PROGRESS' then
     local startedMs = redis.call('HGET', attKey, 'started_ms')
     local deadlineMs = redis.call('HGET', attKey, 'deadline_ms')
     local existingLayout = redis.call('HGET', attKey, 'layout')
-    local portalClosingMs = redis.call('HGET', attKey, 'portal_closing_ms')
-    if not portalClosingMs or portalClosingMs == '' then
-        portalClosingMs = tostring(endMs)
-    end
     return cjson.encode({
         status = 'IN_PROGRESS',
         started_ms = tonumber(startedMs),
         deadline_ms = tonumber(deadlineMs),
-        portal_closing_ms = tonumber(portalClosingMs),
         layout = existingLayout,
         already_started = true
     })
@@ -61,18 +56,9 @@ if status == 'ABSENT' then
     })
 end
 
-if endMs > 0 and nowMs >= endMs then
-    return cjson.encode({
-        error = 'quiz_closed'
-    })
-end
-
 -- Calculate deadline: min(now + duration, end_at + overtime_grace)
 local deadlineMs = nowMs + durationMs
 local maxAllowedMs = endMs + overtimeGraceMs
-if endMs == 0 then
-    maxAllowedMs = deadlineMs
-end
 if deadlineMs > maxAllowedMs then
     deadlineMs = maxAllowedMs
 end
@@ -81,7 +67,6 @@ redis.call('HMSET', attKey,
     'status', 'IN_PROGRESS',
     'started_ms', tostring(nowMs),
     'deadline_ms', tostring(deadlineMs),
-    'portal_closing_ms', tostring(endMs),
     'layout', layout
 )
 
@@ -94,7 +79,6 @@ return cjson.encode({
     status = 'IN_PROGRESS',
     started_ms = nowMs,
     deadline_ms = deadlineMs,
-    portal_closing_ms = endMs,
     layout = layout,
     already_started = false
 })

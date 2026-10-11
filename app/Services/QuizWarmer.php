@@ -183,13 +183,11 @@ class QuizWarmer
                 $attData = [
                     'id' => (string) $att['id'],
                     'eid' => $eid,
-                    'code' => (string) $quiz['code'],
                     'quiz_id' => (string) $quizId,
                     'ver' => (string) $version,
                     'status' => (string) $att['status'],
                     'started_ms' => (string) $startMs,
                     'deadline_ms' => (string) $deadlineMs,
-                    'portal_closing_ms' => (string) $endMs,
                     'submitted_ms' => (string) $submittedMs,
                     'reason' => (string) ($att['submit_reason'] ?? ''),
                     'layout' => (string) ($att['layout'] ?? ''),
