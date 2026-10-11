@@ -24,6 +24,10 @@ export const QuizEntryView: React.FC<QuizEntryViewProps> = ({
   const [timeUntilOpenMs, setTimeUntilOpenMs] = useState<number | null>(null);
 
   const fetchState = async () => {
+    if (!quizCode) {
+      setLoading(false);
+      return;
+    }
     try {
       setLoading(true);
       setError(null);
