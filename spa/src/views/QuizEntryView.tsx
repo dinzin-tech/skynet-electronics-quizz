@@ -61,7 +61,7 @@ export const QuizEntryView: React.FC<QuizEntryViewProps> = ({
       if (diff <= 0) {
         clearInterval(interval);
         setTimeUntilOpenMs(0);
-        const jitterMs = Math.floor(Math.random() * 8000);
+        const jitterMs = Math.floor(Math.random() * 5000);
         setTimeout(() => {
           fetchState();
         }, jitterMs);
@@ -74,9 +74,7 @@ export const QuizEntryView: React.FC<QuizEntryViewProps> = ({
   }, [timeUntilOpenMs, data?.meta.opens_at_ms]);
 
   const handleStart = async () => {
-    if (starting) {
-      return;
-    }
+    if (starting) return;
     setStarting(true);
     setError(null);
     try {
@@ -104,8 +102,8 @@ export const QuizEntryView: React.FC<QuizEntryViewProps> = ({
     }
   };
 
-  const formatDate = (ms?: number) => {
-    if (!ms) return '';
+  const formatDateTime = (ms?: number) => {
+    if (!ms) return 'N/A';
     return new Date(ms).toLocaleString(undefined, {
       day: '2-digit',
       month: 'short',
@@ -116,12 +114,21 @@ export const QuizEntryView: React.FC<QuizEntryViewProps> = ({
     });
   };
 
+  const formatTimeOnly = (ms?: number) => {
+    if (!ms) return '';
+    return new Date(ms).toLocaleTimeString(undefined, {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true,
+    });
+  };
+
   if (loading && !data) {
     return (
-      <div>
+      <div className="peak-app-bg" style={{ minHeight: '100dvh' }}>
         <Navbar />
         <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '60vh' }}>
-          <div style={{ fontSize: '1.125rem', color: 'var(--gray-500)', fontWeight: 600 }}>
+          <div style={{ fontSize: '1.125rem', color: 'rgba(255, 255, 255, 0.7)', fontWeight: 600 }}>
             Loading assessment details...
           </div>
         </div>
@@ -134,6 +141,14 @@ export const QuizEntryView: React.FC<QuizEntryViewProps> = ({
   const isCompleted = data?.state === 'completed' || data?.attempt?.status === 'COMPLETED';
   const hasAttempt = !!data?.attempt?.id;
   const isContestLive = data?.state === 'can_start' || data?.state === 'resumable';
+  const durationMinutes = Math.round((meta?.duration_seconds || 0) / 60);
+
+  // Formatted Window String (e.g. "2:00 PM – 2:30 PM (12 Oct 2026)")
+  const windowTimeString = meta?.opens_at_ms && meta?.closes_at_ms
+    ? `${formatTimeOnly(meta.opens_at_ms)} – ${formatTimeOnly(meta.closes_at_ms)}`
+    : meta?.opens_at_ms
+    ? `Opens at ${formatDateTime(meta.opens_at_ms)}`
+    : 'Open Assessment';
 
   return (
     <div className="peak-app-bg" style={{ minHeight: '100dvh', paddingBottom: '3rem' }}>
@@ -143,13 +158,13 @@ export const QuizEntryView: React.FC<QuizEntryViewProps> = ({
       />
 
       <main style={{ maxWidth: '960px', margin: '2rem auto', padding: '0 1.25rem' }}>
-        {/* Selected Assessment Hero Card */}
-        <div className="glass-card-dark" style={{ padding: '2.5rem 2rem' }}>
+        <div className="glass-card-dark" style={{ padding: '2.5rem 2rem', position: 'relative' }}>
           {error && (
             <div style={{
               padding: '1rem',
-              background: 'var(--danger-light)',
-              color: 'var(--danger)',
+              background: 'rgba(239, 68, 68, 0.2)',
+              border: '1px solid rgba(239, 68, 68, 0.4)',
+              color: '#fca5a5',
               borderRadius: '10px',
               fontSize: '0.875rem',
               fontWeight: 600,
@@ -159,6 +174,7 @@ export const QuizEntryView: React.FC<QuizEntryViewProps> = ({
             </div>
           )}
 
+          {/* Week & Assessment Label */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1rem', flexWrap: 'wrap' }}>
             <span style={{
               background: 'linear-gradient(135deg, #1f0508 0%, #3a080d 100%)',
@@ -170,15 +186,16 @@ export const QuizEntryView: React.FC<QuizEntryViewProps> = ({
               borderRadius: '8px',
               letterSpacing: '0.05em',
             }}>
-              {quizCode}
+              {meta?.week_label || 'WEEKLY CHALLENGE'}
             </span>
-            <span style={{ fontSize: '0.875rem', color: 'var(--gray-500)', fontWeight: 600 }}>
-              Selected Certification Details
+            <span style={{ fontSize: '0.875rem', color: 'rgba(255, 255, 255, 0.65)', fontWeight: 600 }}>
+              Assessment Code: {quizCode}
             </span>
           </div>
 
-          <h2 style={{ fontSize: '1.875rem', fontWeight: 800, color: '#ffffff', marginBottom: '1rem', lineHeight: 1.3 }}>
-            {meta?.title || 'Assessment Title'}
+          {/* Assessment Title */}
+          <h2 style={{ fontSize: '2rem', fontWeight: 800, color: '#ffffff', marginBottom: '1rem', lineHeight: 1.3 }}>
+            {meta?.title || 'Certification Assessment'}
           </h2>
 
           {meta?.description && (
@@ -187,48 +204,73 @@ export const QuizEntryView: React.FC<QuizEntryViewProps> = ({
             </p>
           )}
 
+          {/* Assessment Key Stats */}
           <div style={{
             display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
             gap: '1rem',
             marginBottom: '2rem',
             padding: '1.25rem',
-            background: 'rgba(255, 255, 255, 0.05)',
+            background: 'rgba(255, 255, 255, 0.04)',
             border: '1px solid rgba(245, 197, 66, 0.25)',
             borderRadius: '14px',
           }}>
             <div>
-              <div style={{ fontSize: '0.75rem', color: 'rgba(255, 255, 255, 0.6)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.03em' }}>
-                Duration
+              <div style={{ fontSize: '0.75rem', color: 'rgba(255, 255, 255, 0.6)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                Assessment Window
+              </div>
+              <div style={{ fontSize: '1.15rem', fontWeight: 800, color: 'var(--peak-gold-main)', marginTop: '0.25rem' }}>
+                {windowTimeString}
+              </div>
+              {meta?.closes_at_ms && (
+                <div style={{ fontSize: '0.75rem', color: 'rgba(255, 255, 255, 0.5)', marginTop: '0.15rem' }}>
+                  {new Date(meta.closes_at_ms).toLocaleDateString(undefined, { day: '2-digit', month: 'short', year: 'numeric' })}
+                </div>
+              )}
+            </div>
+
+            <div>
+              <div style={{ fontSize: '0.75rem', color: 'rgba(255, 255, 255, 0.6)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                Quiz Duration
               </div>
               <div style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--peak-gold-main)', marginTop: '0.25rem' }}>
-                {Math.round((meta?.duration_seconds || 0) / 60)} Minutes
+                {durationMinutes > 0 ? `${durationMinutes} Minutes` : `${meta?.duration_seconds || 0} Seconds`}
+              </div>
+              <div style={{ fontSize: '0.75rem', color: 'rgba(255, 255, 255, 0.5)', marginTop: '0.15rem' }}>
+                Strict server-synced timer
               </div>
             </div>
 
             <div>
-              <div style={{ fontSize: '0.75rem', color: 'rgba(255, 255, 255, 0.6)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.03em' }}>
-                Total Questions
+              <div style={{ fontSize: '0.75rem', color: 'rgba(255, 255, 255, 0.6)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                Questions
               </div>
               <div style={{ fontSize: '1.25rem', fontWeight: 800, color: '#ffffff', marginTop: '0.25rem' }}>
-                {meta?.total_questions || 0} Questions
+                {meta?.total_questions || 10} MCQs + Feedback
+              </div>
+              <div style={{ fontSize: '0.75rem', color: 'rgba(255, 255, 255, 0.5)', marginTop: '0.15rem' }}>
+                All questions compulsory
               </div>
             </div>
 
             <div>
-              <div style={{ fontSize: '0.75rem', color: 'rgba(255, 255, 255, 0.6)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.03em' }}>
-                Attempts Allowed
+              <div style={{ fontSize: '0.75rem', color: 'rgba(255, 255, 255, 0.6)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                Attempts
               </div>
               <div style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--peak-gold-main)', marginTop: '0.25rem' }}>
                 1 Single Attempt
               </div>
+              <div style={{ fontSize: '0.75rem', color: 'rgba(255, 255, 255, 0.5)', marginTop: '0.15rem' }}>
+                Locks on submission
+              </div>
             </div>
           </div>
 
+          {/* Instructions Box */}
           {meta?.instructions && (
             <div style={{ marginBottom: '2.5rem' }}>
               <h3 style={{ fontSize: '1rem', fontWeight: 800, color: '#ffffff', marginBottom: '0.75rem' }}>
-                Rules & Examination Guidelines
+                Examination Rules & Guidelines
               </h3>
               <div style={{
                 background: 'rgba(255, 255, 255, 0.04)',
@@ -245,14 +287,14 @@ export const QuizEntryView: React.FC<QuizEntryViewProps> = ({
             </div>
           )}
 
-          {/* Action states */}
+          {/* Action Gateway */}
           <div style={{ textAlign: 'center', paddingTop: '0.5rem' }}>
             {isCompleted ? (
               <div style={{
                 padding: '1.75rem',
-                background: 'var(--success-light)',
+                background: 'rgba(16, 185, 129, 0.15)',
                 borderRadius: '16px',
-                border: '1.5px solid rgba(16, 185, 129, 0.3)',
+                border: '1.5px solid rgba(16, 185, 129, 0.4)',
               }}>
                 <div style={{
                   display: 'inline-flex',
@@ -260,13 +302,13 @@ export const QuizEntryView: React.FC<QuizEntryViewProps> = ({
                   gap: '0.5rem',
                   fontSize: '1.125rem',
                   fontWeight: 800,
-                  color: 'var(--success)',
+                  color: '#34d399',
                   marginBottom: '0.35rem',
                 }}>
                   <span>✓</span>
-                  <span>{isTimeExpired ? 'Quiz Time Expired — Assessment Completed' : 'Assessment Already Completed'}</span>
+                  <span>{isTimeExpired ? 'Quiz Window Expired — Assessment Completed' : 'Assessment Completed'}</span>
                 </div>
-                <p style={{ fontSize: '0.875rem', color: 'var(--gray-600)', marginBottom: hasAttempt ? '1.25rem' : '0' }}>
+                <p style={{ fontSize: '0.875rem', color: 'rgba(255, 255, 255, 0.8)', marginBottom: hasAttempt ? '1.25rem' : '0' }}>
                   {isTimeExpired 
                     ? 'The examination window has expired. Your answers were recorded and finalized.'
                     : 'Your answers have been submitted and locked.'}
@@ -274,19 +316,19 @@ export const QuizEntryView: React.FC<QuizEntryViewProps> = ({
                 {hasAttempt && (
                   <button
                     onClick={handleViewResults}
-                    className="btn btn-primary"
-                    style={{ padding: '0.85rem 2rem', fontSize: '1rem' }}
+                    className="peak-submit-btn"
+                    style={{ padding: '0.85rem 2.25rem', fontSize: '1rem', margin: '0 auto' }}
                   >
-                    📊 View Results
+                    View Results
                   </button>
                 )}
               </div>
             ) : isTimeExpired ? (
               <div style={{
                 padding: '1.75rem',
-                background: 'var(--danger-light)',
+                background: 'rgba(239, 68, 68, 0.15)',
                 borderRadius: '16px',
-                border: '1.5px solid rgba(239, 68, 68, 0.25)',
+                border: '1.5px solid rgba(239, 68, 68, 0.4)',
               }}>
                 <div style={{
                   display: 'inline-flex',
@@ -294,51 +336,68 @@ export const QuizEntryView: React.FC<QuizEntryViewProps> = ({
                   gap: '0.5rem',
                   fontSize: '1.25rem',
                   fontWeight: 800,
-                  color: 'var(--danger)',
+                  color: '#f87171',
                   marginBottom: '0.35rem',
                 }}>
                   <span>⏱</span>
-                  <span>Quiz Time Expired</span>
+                  <span>Assessment Window Closed</span>
                 </div>
-                <p style={{ fontSize: '0.875rem', color: 'var(--gray-600)', marginTop: '0.25rem' }}>
-                  The examination window for this assessment has expired.
-                  {meta?.closes_at_ms ? ` (Closed: ${formatDate(meta.closes_at_ms)})` : ''}
+                <p style={{ fontSize: '0.875rem', color: 'rgba(255, 255, 255, 0.8)', marginTop: '0.25rem' }}>
+                  The examination window for this challenge has closed.
+                  {meta?.closes_at_ms ? ` (Ended: ${formatDateTime(meta.closes_at_ms)})` : ''}
                 </p>
               </div>
             ) : data?.state === 'not_open' ? (
-              <div style={{ padding: '1.5rem', background: 'var(--warning-light)', borderRadius: '14px', border: '1px solid rgba(245, 158, 11, 0.3)' }}>
-                <div style={{ fontSize: '1.125rem', fontWeight: 700, color: 'var(--warning)' }}>
+              <div style={{
+                padding: '1.75rem',
+                background: 'rgba(245, 158, 11, 0.15)',
+                borderRadius: '16px',
+                border: '1.5px solid rgba(245, 158, 11, 0.4)',
+              }}>
+                <div style={{ fontSize: '1.125rem', fontWeight: 800, color: 'var(--peak-gold-main)' }}>
                   Assessment Window Opens Soon
                 </div>
                 {meta?.opens_at_ms && (
-                  <div style={{ fontSize: '0.875rem', color: 'var(--gray-600)', marginTop: '0.25rem' }}>
-                    Opens at: {formatDate(meta.opens_at_ms)}
+                  <div style={{ fontSize: '0.9375rem', color: 'rgba(255, 255, 255, 0.8)', marginTop: '0.35rem' }}>
+                    Scheduled Start: {formatDateTime(meta.opens_at_ms)}
                   </div>
                 )}
                 {timeUntilOpenMs !== null && timeUntilOpenMs > 0 && (
-                  <div style={{ fontSize: '1.75rem', fontWeight: 800, color: 'var(--gray-900)', marginTop: '0.5rem' }}>
+                  <div style={{
+                    fontSize: '2rem',
+                    fontWeight: 900,
+                    color: '#ffffff',
+                    fontFamily: 'monospace',
+                    marginTop: '0.5rem',
+                    letterSpacing: '0.05em',
+                  }}>
                     {Math.floor(timeUntilOpenMs / 60000)}m {Math.floor((timeUntilOpenMs % 60000) / 1000)}s
                   </div>
                 )}
-                <p style={{ fontSize: '0.8125rem', color: 'var(--gray-600)', marginTop: '0.5rem' }}>
+                <p style={{ fontSize: '0.8125rem', color: 'rgba(255, 255, 255, 0.65)', marginTop: '0.5rem' }}>
                   The portal will automatically activate when the window opens.
                 </p>
               </div>
             ) : data?.state === 'ineligible' ? (
-              <div style={{ padding: '1.5rem', background: 'var(--danger-light)', borderRadius: '14px' }}>
-                <div style={{ fontSize: '1.125rem', fontWeight: 700, color: 'var(--danger)' }}>
+              <div style={{
+                padding: '1.75rem',
+                background: 'rgba(239, 68, 68, 0.15)',
+                borderRadius: '16px',
+                border: '1.5px solid rgba(239, 68, 68, 0.4)',
+              }}>
+                <div style={{ fontSize: '1.125rem', fontWeight: 800, color: '#f87171' }}>
                   Enrollment Required
                 </div>
-                <p style={{ fontSize: '0.875rem', color: 'var(--gray-600)', marginTop: '0.375rem' }}>
-                  Your employee profile is not enrolled in this assessment group.
+                <p style={{ fontSize: '0.875rem', color: 'rgba(255, 255, 255, 0.8)', marginTop: '0.375rem' }}>
+                  Your employee code is not currently enrolled in this assessment group.
                 </p>
               </div>
             ) : data?.state === 'resumable' ? (
               <div>
                 <button
                   onClick={handleResume}
-                  className="btn btn-primary"
-                  style={{ padding: '1rem 2.5rem', fontSize: '1.125rem', width: '100%', maxWidth: '360px' }}
+                  className="peak-submit-btn"
+                  style={{ padding: '1rem 3rem', fontSize: '1.125rem', maxWidth: '380px', margin: '0 auto' }}
                 >
                   Resume Assessment
                 </button>
@@ -348,13 +407,19 @@ export const QuizEntryView: React.FC<QuizEntryViewProps> = ({
                 <button
                   onClick={handleStart}
                   disabled={starting}
-                  className="btn btn-primary"
-                  style={{ padding: '1rem 2.5rem', fontSize: '1.125rem', width: '100%', maxWidth: '400px' }}
+                  className="peak-submit-btn"
+                  style={{
+                    padding: '1.1rem 3.5rem',
+                    fontSize: '1.2rem',
+                    maxWidth: '420px',
+                    margin: '0 auto',
+                    letterSpacing: '0.04em',
+                  }}
                 >
                   {starting ? 'Starting Timer...' : 'I Am Ready — Start Assessment'}
                 </button>
-                <div style={{ fontSize: '0.75rem', color: 'var(--gray-500)', marginTop: '0.75rem', fontWeight: 500 }}>
-                  The timer begins as soon as you click Start.
+                <div style={{ fontSize: '0.8125rem', color: 'rgba(255, 255, 255, 0.6)', marginTop: '0.75rem', fontWeight: 500 }}>
+                  Assessment timer starts immediately upon clicking.
                 </div>
               </div>
             ) : null}
