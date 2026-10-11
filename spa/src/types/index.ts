@@ -91,6 +91,7 @@ export interface StartAttemptResponse {
   status: string;
   started_ms: number;
   deadline_ms: number;
+  portal_closing_ms?: number;
   layout: AttemptLayout;
   bundle_url: string;
   answers: Record<string, { selected_option_id: number; seq: number }>;
@@ -102,6 +103,7 @@ export interface AttemptStateResponse {
   status: string;
   started_ms: number;
   deadline_ms: number;
+  portal_closing_ms?: number;
   submitted_ms: number;
   max_seq: number;
   layout: AttemptLayout | null;
