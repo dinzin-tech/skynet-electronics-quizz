@@ -39,8 +39,11 @@
                 <tr>
                     <td><code>{{ q.code }}</code></td>
                     <td>
-                        <strong>{{ q.title }}</strong>
-                        <div style="font-size: 0.8rem; color: #64748b;">Version {{ q.version }}</div>
+                        <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 2px;">
+                            <span class="badge" style="background: #fef3c7; color: #92400e; font-weight: 700; font-size: 0.75rem;">Week {{ q.week_number|default(1) }}</span>
+                            <strong>{{ q.title }}</strong>
+                        </div>
+                        <div style="font-size: 0.8rem; color: #64748b;">Version {{ q.version|default(q.current_version|default(1)) }}</div>
                     </td>
                     <td>
                         <span style="font-size: 0.825rem; font-weight: 500; color: #334155; background: #f1f5f9; padding: 3px 8px; border-radius: 4px; display: inline-block;">

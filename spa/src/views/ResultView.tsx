@@ -34,31 +34,31 @@ export const ResultView: React.FC<ResultViewProps> = ({ attemptId, onDone }) => 
   const result = attempt?.result;
 
   return (
-    <div style={{ minHeight: '100dvh', background: 'var(--gray-50)', display: 'flex', flexDirection: 'column' }}>
-      <Navbar onLogout={onDone} />
+    <div className="peak-app-bg" style={{ minHeight: '100dvh', display: 'flex', flexDirection: 'column' }}>
+      <Navbar onLogout={onDone} statusBadge="COMPLETED" />
 
       <main style={{ maxWidth: '680px', width: '100%', margin: '2rem auto', padding: '0 1.25rem', flex: 1 }}>
-        <div className="glass-card" style={{ padding: '2.5rem 1.75rem', textAlign: 'center' }}>
+        <div className="glass-card-dark" style={{ padding: '2.5rem 1.75rem', textAlign: 'center' }}>
           <div style={{
             width: '68px',
             height: '68px',
             borderRadius: '50%',
-            background: 'var(--success-light)',
-            color: 'var(--success)',
+            background: 'rgba(16, 185, 129, 0.2)',
+            color: '#34d399',
             display: 'inline-flex',
             alignItems: 'center',
             justifyContent: 'center',
             fontSize: '2.25rem',
             marginBottom: '1.25rem',
-            border: '2px solid rgba(16, 185, 129, 0.3)',
+            border: '2px solid rgba(16, 185, 129, 0.4)',
           }}>
             ✓
           </div>
 
-          <h2 style={{ fontSize: '1.75rem', fontWeight: 800, color: 'var(--gray-900)', marginBottom: '0.5rem' }}>
+          <h2 style={{ fontSize: '1.75rem', fontWeight: 800, color: '#ffffff', marginBottom: '0.5rem' }}>
             Assessment Completed
           </h2>
-          <p style={{ fontSize: '0.9375rem', color: 'var(--gray-600)', marginBottom: '2rem' }}>
+          <p style={{ fontSize: '0.9375rem', color: 'rgba(255, 255, 255, 0.8)', marginBottom: '2rem' }}>
             Your assessment has been securely submitted and recorded under PEAK PURSUIT 4.0.
           </p>
 

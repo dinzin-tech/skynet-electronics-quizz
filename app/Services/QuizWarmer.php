@@ -108,6 +108,8 @@ class QuizWarmer
             'start_ms' => (string) $startMs,
             'end_ms' => (string) $endMs,
             'duration_s' => (string) $quiz['duration_seconds'],
+            'week_number' => (string) ($quiz['week_number'] ?? '1'),
+            'week_label' => 'WEEK - ' . ($quiz['week_number'] ?? '1'),
             'title' => (string) $quiz['title'],
             'instructions' => (string) ($quiz['instructions'] ?? ''),
             'feedback_question' => (string) ($quiz['feedback_question'] ?? ''),

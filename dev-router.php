@@ -7,7 +7,7 @@ date_default_timezone_set('UTC');
 $uri = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?? '/';
 
 // 1. Hot path endpoints bypass framework bootstrap
-if (preg_match('#^/api/(quiz|attempts|time)#', $uri)) {
+if (preg_match('#^/api/(quiz|attempts|time|programme)#', $uri)) {
     require __DIR__ . '/public/hot.php';
     exit;
 }

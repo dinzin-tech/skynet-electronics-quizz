@@ -31,7 +31,7 @@ class EmployeeCodeAuthProvider implements AuthProviderInterface
         $stmt = $this->db->prepare(
             'SELECT id, public_id, employee_code, name, email, username, status ' .
             'FROM employees ' .
-            'WHERE employee_code = :id1 OR email = :id2 OR username = :id3 ' .
+            'WHERE LOWER(employee_code) = LOWER(:id1) OR LOWER(email) = LOWER(:id2) OR LOWER(username) = LOWER(:id3) ' .
             'LIMIT 1'
         );
 

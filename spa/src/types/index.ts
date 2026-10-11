@@ -29,6 +29,8 @@ export interface QuizMeta {
   feedback_question?: string | null;
   duration_seconds: number;
   total_questions: number;
+  week_number?: number;
+  week_label?: string;
   opens_at_ms: number;
   closes_at_ms: number;
   navigation: NavigationSettings;
@@ -70,6 +72,8 @@ export interface QuizBundle {
   feedback_question?: string | null;
   duration_seconds: number;
   version: number;
+  week_number?: number;
+  week_label?: string;
   total_questions: number;
   settings: {
     navigation: NavigationSettings;
@@ -126,10 +130,33 @@ export interface QuizListItem {
   title: string;
   description?: string;
   duration_seconds: number;
+  week_number?: number;
+  week_label?: string;
   opens_at_ms: number;
   closes_at_ms: number;
   attempt_status: string;
   attempt_id?: string | null;
   category: 'active' | 'upcoming' | 'previous' | 'completed';
+}
+
+export interface ProgrammeWeek {
+  week_number: number;
+  label: string;
+  status: 'active' | 'upcoming' | 'completed';
+  code?: string | null;
+  title: string;
+}
+
+export interface ProgrammeInfo {
+  programme_title: string;
+  organization: string;
+  total_weeks: number;
+  current_week: number;
+  current_week_label: string;
+  status_badge: string;
+  duration_tagline: string;
+  weeks: ProgrammeWeek[];
+  active_quiz_code?: string | null;
+  server_now_ms: number;
 }
 

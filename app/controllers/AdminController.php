@@ -701,6 +701,7 @@ class AdminController extends Controller
                 $windowStart = trim((string) ($request->get('window_start') ?: ($request->getPostData()['window_start'] ?? ($_POST['window_start'] ?? ''))));
                 $windowEnd = trim((string) ($request->get('window_end') ?: ($request->getPostData()['window_end'] ?? ($_POST['window_end'] ?? ''))));
                 $duration = (int) ($request->get('duration_minutes') ?: ($request->getPostData()['duration_minutes'] ?? ($_POST['duration_minutes'] ?? 30)));
+                $weekNumber = max(1, (int) ($request->get('week_number') ?: ($request->getPostData()['week_number'] ?? ($_POST['week_number'] ?? 1))));
 
                 $scoring = [
                     'marks_per_correct' => (float) ($request->input('marks_per_correct') ?? $request->get('marks_per_correct', 1.0)),
@@ -742,6 +743,7 @@ class AdminController extends Controller
                 $created = $this->quizService->create([
                     'title' => $title,
                     'code' => $code,
+                    'week_number' => $weekNumber,
                     'description' => $desc,
                     'feedback_question' => $feedbackQuestion,
                     'duration_minutes' => $duration,
@@ -820,6 +822,7 @@ class AdminController extends Controller
                 $windowStart = (string) ($request->input('window_start') ?? $request->get('window_start', ''));
                 $windowEnd = (string) ($request->input('window_end') ?? $request->get('window_end', ''));
                 $duration = (int) ($request->input('duration_minutes') ?? $request->get('duration_minutes', 30));
+                $weekNumber = max(1, (int) ($request->input('week_number') ?? $request->get('week_number', $quiz['week_number'] ?? 1)));
 
                 $scoring = [
                     'marks_per_correct' => (float) ($request->input('marks_per_correct') ?? $request->get('marks_per_correct', 1.0)),
@@ -861,6 +864,7 @@ class AdminController extends Controller
                 $this->quizService->update($quizId, [
                     'title' => $title,
                     'code' => $code,
+                    'week_number' => $weekNumber,
                     'description' => $desc,
                     'feedback_question' => $feedbackQuestion,
                     'duration_minutes' => $duration,

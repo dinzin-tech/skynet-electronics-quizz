@@ -148,6 +148,8 @@ class QuizPublisher
             'instructions' => $quiz['instructions'] ?? '',
             'feedback_question' => !empty($quiz['feedback_question']) ? (string) $quiz['feedback_question'] : null,
             'duration_seconds' => (int) $quiz['duration_seconds'],
+            'week_number' => (int) ($quiz['week_number'] ?? 1),
+            'week_label' => 'WEEK - ' . ($quiz['week_number'] ?? 1),
             'start_at' => $quiz['start_at'],
             'end_at' => $quiz['end_at'],
             'version' => $newVersion,

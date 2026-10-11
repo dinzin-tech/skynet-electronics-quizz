@@ -485,3 +485,657 @@ body {
   }
 }
 
+/* =========================================================================
+   PEAK PURSUIT RED & GOLD DESIGN SYSTEM & BRAND BANNER
+   ========================================================================= */
+:root {
+  --peak-ruby-dark: #120205;
+  --peak-ruby-mid: #2b050d;
+  --peak-ruby-bright: #520917;
+  --peak-ruby-accent: #7a0c20;
+  --peak-gold-light: #fff2b2;
+  --peak-gold-main: #f5c542;
+  --peak-gold-deep: #b8860b;
+  --peak-gold-dark: #7a5405;
+  --peak-gold-gradient: linear-gradient(135deg, #ffe58f 0%, #f5c542 45%, #b8860b 100%);
+  --peak-bg-gradient: radial-gradient(circle at 80% 20%, rgba(212, 175, 55, 0.12) 0%, transparent 40%),
+                      radial-gradient(circle at 10% 80%, rgba(122, 12, 32, 0.3) 0%, transparent 50%),
+                      linear-gradient(135deg, #100204 0%, #29040c 45%, #140205 100%);
+}
+
+/* Background Low-Poly Angular Texture for Entire Portal */
+.peak-app-bg,
+.peak-portal-wrapper {
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  background-color: #120205;
+  background-image: 
+    radial-gradient(ellipse at 85% 15%, rgba(245, 197, 66, 0.14) 0%, transparent 45%),
+    radial-gradient(ellipse at 15% 85%, rgba(140, 16, 38, 0.35) 0%, transparent 55%),
+    linear-gradient(135deg, #0e0204 0%, #26050b 35%, #3d0711 65%, #150205 100%);
+  background-attachment: fixed;
+  color: #ffffff;
+  position: relative;
+  overflow-x: hidden;
+}
+
+.peak-portal-wrapper::before,
+.peak-app-bg::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: 
+    linear-gradient(60deg, rgba(255, 215, 0, 0.03) 25%, transparent 25.5%, transparent 75%, rgba(255, 215, 0, 0.03) 75.5%),
+    linear-gradient(120deg, rgba(255, 0, 0, 0.02) 25%, transparent 25.5%, transparent 75%, rgba(255, 0, 0, 0.02) 75.5%);
+  background-size: 80px 140px;
+  pointer-events: none;
+  opacity: 0.6;
+}
+
+/* -------------------------------------------------------------------------
+   BRAND HEADER / HORIZONTAL BANNER (RECOMPOSED HORIZONTALLY)
+   ------------------------------------------------------------------------- */
+.brand-header-banner {
+  width: 100%;
+  background: linear-gradient(180deg, rgba(28, 4, 7, 0.98) 0%, rgba(18, 2, 4, 0.96) 100%);
+  border-bottom: 1px solid rgba(245, 197, 66, 0.3);
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.5);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  backdrop-filter: blur(12px);
+}
+
+.brand-header-inner {
+  max-width: 1360px;
+  margin: 0 auto;
+  padding: 0.625rem 1.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.25rem;
+}
+
+/* Logo Cluster */
+.brand-logo-cluster {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.brand-logo-wrapper {
+  display: flex;
+  align-items: center;
+  height: 44px;
+}
+
+.brand-logo-img {
+  height: 44px;
+  max-width: 180px;
+  width: auto;
+  object-fit: contain;
+  display: block;
+  filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.4));
+}
+
+.brand-divider {
+  width: 1px;
+  height: 30px;
+  background: rgba(245, 197, 66, 0.3);
+}
+
+.brand-subtext-block {
+  display: flex;
+  flex-direction: column;
+}
+
+.brand-oppo-label {
+  display: flex;
+  align-items: baseline;
+  gap: 0.375rem;
+}
+
+.oppo-text {
+  font-size: 1.125rem;
+  font-weight: 800;
+  color: #ffffff;
+  letter-spacing: -0.02em;
+  line-height: 1;
+}
+
+.oppo-region {
+  font-size: 0.6875rem;
+  font-weight: 700;
+  color: var(--peak-gold-main);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.brand-portal-tag {
+  font-size: 0.625rem;
+  color: rgba(255, 255, 255, 0.6);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+}
+
+/* Meta & Badges */
+.brand-meta-cluster {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.brand-badge-row {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+}
+
+.pill-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.3rem 0.75rem;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.pill-week {
+  background: rgba(245, 197, 66, 0.12);
+  color: var(--peak-gold-main);
+  border: 1px solid rgba(245, 197, 66, 0.4);
+}
+
+.pill-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--peak-gold-main);
+  box-shadow: 0 0 6px var(--peak-gold-main);
+}
+
+.pill-status {
+  background: linear-gradient(135deg, #d4af37 0%, #aa7c11 100%);
+  color: #120205;
+  font-weight: 900;
+  border: 1px solid #ffe28a;
+  box-shadow: 0 0 12px rgba(212, 175, 55, 0.4);
+}
+
+.pill-challenge {
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+.brand-header-children {
+  display: flex;
+  align-items: center;
+}
+
+.brand-user-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 0.875rem;
+  padding-left: 0.875rem;
+  border-left: 1px solid rgba(245, 197, 66, 0.25);
+}
+
+.brand-user-details {
+  text-align: right;
+}
+
+.brand-user-name {
+  font-size: 0.8125rem;
+  font-weight: 700;
+  color: #ffffff;
+  line-height: 1.2;
+}
+
+.brand-user-code {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: var(--peak-gold-main);
+}
+
+.btn-banner-logout {
+  background: transparent;
+  color: rgba(255, 255, 255, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  padding: 0.35rem 0.75rem;
+  border-radius: 8px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-banner-logout:hover {
+  background: rgba(239, 68, 68, 0.2);
+  color: #fca5a5;
+  border-color: rgba(239, 68, 68, 0.4);
+}
+
+/* -------------------------------------------------------------------------
+   SLIDE 1: PORTAL LOGIN / ENTRY VIEW
+   ------------------------------------------------------------------------- */
+.peak-portal-main {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2.5rem 1.5rem;
+  position: relative;
+  z-index: 10;
+}
+
+.peak-portal-container {
+  width: 100%;
+  max-width: 1240px;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: 1.3fr 1fr;
+  gap: 3.5rem;
+  align-items: center;
+}
+
+/* Left Hero */
+.peak-hero-section {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.peak-hero-eyebrow {
+  font-size: 0.875rem;
+  font-weight: 800;
+  letter-spacing: 0.15em;
+  color: var(--peak-gold-main);
+  text-transform: uppercase;
+  margin-bottom: 0.875rem;
+}
+
+.peak-hero-title {
+  font-size: 3.25rem;
+  font-weight: 900;
+  line-height: 1.15;
+  color: #ffffff;
+  letter-spacing: -0.02em;
+  margin-bottom: 1.25rem;
+}
+
+.peak-gold-text {
+  color: var(--peak-gold-main);
+  background: var(--peak-gold-gradient);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.peak-hero-subtitle {
+  font-size: 1.125rem;
+  line-height: 1.6;
+  color: rgba(255, 255, 255, 0.82);
+  max-width: 540px;
+  margin-bottom: 2.5rem;
+}
+
+/* Dynamic Week Timeline */
+.peak-timeline-container {
+  margin-bottom: 1.75rem;
+}
+
+.peak-timeline-track {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+  flex-wrap: wrap;
+}
+
+.peak-timeline-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 0.5rem 0.875rem;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  min-width: 68px;
+  transition: all 0.25s ease;
+}
+
+.timeline-week-tag {
+  font-size: 0.625rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: rgba(255, 255, 255, 0.5);
+  margin-bottom: 0.15rem;
+}
+
+.timeline-week-num {
+  font-size: 1.125rem;
+  font-weight: 900;
+  color: #ffffff;
+  line-height: 1.1;
+}
+
+.timeline-status-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  margin-top: 0.35rem;
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.peak-timeline-item.is-active {
+  background: rgba(245, 197, 66, 0.15);
+  border-color: var(--peak-gold-main);
+  box-shadow: 0 0 16px rgba(245, 197, 66, 0.3);
+  transform: translateY(-2px);
+}
+
+.peak-timeline-item.is-active .timeline-week-tag {
+  color: var(--peak-gold-main);
+}
+
+.peak-timeline-item.is-active .timeline-week-num {
+  color: var(--peak-gold-main);
+}
+
+.peak-timeline-item.is-active .timeline-status-dot {
+  background: var(--peak-gold-main);
+  box-shadow: 0 0 6px var(--peak-gold-main);
+}
+
+.peak-timeline-item.is-completed {
+  border-color: rgba(16, 185, 129, 0.4);
+}
+
+.peak-timeline-item.is-completed .timeline-status-dot {
+  background: #10b981;
+}
+
+.peak-quizcode-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.8125rem;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.quizcode-val {
+  color: var(--peak-gold-main);
+  font-weight: 800;
+  background: rgba(245, 197, 66, 0.1);
+  padding: 0.2rem 0.5rem;
+  border-radius: 6px;
+  border: 1px solid rgba(245, 197, 66, 0.3);
+}
+
+/* Right Employee Access Card */
+.peak-access-card-wrapper {
+  display: flex;
+  justify-content: center;
+}
+
+.peak-access-card {
+  width: 100%;
+  max-width: 440px;
+  background: rgba(20, 3, 6, 0.85);
+  border: 1px solid rgba(245, 197, 66, 0.35);
+  border-radius: 20px;
+  padding: 2.5rem 2rem;
+  backdrop-filter: blur(18px);
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  transition: all 0.3s ease;
+}
+
+.peak-access-card:hover {
+  border-color: rgba(245, 197, 66, 0.5);
+  box-shadow: 0 25px 60px rgba(0, 0, 0, 0.7), 0 0 25px rgba(245, 197, 66, 0.15);
+}
+
+.access-card-badge {
+  display: inline-block;
+  font-size: 0.6875rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  color: var(--peak-gold-main);
+  text-transform: uppercase;
+  margin-bottom: 0.5rem;
+}
+
+.access-card-title {
+  font-size: 1.875rem;
+  font-weight: 800;
+  color: #ffffff;
+  margin-bottom: 0.35rem;
+  letter-spacing: -0.01em;
+}
+
+.access-card-desc {
+  font-size: 0.875rem;
+  color: rgba(255, 255, 255, 0.7);
+  margin-bottom: 1.75rem;
+}
+
+.peak-form-alert {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.625rem;
+  padding: 0.75rem 1rem;
+  background: rgba(239, 68, 68, 0.15);
+  border: 1px solid rgba(239, 68, 68, 0.4);
+  color: #fca5a5;
+  border-radius: 10px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  margin-bottom: 1.5rem;
+}
+
+.alert-icon {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.peak-login-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.form-group-custom {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+}
+
+.form-label-custom {
+  font-size: 0.8125rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  color: var(--peak-gold-main);
+  text-transform: uppercase;
+}
+
+.form-input-custom {
+  width: 100%;
+  padding: 0.875rem 1.125rem;
+  background: rgba(255, 255, 255, 0.07);
+  border: 1.5px solid rgba(245, 197, 66, 0.35);
+  border-radius: 12px;
+  font-size: 1rem;
+  font-weight: 600;
+  color: #ffffff;
+  outline: none;
+  transition: all 0.2s ease;
+  box-sizing: border-box;
+}
+
+.form-input-custom::placeholder {
+  color: rgba(255, 255, 255, 0.35);
+  font-weight: 400;
+}
+
+.form-input-custom:focus {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: var(--peak-gold-main);
+  box-shadow: 0 0 14px rgba(245, 197, 66, 0.35);
+}
+
+.peak-btn-gold {
+  width: 100%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.625rem;
+  padding: 0.9375rem 1.5rem;
+  background: linear-gradient(135deg, #ffd700 0%, #d4af37 50%, #996515 100%);
+  color: #120205;
+  border: 1px solid #ffe885;
+  border-radius: 12px;
+  font-size: 1.0625rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  transition: all 0.25s ease;
+  box-shadow: 0 4px 18px rgba(212, 175, 55, 0.4);
+  margin-top: 0.5rem;
+}
+
+.peak-btn-gold:hover:not(:disabled) {
+  background: linear-gradient(135deg, #fff085 0%, #e5bd3c 50%, #b27618 100%);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(212, 175, 55, 0.55);
+}
+
+.peak-btn-gold:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.peak-btn-gold:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.btn-arrow {
+  font-size: 1.2rem;
+  transition: transform 0.2s ease;
+}
+
+.peak-btn-gold:hover .btn-arrow {
+  transform: translateX(4px);
+}
+
+.peak-spinner {
+  width: 18px;
+  height: 18px;
+  border: 2px solid rgba(18, 2, 5, 0.3);
+  border-top-color: #120205;
+  border-radius: 50%;
+  animation: spin 0.75s linear infinite;
+}
+
+.access-card-help-note {
+  margin-top: 1.5rem;
+  font-size: 0.75rem;
+  line-height: 1.5;
+  color: rgba(255, 255, 255, 0.55);
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  padding-top: 1rem;
+}
+
+/* Footer */
+.peak-portal-footer {
+  width: 100%;
+  padding: 1.25rem 1.5rem;
+  text-align: center;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.15em;
+  color: rgba(255, 255, 255, 0.45);
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  position: relative;
+  z-index: 10;
+}
+
+/* Responsive adjustments */
+@media (max-width: 992px) {
+  .peak-portal-container {
+    grid-template-columns: 1fr;
+    gap: 2.5rem;
+  }
+
+  .peak-hero-title {
+    font-size: 2.5rem;
+  }
+
+  .peak-hero-subtitle {
+    max-width: 100%;
+  }
+
+  .peak-access-card {
+    max-width: 100%;
+  }
+}
+
+@media (max-width: 576px) {
+  .brand-header-inner {
+    padding: 0.5rem 1rem;
+  }
+
+  .brand-logo-img {
+    height: 34px;
+    max-width: 130px;
+  }
+
+  .brand-divider {
+    display: none;
+  }
+
+  .brand-subtext-block {
+    display: none;
+  }
+
+  .hidden-xs {
+    display: none !important;
+  }
+
+  .peak-hero-title {
+    font-size: 2rem;
+  }
+
+  .peak-hero-subtitle {
+    font-size: 0.9375rem;
+    margin-bottom: 1.5rem;
+  }
+
+  .peak-timeline-track {
+    gap: 0.5rem;
+  }
+
+  .peak-timeline-item {
+    min-width: 54px;
+    padding: 0.4rem 0.5rem;
+  }
+
+  .timeline-week-num {
+    font-size: 0.9375rem;
+  }
+
+  .peak-access-card {
+    padding: 1.75rem 1.25rem;
+  }
+
+  .access-card-title {
+    font-size: 1.5rem;
+  }
+}
+
+
