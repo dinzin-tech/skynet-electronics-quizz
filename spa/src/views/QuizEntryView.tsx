@@ -129,14 +129,18 @@ export const QuizEntryView: React.FC<QuizEntryViewProps> = ({
   const isTimeExpired = data?.state === 'closed' || (meta?.closes_at_ms ? getServerTime() >= meta.closes_at_ms : false);
   const isCompleted = data?.state === 'completed' || data?.attempt?.status === 'COMPLETED';
   const hasAttempt = !!data?.attempt?.id;
+  const isContestLive = data?.state === 'can_start' || data?.state === 'resumable';
 
   return (
-    <div style={{ minHeight: '100dvh', background: 'var(--gray-50)', paddingBottom: '3rem' }}>
-      <Navbar />
+    <div className="peak-app-bg" style={{ minHeight: '100dvh', paddingBottom: '3rem' }}>
+      <Navbar
+        currentWeekLabel={data?.meta?.week_label}
+        statusBadge={isContestLive ? 'CONTEST LIVE' : isCompleted ? 'COMPLETED' : undefined}
+      />
 
       <main style={{ maxWidth: '960px', margin: '2rem auto', padding: '0 1.25rem' }}>
         {/* Selected Assessment Hero Card */}
-        <div className="glass-card" style={{ padding: '2.5rem 2rem' }}>
+        <div className="glass-card-dark" style={{ padding: '2.5rem 2rem' }}>
           {error && (
             <div style={{
               padding: '1rem',
@@ -169,12 +173,12 @@ export const QuizEntryView: React.FC<QuizEntryViewProps> = ({
             </span>
           </div>
 
-          <h2 style={{ fontSize: '1.875rem', fontWeight: 800, color: 'var(--gray-900)', marginBottom: '1rem', lineHeight: 1.3 }}>
+          <h2 style={{ fontSize: '1.875rem', fontWeight: 800, color: '#ffffff', marginBottom: '1rem', lineHeight: 1.3 }}>
             {meta?.title || 'Assessment Title'}
           </h2>
 
           {meta?.description && (
-            <p style={{ fontSize: '1rem', color: 'var(--gray-600)', marginBottom: '1.75rem', lineHeight: 1.6 }}>
+            <p style={{ fontSize: '1rem', color: 'rgba(255, 255, 255, 0.8)', marginBottom: '1.75rem', lineHeight: 1.6 }}>
               {meta.description}
             </p>
           )}
@@ -185,33 +189,33 @@ export const QuizEntryView: React.FC<QuizEntryViewProps> = ({
             gap: '1rem',
             marginBottom: '2rem',
             padding: '1.25rem',
-            background: 'linear-gradient(135deg, #fafafa 0%, #f1f5f9 100%)',
-            border: '1px solid var(--gray-200)',
+            background: 'rgba(255, 255, 255, 0.05)',
+            border: '1px solid rgba(245, 197, 66, 0.25)',
             borderRadius: '14px',
           }}>
             <div>
-              <div style={{ fontSize: '0.75rem', color: 'var(--gray-500)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.03em' }}>
+              <div style={{ fontSize: '0.75rem', color: 'rgba(255, 255, 255, 0.6)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.03em' }}>
                 Duration
               </div>
-              <div style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--primary)', marginTop: '0.25rem' }}>
+              <div style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--peak-gold-main)', marginTop: '0.25rem' }}>
                 {Math.round((meta?.duration_seconds || 0) / 60)} Minutes
               </div>
             </div>
 
             <div>
-              <div style={{ fontSize: '0.75rem', color: 'var(--gray-500)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.03em' }}>
+              <div style={{ fontSize: '0.75rem', color: 'rgba(255, 255, 255, 0.6)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.03em' }}>
                 Total Questions
               </div>
-              <div style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--gray-900)', marginTop: '0.25rem' }}>
+              <div style={{ fontSize: '1.25rem', fontWeight: 800, color: '#ffffff', marginTop: '0.25rem' }}>
                 {meta?.total_questions || 0} Questions
               </div>
             </div>
 
             <div>
-              <div style={{ fontSize: '0.75rem', color: 'var(--gray-500)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.03em' }}>
+              <div style={{ fontSize: '0.75rem', color: 'rgba(255, 255, 255, 0.6)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.03em' }}>
                 Attempts Allowed
               </div>
-              <div style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--gold-primary)', marginTop: '0.25rem' }}>
+              <div style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--peak-gold-main)', marginTop: '0.25rem' }}>
                 1 Single Attempt
               </div>
             </div>
@@ -219,16 +223,16 @@ export const QuizEntryView: React.FC<QuizEntryViewProps> = ({
 
           {meta?.instructions && (
             <div style={{ marginBottom: '2.5rem' }}>
-              <h3 style={{ fontSize: '1rem', fontWeight: 800, color: 'var(--gray-800)', marginBottom: '0.75rem' }}>
+              <h3 style={{ fontSize: '1rem', fontWeight: 800, color: '#ffffff', marginBottom: '0.75rem' }}>
                 Rules & Examination Guidelines
               </h3>
               <div style={{
-                background: '#ffffff',
-                border: '1.5px solid var(--gray-200)',
+                background: 'rgba(255, 255, 255, 0.04)',
+                border: '1px solid rgba(255, 255, 255, 0.12)',
                 borderRadius: '12px',
                 padding: '1.25rem',
                 fontSize: '0.9375rem',
-                color: 'var(--gray-700)',
+                color: 'rgba(255, 255, 255, 0.85)',
                 whiteSpace: 'pre-line',
                 lineHeight: 1.6,
               }}>

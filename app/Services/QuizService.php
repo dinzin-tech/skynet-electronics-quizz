@@ -55,7 +55,7 @@ class QuizService
         $total = (int) $countStmt->fetchColumn();
 
         // Fetch page
-        $sql = "SELECT id, public_id, code, title, description, duration_seconds, start_at, end_at, " .
+        $sql = "SELECT id, public_id, code, title, description, week_number, duration_seconds, start_at, end_at, " .
                "status, current_version, published_at, created_at, updated_at " .
                "FROM quizzes {$whereClause} ORDER BY id DESC LIMIT :limit OFFSET :offset";
         $stmt = $this->db->prepare($sql);
@@ -165,11 +165,13 @@ class QuizService
         $publicId = Ulid::generate();
         $now = gmdate('Y-m-d H:i:s');
 
+        $weekNumber = isset($data['week_number']) ? max(1, (int) $data['week_number']) : 1;
+
         $stmt = $this->db->prepare(
             'INSERT INTO quizzes (public_id, code, title, description, instructions, feedback_question, ' .
-            'duration_seconds, start_at, end_at, status, settings, current_version, ' .
+            'week_number, duration_seconds, start_at, end_at, status, settings, current_version, ' .
             'created_by, created_at, updated_at) ' .
-            'VALUES (:pid, :code, :title, :desc, :inst, :fbq, :dur, :start, :end, :status, ' .
+            'VALUES (:pid, :code, :title, :desc, :inst, :fbq, :week_num, :dur, :start, :end, :status, ' .
             ':settings, 0, :uid, :cat, :uat)'
         );
 
@@ -185,6 +187,7 @@ class QuizService
             'desc' => $data['description'] ?? null,
             'inst' => $data['instructions'] ?? null,
             'fbq' => $fbQuestion,
+            'week_num' => $weekNumber,
             'dur' => $durationSeconds,
             'start' => $startAt,
             'end' => $endAt,
@@ -261,6 +264,11 @@ class QuizService
             $fbq = trim((string) ($data['feedback_question'] ?? ''));
             $fields[] = 'feedback_question = :fbq';
             $params['fbq'] = $fbq !== '' ? $fbq : null;
+        }
+
+        if (isset($data['week_number'])) {
+            $fields[] = 'week_number = :week_number';
+            $params['week_number'] = max(1, (int) $data['week_number']);
         }
 
         if (isset($data['duration_seconds'])) {

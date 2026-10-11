@@ -249,8 +249,11 @@ export const QuizTakingView: React.FC<QuizTakingViewProps> = ({ attemptId, onSub
     const feedbackPrompt = bundle?.feedback_question?.trim() || 'Please share your feedback and suggestions regarding this assessment:';
 
     return (
-      <div style={{ minHeight: '100dvh', display: 'flex', flexDirection: 'column', background: 'var(--gray-50)' }}>
-        <Navbar>
+      <div className="peak-app-bg" style={{ minHeight: '100dvh', display: 'flex', flexDirection: 'column' }}>
+        <Navbar
+          currentWeekLabel={bundle?.week_label || (bundle?.week_number ? `WEEK - ${bundle.week_number}` : undefined)}
+          statusBadge="CONTEST LIVE"
+        >
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
             <span style={{
               fontSize: '0.8125rem',
@@ -409,9 +412,12 @@ export const QuizTakingView: React.FC<QuizTakingViewProps> = ({ attemptId, onSub
   const questionImage = currentQuestion?.image_url || currentQuestion?.image_path;
 
   return (
-    <div style={{ minHeight: '100dvh', display: 'flex', flexDirection: 'column', background: 'var(--gray-50)' }}>
+    <div className="peak-app-bg" style={{ minHeight: '100dvh', display: 'flex', flexDirection: 'column' }}>
       {/* Top Examination Sticky Bar */}
-      <Navbar>
+      <Navbar
+        currentWeekLabel={bundle?.week_label || (bundle?.week_number ? `WEEK - ${bundle.week_number}` : undefined)}
+        statusBadge="CONTEST LIVE"
+      >
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
           {/* Sync Status Badge */}
           <div className={`sync-indicator sync-${syncStatus}`}>

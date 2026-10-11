@@ -83,6 +83,111 @@ $router->get('/api/time', function (array $params, array $config, mixed $redis, 
     ], $nowMs);
 });
 
+// 1a. GET /api/programme/info (Public Peak Pursuit programme metadata & schedule)
+$router->get('/api/programme/info', function (array $params, array $config, mixed $redis, int $nowMs): void {
+    $pdo = \Core\Database::getInstance()->getConnection();
+    $stmt = $pdo->prepare(
+        'SELECT id, code, title, week_number, start_at, end_at, status ' .
+        'FROM quizzes WHERE status = "published" ORDER BY week_number ASC, start_at ASC'
+    );
+    $stmt->execute();
+    $quizzes = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+
+    $utcTz = new \DateTimeZone('UTC');
+    $maxWeek = 5;
+    $activeQuiz = null;
+    $nearestUpcoming = null;
+    $lastPast = null;
+
+    $quizByWeek = [];
+    foreach ($quizzes as $q) {
+        $weekNum = max(1, (int) ($q['week_number'] ?? 1));
+        if ($weekNum > $maxWeek) {
+            $maxWeek = $weekNum;
+        }
+
+        $startMs = !empty($q['start_at'])
+            ? (new \DateTimeImmutable($q['start_at'], $utcTz))->getTimestamp() * 1000
+            : 0;
+        $endMs = !empty($q['end_at'])
+            ? (new \DateTimeImmutable($q['end_at'], $utcTz))->getTimestamp() * 1000
+            : 0;
+
+        $qData = [
+            'id' => (int) $q['id'],
+            'code' => $q['code'],
+            'title' => $q['title'],
+            'week_number' => $weekNum,
+            'start_ms' => $startMs,
+            'end_ms' => $endMs,
+        ];
+
+        $quizByWeek[$weekNum] = $qData;
+
+        if ($nowMs >= $startMs && $nowMs <= $endMs) {
+            if ($activeQuiz === null) {
+                $activeQuiz = $qData;
+            }
+        } elseif ($nowMs < $startMs) {
+            if ($nearestUpcoming === null || $startMs < $nearestUpcoming['start_ms']) {
+                $nearestUpcoming = $qData;
+            }
+        } else {
+            if ($lastPast === null || $endMs > $lastPast['end_ms']) {
+                $lastPast = $qData;
+            }
+        }
+    }
+
+    $currentQuiz = $activeQuiz ?? $nearestUpcoming ?? $lastPast;
+    $currentWeek = $currentQuiz ? (int) $currentQuiz['week_number'] : 1;
+    $statusBadge = $activeQuiz !== null ? 'CONTEST LIVE' : ($nearestUpcoming !== null ? 'UPCOMING' : 'CONCLUDED');
+
+    // Build week milestones for 1..maxWeek
+    $weeks = [];
+    for ($w = 1; $w <= $maxWeek; $w++) {
+        $qInfo = $quizByWeek[$w] ?? null;
+        $status = 'upcoming';
+        if ($qInfo) {
+            if ($nowMs >= $qInfo['start_ms'] && $nowMs <= $qInfo['end_ms']) {
+                $status = 'active';
+            } elseif ($nowMs > $qInfo['end_ms']) {
+                $status = 'completed';
+            }
+        } elseif ($w < $currentWeek) {
+            $status = 'completed';
+        }
+
+        $weeks[] = [
+            'week_number' => $w,
+            'label' => sprintf('%02d', $w),
+            'status' => $status,
+            'code' => $qInfo['code'] ?? null,
+            'title' => $qInfo['title'] ?? ("Week " . $w),
+        ];
+    }
+
+    $numWords = [
+        1 => 'One week', 2 => 'Two weeks', 3 => 'Three weeks', 4 => 'Four weeks',
+        5 => 'Five weeks', 6 => 'Six weeks', 7 => 'Seven weeks', 8 => 'Eight weeks',
+        9 => 'Nine weeks', 10 => 'Ten weeks',
+    ];
+    $weekWord = $numWords[$maxWeek] ?? "{$maxWeek} weeks";
+
+    HotRouter::json(200, [
+        'programme_title' => 'Peak Pursuit 4.0',
+        'organization' => 'OPPO KARNATAKA',
+        'total_weeks' => $maxWeek,
+        'current_week' => $currentWeek,
+        'current_week_label' => "WEEK - {$currentWeek}",
+        'status_badge' => $statusBadge,
+        'duration_tagline' => "{$weekWord}. {$weekWord} of knowledge. One chance each week to raise your game.",
+        'weeks' => $weeks,
+        'active_quiz_code' => $currentQuiz['code'] ?? null,
+        'server_now_ms' => $nowMs,
+    ], $nowMs);
+});
+
 // 1b. GET /api/quiz/list (List all assigned, active, upcoming, and previous quizzes)
 $router->get('/api/quiz/list', function (array $params, array $config, mixed $redis, int $nowMs): void {
     $claims = getHotAuth($config, $nowMs);
@@ -94,8 +199,8 @@ $router->get('/api/quiz/list', function (array $params, array $config, mixed $re
 
     $pdo = \Core\Database::getInstance()->getConnection();
     $stmt = $pdo->prepare(
-        'SELECT id, code, title, description, duration_seconds, start_at, end_at, status ' .
-        'FROM quizzes WHERE status = "published" ORDER BY start_at DESC'
+        'SELECT id, code, title, description, week_number, duration_seconds, start_at, end_at, status ' .
+        'FROM quizzes WHERE status = "published" ORDER BY week_number ASC, start_at ASC'
     );
     $stmt->execute();
     $quizzes = $stmt->fetchAll(\PDO::FETCH_ASSOC);
@@ -127,11 +232,15 @@ $router->get('/api/quiz/list', function (array $params, array $config, mixed $re
             $category = 'previous';
         }
 
+        $weekNum = max(1, (int) ($q['week_number'] ?? 1));
+
         $items[] = [
             'id' => $quizId,
             'code' => $q['code'],
             'title' => $q['title'],
             'description' => $q['description'] ?? '',
+            'week_number' => $weekNum,
+            'week_label' => "WEEK - {$weekNum}",
             'duration_seconds' => (int) $q['duration_seconds'],
             'opens_at_ms' => $startMs,
             'closes_at_ms' => $endMs,
@@ -180,10 +289,12 @@ $router->get('/api/quiz/{code}', function (array $params, array $config, mixed $
     $endMs = (int) ($quizMeta['end_ms'] ?? 0);
     $attStatus = $redis->hGet("att:{$aid}", 'status') ?: 'NOT_STARTED';
 
-    $settings = json_decode((string) ($quizMeta['settings'] ?? '{}'), true) ?? [];
+    $weekNum = max(1, (int) ($quizMeta['week_number'] ?? 1));
     $meta = [
         'code' => $quizMeta['code'],
         'title' => $quizMeta['title'],
+        'week_number' => $weekNum,
+        'week_label' => $quizMeta['week_label'] ?? "WEEK - {$weekNum}",
         'instructions' => $quizMeta['instructions'] ?? '',
         'feedback_question' => !empty($quizMeta['feedback_question']) ? (string) $quizMeta['feedback_question'] : null,
         'duration_seconds' => (int) $quizMeta['duration_s'],

@@ -121,6 +121,10 @@ export const api = {
     return res;
   },
 
+  async getProgrammeInfo(): Promise<import('../types').ProgrammeInfo> {
+    return request<import('../types').ProgrammeInfo>('/api/programme/info');
+  },
+
   async getQuizList(): Promise<{ quizzes: import('../types').QuizListItem[]; server_now_ms: number }> {
     return request<{ quizzes: import('../types').QuizListItem[]; server_now_ms: number }>('/api/quiz/list');
   },
