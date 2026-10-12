@@ -285,7 +285,7 @@ class QuizPublisherTest extends TestCase
 
         // Create Employees with designations
         $stmt = $this->db->prepare("INSERT INTO employees (public_id, employee_code, name, department, designation, status, created_at, updated_at) VALUES (:p, :c, :n, :d, :des, 'active', NOW(), NOW())");
-        
+
         $p1 = bin2hex(random_bytes(10));
         $stmt->execute([':p' => $p1, ':c' => 'EMP_DES_1', ':n' => 'Alice OEC', ':d' => $deptSales, ':des' => $desigOec]);
         $emp1Id = (int) $this->db->lastInsertId();
@@ -349,4 +349,3 @@ class QuizPublisherTest extends TestCase
         $this->db->exec("DELETE FROM employees WHERE id IN ({$emp1Id}, {$emp2Id}, {$emp3Id})");
     }
 }
-
