@@ -106,6 +106,7 @@ class ReportExportService
             $rowCount = match ($reportType) {
                 'submissions' => $this->exportSubmissionsCsv($filters, $outputPath),
                 'results' => $this->exportResultsSummaryCsv($filters, $outputPath),
+                'question_summary' => $this->exportQuestionSummaryCsv($filters, $outputPath),
                 default => throw new InvalidArgumentException("Unsupported report type: {$reportType}"),
             };
 
@@ -492,5 +493,68 @@ class ReportExportService
 
         fclose($handle);
         return $totalExported;
+    }
+
+    /**
+     * Export Question-Wise summary report to CSV showing how many employees
+     * answered correctly, incorrectly, or left unanswered.
+     *
+     * @param array<string, mixed> $filters
+     */
+    public function exportQuestionSummaryCsv(array $filters, string $outputPath): int
+    {
+        $handle = fopen($outputPath, 'w');
+        if (!$handle) {
+            throw new RuntimeException("Cannot open output file: {$outputPath}");
+        }
+
+        fputcsv($handle, [
+            'Question #',
+            'Question Text',
+            'Question Type',
+            'Total Completed Attempts',
+            'Answered Count',
+            'Correct Count',
+            'Correct (%)',
+            'Incorrect Count',
+            'Incorrect (%)',
+            'Unanswered Count',
+            'Unanswered (%)',
+        ]);
+
+        $quizId = isset($filters['quiz_id']) && (int) $filters['quiz_id'] > 0 ? (int) $filters['quiz_id'] : null;
+        if ($quizId === null) {
+            $qStmt = $this->db->query('SELECT id FROM quizzes ORDER BY id DESC LIMIT 1');
+            $quizId = (int) $qStmt->fetchColumn();
+        }
+
+        if ($quizId <= 0) {
+            fclose($handle);
+            return 0;
+        }
+
+        $dashboardService = new DashboardService($this->db);
+        $summary = $dashboardService->getQuestionWiseSummary($quizId);
+
+        $rowCount = 0;
+        foreach ($summary as $row) {
+            fputcsv($handle, [
+                self::sanitizeCell($row['display_order']),
+                self::sanitizeCell($row['question_text']),
+                self::sanitizeCell(strtoupper($row['question_type'])),
+                self::sanitizeCell($row['total_attempts']),
+                self::sanitizeCell($row['answered_count']),
+                self::sanitizeCell($row['correct_count']),
+                self::sanitizeCell($row['correct_pct'] . '%'),
+                self::sanitizeCell($row['incorrect_count']),
+                self::sanitizeCell($row['incorrect_pct'] . '%'),
+                self::sanitizeCell($row['unanswered_count']),
+                self::sanitizeCell($row['unanswered_pct'] . '%'),
+            ]);
+            $rowCount++;
+        }
+
+        fclose($handle);
+        return $rowCount;
     }
 }

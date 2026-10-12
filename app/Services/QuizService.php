@@ -558,6 +558,7 @@ class QuizService
         $targetGroups = $settings['target_groups'] ?? [];
         $targetDepartments = $settings['target_departments'] ?? [];
         $targetZones = $settings['target_zones'] ?? [];
+        $targetDesignations = $settings['target_designations'] ?? [];
 
         return [
             'scoring' => [
@@ -574,10 +575,11 @@ class QuizService
                 'randomize_questions' => (bool) ($navigation['randomize_questions'] ?? true),
                 'randomize_options' => (bool) ($navigation['randomize_options'] ?? true),
             ],
-            'target_audience' => in_array($targetAudience, ['all', 'custom', 'groups', 'departments', 'zones'], true) ? $targetAudience : 'all',
+            'target_audience' => in_array($targetAudience, ['all', 'custom', 'groups', 'departments', 'zones', 'designations'], true) ? $targetAudience : 'all',
             'target_groups' => is_array($targetGroups) ? array_values(array_filter(array_map('intval', $targetGroups), fn($g) => $g > 0)) : [],
             'target_departments' => is_array($targetDepartments) ? array_values(array_filter(array_map('trim', $targetDepartments), fn($d) => $d !== '')) : [],
             'target_zones' => is_array($targetZones) ? array_values(array_filter(array_map('trim', $targetZones), fn($z) => $z !== '')) : [],
+            'target_designations' => is_array($targetDesignations) ? array_values(array_filter(array_map('trim', $targetDesignations), fn($des) => $des !== '')) : [],
         ];
     }
 

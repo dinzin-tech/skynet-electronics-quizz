@@ -455,6 +455,7 @@ $router->post('/api/quiz/{code}/start', function (array $params, array $config, 
         $parts = explode('|', $record);
         $answers[$qid] = [
             'selected_option_id' => (int) ($parts[0] ?? 0),
+            'text_answer' => isset($parts[3]) && $parts[3] !== '' ? urldecode($parts[3]) : null,
             'seq' => (int) ($parts[1] ?? 0),
         ];
     }
@@ -494,6 +495,7 @@ $router->get('/api/attempts/{aid}', function (array $params, array $config, mixe
         $parts = explode('|', $record);
         $answers[$qid] = [
             'selected_option_id' => (int) ($parts[0] ?? 0),
+            'text_answer' => isset($parts[3]) && $parts[3] !== '' ? urldecode($parts[3]) : null,
             'seq' => (int) ($parts[1] ?? 0),
         ];
     }

@@ -37,7 +37,8 @@ local updatedCount = 0
 
 for _, item in ipairs(items) do
     local qid = tostring(item.q)
-    local oid = tostring(item.o)
+    local oid = tostring(item.o or '0')
+    local txt = tostring(item.t or '')
     local seq = tonumber(item.seq)
     local ts = tonumber(item.ts or nowMs)
 
@@ -45,7 +46,7 @@ for _, item in ipairs(items) do
     local apply = true
 
     if existingVal then
-        -- Parse stored seq: "option_id|seq|ts_ms"
+        -- Parse stored seq: "option_id|seq|ts_ms|text"
         local pipeIdx = string.find(existingVal, '|', 1, true)
         if pipeIdx then
             local nextPipeIdx = string.find(existingVal, '|', pipeIdx + 1, true)
@@ -62,7 +63,7 @@ for _, item in ipairs(items) do
     end
 
     if apply then
-        local record = oid .. '|' .. tostring(seq) .. '|' .. tostring(ts)
+        local record = oid .. '|' .. tostring(seq) .. '|' .. tostring(ts) .. '|' .. txt
         redis.call('HSET', ansKey, qid, record)
         redis.call('SADD', dirtyKey, aid .. ':' .. qid)
         updatedCount = updatedCount + 1

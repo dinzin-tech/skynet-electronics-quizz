@@ -275,4 +275,92 @@ class DashboardService
 
         return round(($passedCount / $completed) * 100, 2);
     }
+
+    /**
+     * Get question-wise summary showing how many employees answered correctly,
+     * incorrectly, or left unanswered.
+     *
+     * @return array<int, array{
+     *     question_id: int,
+     *     display_order: int,
+     *     question_text: string,
+     *     question_type: string,
+     *     total_attempts: int,
+     *     answered_count: int,
+     *     correct_count: int,
+     *     correct_pct: float,
+     *     incorrect_count: int,
+     *     incorrect_pct: float,
+     *     unanswered_count: int,
+     *     unanswered_pct: float
+     * }>
+     */
+    public function getQuestionWiseSummary(int $quizId): array
+    {
+        // 1. Fetch total completed attempts for the quiz
+        $compStmt = $this->db->prepare('SELECT COUNT(*) FROM attempts WHERE quiz_id = :qid AND status = "COMPLETED"');
+        $compStmt->execute(['qid' => $quizId]);
+        $totalCompleted = (int) $compStmt->fetchColumn();
+
+        // 2. Fetch all questions for this quiz
+        $qStmt = $this->db->prepare(
+            'SELECT id, display_order, question_text FROM questions WHERE quiz_id = :qid ORDER BY display_order ASC, id ASC'
+        );
+        $qStmt->execute(['qid' => $quizId]);
+        $questions = $qStmt->fetchAll(PDO::FETCH_ASSOC);
+
+        if (empty($questions)) {
+            return [];
+        }
+
+        // 3. Aggregate answers for completed attempts
+        $ansStmt = $this->db->prepare(
+            'SELECT '
+            . 'aa.question_id, '
+            . 'COUNT(CASE WHEN aa.selected_option_id IS NOT NULL THEN 1 END) AS answered_count, '
+            . 'SUM(CASE WHEN aa.is_correct = 1 THEN 1 ELSE 0 END) AS correct_count, '
+            . 'SUM(CASE WHEN aa.is_correct = 0 AND aa.selected_option_id IS NOT NULL THEN 1 ELSE 0 END) AS incorrect_count '
+            . 'FROM attempt_answers aa '
+            . 'JOIN attempts a ON a.id = aa.attempt_id '
+            . 'WHERE a.quiz_id = :qid AND a.status = "COMPLETED" '
+            . 'GROUP BY aa.question_id'
+        );
+        $ansStmt->execute(['qid' => $quizId]);
+        $ansStats = [];
+        while ($row = $ansStmt->fetch(PDO::FETCH_ASSOC)) {
+            $ansStats[(int) $row['question_id']] = $row;
+        }
+
+        $summary = [];
+        foreach ($questions as $q) {
+            $qid = (int) $q['id'];
+            $stat = $ansStats[$qid] ?? null;
+
+            $answered = $stat ? (int) ($stat['answered_count'] ?? 0) : 0;
+            $correct = $stat ? (int) ($stat['correct_count'] ?? 0) : 0;
+            $incorrect = $stat ? (int) ($stat['incorrect_count'] ?? 0) : 0;
+            $unanswered = max(0, $totalCompleted - $answered);
+
+            $correctPct = $totalCompleted > 0 ? round(($correct / $totalCompleted) * 100, 1) : 0.0;
+            $incorrectPct = $totalCompleted > 0 ? round(($incorrect / $totalCompleted) * 100, 1) : 0.0;
+            $unansweredPct = $totalCompleted > 0 ? round(($unanswered / $totalCompleted) * 100, 1) : 0.0;
+
+            $summary[] = [
+                'question_id' => $qid,
+                'display_order' => (int) $q['display_order'],
+                'question_text' => (string) $q['question_text'],
+                'question_type' => 'mcq',
+                'total_attempts' => $totalCompleted,
+                'answered_count' => $answered,
+                'correct_count' => $correct,
+                'correct_pct' => $correctPct,
+                'incorrect_count' => $incorrect,
+                'incorrect_pct' => $incorrectPct,
+                'unanswered_count' => $unanswered,
+                'unanswered_pct' => $unansweredPct,
+            ];
+        }
+
+        return $summary;
+    }
 }

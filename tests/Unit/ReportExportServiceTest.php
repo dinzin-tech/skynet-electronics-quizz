@@ -264,4 +264,64 @@ class ReportExportServiceTest extends TestCase
             @unlink($result['file_path']);
         }
     }
+
+    public function test_export_question_summary_csv(): void
+    {
+        $code = 'QSUM_' . strtoupper(bin2hex(random_bytes(3)));
+        $now = gmdate('Y-m-d H:i:s');
+
+        // Create Quiz
+        $quizStmt = $this->db->prepare(
+            'INSERT INTO quizzes (public_id, code, title, duration_seconds, start_at, end_at, status, settings, current_version, created_by, created_at, updated_at) '
+            . 'VALUES (:pid, :code, "QSum Test", 600, :start, :end, "published", "{}", 1, 1, :cat, :uat)'
+        );
+        $quizStmt->execute([
+            'pid' => Ulid::generate(),
+            'code' => $code,
+            'start' => $now,
+            'end' => gmdate('Y-m-d H:i:s', time() + 3600),
+            'cat' => $now,
+            'uat' => $now,
+        ]);
+        $quizId = (int) $this->db->lastInsertId();
+
+        // Create Question
+        $qStmt = $this->db->prepare('INSERT INTO questions (quiz_id, question_text, display_order) VALUES (:qid, "What is 2+2?", 1)');
+        $qStmt->execute(['qid' => $quizId]);
+        $qId = (int) $this->db->lastInsertId();
+
+        // Create Employee & Completed Attempt
+        $empStmt = $this->db->prepare("INSERT INTO employees (public_id, employee_code, name, status, created_at, updated_at) VALUES (:p, :c, 'Tester', 'active', NOW(), NOW())");
+        $empStmt->execute([':p' => bin2hex(random_bytes(10)), ':c' => 'EMP_QS_' . bin2hex(random_bytes(3))]);
+        $empId = (int) $this->db->lastInsertId();
+
+        $attStmt = $this->db->prepare("INSERT INTO attempts (public_id, quiz_id, quiz_version, employee_id, status, started_at, submitted_at, score) VALUES (:p, :qid, 1, :eid, 'COMPLETED', NOW(), NOW(), 10)");
+        $attStmt->execute([':p' => bin2hex(random_bytes(10)), ':qid' => $quizId, ':eid' => $empId]);
+        $attId = (int) $this->db->lastInsertId();
+
+        // Answer
+        $ansStmt = $this->db->prepare("INSERT INTO attempt_answers (attempt_id, question_id, selected_option_id, is_correct, answered_at) VALUES (:aid, :qid, 999, 1, NOW())");
+        $ansStmt->execute([':aid' => $attId, ':qid' => $qId]);
+
+        try {
+            $count = $this->service->exportQuestionSummaryCsv(['quiz_id' => $quizId], $this->tempCsv);
+            $this->assertSame(1, $count);
+
+            $lines = file($this->tempCsv, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+            $this->assertCount(2, $lines); // header + 1 question
+            $row = str_getcsv($lines[1]);
+            $this->assertSame('1', $row[0]); // Display Order
+            $this->assertSame('What is 2+2?', $row[1]); // Text
+            $this->assertSame('1', $row[3]); // Total Completed Attempts
+            $this->assertSame('1', $row[4]); // Answered
+            $this->assertSame('1', $row[5]); // Correct Count
+            $this->assertSame('100%', $row[6]); // Correct %
+        } finally {
+            $this->db->exec("DELETE FROM attempt_answers WHERE attempt_id = {$attId}");
+            $this->db->exec("DELETE FROM attempts WHERE id = {$attId}");
+            $this->db->exec("DELETE FROM questions WHERE id = {$qId}");
+            $this->db->exec("DELETE FROM quizzes WHERE id = {$quizId}");
+            $this->db->exec("DELETE FROM employees WHERE id = {$empId}");
+        }
+    }
 }

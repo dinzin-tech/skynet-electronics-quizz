@@ -18,8 +18,9 @@ interface QuizTakingViewProps {
 export const QuizTakingView: React.FC<QuizTakingViewProps> = ({ attemptId, onSubmitted }) => {
   const [bundle, setBundle] = useState<QuizBundle | null>(null);
   const [attemptState, setAttemptState] = useState<AttemptStateResponse | null>(null);
-  const [currentIndex, setCurrentIndex] = useState(0); // 0..9 for MCQs, 10 for Feedback
+  const [currentIndex, setCurrentIndex] = useState(0); // 0..N-1 for Questions, N for Feedback
   const [answers, setAnswers] = useState<Record<string, number>>({});
+  const [writtenAnswers, setWrittenAnswers] = useState<Record<string, string>>({});
   const [feedback, setFeedback] = useState('');
   const [syncStatus, setSyncStatus] = useState<SyncStatus>('synced');
   const [showReviewModal, setShowReviewModal] = useState(false);
@@ -54,10 +55,17 @@ export const QuizTakingView: React.FC<QuizTakingViewProps> = ({ attemptId, onSub
 
         // Pre-populate saved answers
         const initialAnswers: Record<string, number> = {};
+        const initialWritten: Record<string, string> = {};
         for (const [qid, ans] of Object.entries(stateData.answers || {})) {
-          initialAnswers[qid] = ans.selected_option_id;
+          if (ans.selected_option_id && ans.selected_option_id > 0) {
+            initialAnswers[qid] = ans.selected_option_id;
+          }
+          if (ans.text_answer) {
+            initialWritten[qid] = ans.text_answer;
+          }
         }
         setAnswers(initialAnswers);
+        setWrittenAnswers(initialWritten);
 
         // Pre-populate feedback if saved previously
         if (stateData.feedback) {
@@ -122,42 +130,54 @@ export const QuizTakingView: React.FC<QuizTakingViewProps> = ({ attemptId, onSub
     return result.length > 0 ? result : bundle.questions;
   }, [bundle, attemptState]);
 
-  const totalMCQs = orderedQuestions.length;
-  // Feedback is the final item: index === totalMCQs
-  const totalItems = totalMCQs + 1; // e.g. 10 MCQs + 1 Feedback = 11 items
-  const isFeedbackActive = currentIndex === totalMCQs;
+  const totalQuestions = orderedQuestions.length;
+  // Feedback is the final item: index === totalQuestions
+  const totalItems = totalQuestions + 1;
+  const isFeedbackActive = currentIndex === totalQuestions;
   const currentQuestion = !isFeedbackActive ? orderedQuestions[currentIndex] : null;
 
-  // Answer status calculation
-  const mcqAnsweredCount = useMemo(() => {
+  // Answer status calculation (handles both MCQ and Written questions)
+  const questionAnsweredCount = useMemo(() => {
     let count = 0;
     for (const q of orderedQuestions) {
-      if (answers[q.id.toString()] !== undefined) {
-        count++;
+      if (q.type === 'written') {
+        if ((writtenAnswers[q.id.toString()] || '').trim().length > 0) {
+          count++;
+        }
+      } else {
+        if (answers[q.id.toString()] !== undefined) {
+          count++;
+        }
       }
     }
     return count;
-  }, [orderedQuestions, answers]);
+  }, [orderedQuestions, answers, writtenAnswers]);
 
   const isFeedbackAnswered = feedback.trim().length > 0;
-  const totalAnswered = mcqAnsweredCount + (isFeedbackAnswered ? 1 : 0);
+  const totalAnswered = questionAnsweredCount + (isFeedbackAnswered ? 1 : 0);
   const remainingCount = totalItems - totalAnswered;
 
   // Compute list of missing items for incomplete warning
   const missingItems = useMemo(() => {
     const list: string[] = [];
     orderedQuestions.forEach((q, idx) => {
-      if (answers[q.id.toString()] === undefined) {
-        list.push(`Question ${idx + 1}`);
+      if (q.type === 'written') {
+        if ((writtenAnswers[q.id.toString()] || '').trim().length === 0) {
+          list.push(`Question ${idx + 1} (Written)`);
+        }
+      } else {
+        if (answers[q.id.toString()] === undefined) {
+          list.push(`Question ${idx + 1}`);
+        }
       }
     });
     if (!isFeedbackAnswered) {
       list.push('Feedback Question');
     }
     return list;
-  }, [orderedQuestions, answers, isFeedbackAnswered]);
+  }, [orderedQuestions, answers, writtenAnswers, isFeedbackAnswered]);
 
-  // 3. Option Selection
+  // 3. Option Selection (for MCQ)
   const handleSelectOption = useCallback(
     async (optionId: number) => {
       if (!currentQuestion || submitting) return;
@@ -168,6 +188,20 @@ export const QuizTakingView: React.FC<QuizTakingViewProps> = ({ attemptId, onSub
 
       // Queue answer in sync manager
       await syncManager.queueAnswer(qid, optionId);
+    },
+    [currentQuestion, submitting]
+  );
+
+  // 3b. Written Answer Typing
+  const handleWrittenAnswerChange = useCallback(
+    async (text: string) => {
+      if (!currentQuestion || submitting) return;
+
+      const qid = currentQuestion.id;
+      setWrittenAnswers((prev) => ({ ...prev, [qid.toString()]: text }));
+
+      // Queue written response in sync manager
+      await syncManager.queueWrittenAnswer(qid, text);
     },
     [currentQuestion, submitting]
   );
@@ -324,23 +358,47 @@ export const QuizTakingView: React.FC<QuizTakingViewProps> = ({ attemptId, onSub
               }}>
                 {isFeedbackActive
                   ? `Item ${totalItems} of ${totalItems} • Assessment Feedback`
-                  : `Question ${currentIndex + 1} of ${totalMCQs}`}
+                  : `Question ${currentIndex + 1} of ${totalQuestions}${currentQuestion?.type === 'written' ? ' • Written Response' : ''}`}
               </span>
 
               <span style={{
                 fontSize: '0.75rem',
                 fontWeight: 700,
-                color: (isFeedbackActive ? isFeedbackAnswered : selectedOptionId !== undefined) ? '#34d399' : 'rgba(255, 255, 255, 0.5)',
-                background: (isFeedbackActive ? isFeedbackAnswered : selectedOptionId !== undefined) ? 'rgba(16, 185, 129, 0.2)' : 'rgba(255, 255, 255, 0.08)',
-                border: (isFeedbackActive ? isFeedbackAnswered : selectedOptionId !== undefined) ? '1px solid rgba(16, 185, 129, 0.4)' : '1px solid rgba(255, 255, 255, 0.1)',
+                color: (
+                  isFeedbackActive
+                    ? isFeedbackAnswered
+                    : currentQuestion?.type === 'written'
+                    ? (writtenAnswers[currentQuestion.id.toString()] || '').trim().length > 0
+                    : selectedOptionId !== undefined
+                ) ? '#34d399' : 'rgba(255, 255, 255, 0.5)',
+                background: (
+                  isFeedbackActive
+                    ? isFeedbackAnswered
+                    : currentQuestion?.type === 'written'
+                    ? (writtenAnswers[currentQuestion.id.toString()] || '').trim().length > 0
+                    : selectedOptionId !== undefined
+                ) ? 'rgba(16, 185, 129, 0.2)' : 'rgba(255, 255, 255, 0.08)',
+                border: (
+                  isFeedbackActive
+                    ? isFeedbackAnswered
+                    : currentQuestion?.type === 'written'
+                    ? (writtenAnswers[currentQuestion.id.toString()] || '').trim().length > 0
+                    : selectedOptionId !== undefined
+                ) ? '1px solid rgba(16, 185, 129, 0.4)' : '1px solid rgba(255, 255, 255, 0.1)',
                 padding: '0.25rem 0.75rem',
                 borderRadius: '12px',
               }}>
-                {(isFeedbackActive ? isFeedbackAnswered : selectedOptionId !== undefined) ? '✓ Completed' : 'Pending'}
+                {(
+                  isFeedbackActive
+                    ? isFeedbackAnswered
+                    : currentQuestion?.type === 'written'
+                    ? (writtenAnswers[currentQuestion.id.toString()] || '').trim().length > 0
+                    : selectedOptionId !== undefined
+                ) ? '✓ Completed' : 'Pending'}
               </span>
             </div>
 
-            {/* Content: MCQ Question OR Feedback Form */}
+            {/* Content: MCQ Question, Written Question, OR Feedback Form */}
             {!isFeedbackActive && currentQuestion ? (
               <div>
                 {/* Question Prompt */}
@@ -377,61 +435,101 @@ export const QuizTakingView: React.FC<QuizTakingViewProps> = ({ attemptId, onSub
                   </div>
                 )}
 
-                {/* Multiple-Choice Options */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
-                  {currentQuestion.options.map((option, optIdx) => {
-                    const isSelected = selectedOptionId === option.id;
-                    const letterLabel = String.fromCharCode(65 + optIdx);
+                {/* Question Type: Written Response OR Multiple-Choice */}
+                {currentQuestion.type === 'written' ? (
+                  <div style={{ marginBottom: '1.5rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem', color: 'var(--peak-gold-main)', fontSize: '0.875rem', fontWeight: 600 }}>
+                      <span>✍️</span> Type your written answer below:
+                    </div>
+                    <textarea
+                      rows={6}
+                      value={writtenAnswers[currentQuestion.id.toString()] || ''}
+                      onChange={(e) => handleWrittenAnswerChange(e.target.value)}
+                      disabled={submitting}
+                      placeholder="Type your detailed response here..."
+                      style={{
+                        width: '100%',
+                        padding: '1rem 1.25rem',
+                        borderRadius: '12px',
+                        border: (writtenAnswers[currentQuestion.id.toString()] || '').trim().length > 0
+                          ? '1.5px solid var(--peak-gold-main)'
+                          : '1.5px solid rgba(255, 255, 255, 0.2)',
+                        background: 'rgba(0, 0, 0, 0.45)',
+                        color: '#ffffff',
+                        fontFamily: 'inherit',
+                        fontSize: '1rem',
+                        lineHeight: 1.5,
+                        resize: 'vertical',
+                        boxSizing: 'border-box',
+                        outline: 'none',
+                      }}
+                    />
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '0.5rem', fontSize: '0.8125rem', color: 'rgba(255, 255, 255, 0.6)' }}>
+                      <span>
+                        {(writtenAnswers[currentQuestion.id.toString()] || '').trim().length > 0
+                          ? '✓ Response saved (auto-sync)'
+                          : 'Response required'}
+                      </span>
+                      <span>{(writtenAnswers[currentQuestion.id.toString()] || '').length} characters</span>
+                    </div>
+                  </div>
+                ) : (
+                  /* Multiple-Choice Options */
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+                    {currentQuestion.options.map((option, optIdx) => {
+                      const isSelected = selectedOptionId === option.id;
+                      const letterLabel = String.fromCharCode(65 + optIdx);
 
-                    return (
-                      <button
-                        key={option.id}
-                        onClick={() => handleSelectOption(option.id)}
-                        disabled={submitting}
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '1rem',
-                          padding: '1rem 1.25rem',
-                          borderRadius: '12px',
-                          border: isSelected
-                            ? '2px solid var(--peak-gold-main)'
-                            : '1px solid rgba(255, 255, 255, 0.14)',
-                          background: isSelected
-                            ? 'linear-gradient(135deg, rgba(245, 197, 66, 0.18) 0%, rgba(200, 150, 40, 0.12) 100%)'
-                            : 'rgba(255, 255, 255, 0.04)',
-                          color: '#ffffff',
-                          cursor: 'pointer',
-                          textAlign: 'left',
-                          transition: 'all 0.2s ease',
-                          boxShadow: isSelected ? '0 0 14px rgba(245, 197, 66, 0.25)' : 'none',
-                        }}
-                      >
-                        {/* Option Letter Tag */}
-                        <div style={{
-                          width: '32px',
-                          height: '32px',
-                          borderRadius: '8px',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          fontWeight: 800,
-                          fontSize: '0.9375rem',
-                          background: isSelected ? 'var(--peak-gold-main)' : 'rgba(255, 255, 255, 0.1)',
-                          color: isSelected ? '#1c0407' : 'rgba(255, 255, 255, 0.85)',
-                          flexShrink: 0,
-                        }}>
-                          {letterLabel}
-                        </div>
+                      return (
+                        <button
+                          key={option.id}
+                          onClick={() => handleSelectOption(option.id)}
+                          disabled={submitting}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '1rem',
+                            padding: '1rem 1.25rem',
+                            borderRadius: '12px',
+                            border: isSelected
+                              ? '2px solid var(--peak-gold-main)'
+                              : '1px solid rgba(255, 255, 255, 0.14)',
+                            background: isSelected
+                              ? 'linear-gradient(135deg, rgba(245, 197, 66, 0.18) 0%, rgba(200, 150, 40, 0.12) 100%)'
+                              : 'rgba(255, 255, 255, 0.04)',
+                            color: '#ffffff',
+                            cursor: 'pointer',
+                            textAlign: 'left',
+                            transition: 'all 0.2s ease',
+                            boxShadow: isSelected ? '0 0 14px rgba(245, 197, 66, 0.25)' : 'none',
+                          }}
+                        >
+                          {/* Option Letter Tag */}
+                          <div style={{
+                            width: '32px',
+                            height: '32px',
+                            borderRadius: '8px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            fontWeight: 800,
+                            fontSize: '0.9375rem',
+                            background: isSelected ? 'var(--peak-gold-main)' : 'rgba(255, 255, 255, 0.1)',
+                            color: isSelected ? '#1c0407' : 'rgba(255, 255, 255, 0.85)',
+                            flexShrink: 0,
+                          }}>
+                            {letterLabel}
+                          </div>
 
-                        {/* Option Text */}
-                        <div style={{ fontSize: '1rem', lineHeight: 1.45, flex: 1 }}>
-                          {option.text}
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
+                          {/* Option Text */}
+                          <div style={{ fontSize: '1rem', lineHeight: 1.45, flex: 1 }}>
+                            {option.text}
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             ) : (
               /* FEEDBACK QUESTION CANVAS (INTEGRATED UNDER THE TIMER) */
@@ -505,14 +603,14 @@ export const QuizTakingView: React.FC<QuizTakingViewProps> = ({ attemptId, onSub
 
             {/* Next or Review & Submit */}
             <div style={{ display: 'flex', gap: '0.75rem' }}>
-              {currentIndex < totalMCQs ? (
+              {currentIndex < totalQuestions ? (
                 <button
                   onClick={() => setCurrentIndex((prev) => prev + 1)}
                   disabled={submitting}
                   className="peak-submit-btn"
                   style={{ padding: '0.85rem 2rem', fontSize: '1rem' }}
                 >
-                  {currentIndex === totalMCQs - 1 ? 'Go to Feedback →' : 'Next Question →'}
+                  {currentIndex === totalQuestions - 1 ? 'Go to Feedback →' : 'Next Question →'}
                 </button>
               ) : null}
 
@@ -551,10 +649,12 @@ export const QuizTakingView: React.FC<QuizTakingViewProps> = ({ attemptId, onSub
             </div>
           </div>
 
-          {/* Palette Grid (1..10 + Feedback) */}
+          {/* Palette Grid (1..N + Feedback) */}
           <div className="palette-grid">
             {orderedQuestions.map((q, idx) => {
-              const isAnswered = answers[q.id.toString()] !== undefined;
+              const isAnswered = q.type === 'written'
+                ? (writtenAnswers[q.id.toString()] || '').trim().length > 0
+                : answers[q.id.toString()] !== undefined;
               const isActive = currentIndex === idx;
 
               return (
@@ -562,7 +662,7 @@ export const QuizTakingView: React.FC<QuizTakingViewProps> = ({ attemptId, onSub
                   key={q.id}
                   onClick={() => setCurrentIndex(idx)}
                   className={`palette-btn ${isAnswered ? 'is-answered' : ''} ${isActive ? 'is-active' : ''}`}
-                  title={`Question ${idx + 1}: ${isAnswered ? 'Answered' : 'Unanswered'}`}
+                  title={`Question ${idx + 1} (${q.type === 'written' ? 'Written' : 'MCQ'}): ${isAnswered ? 'Answered' : 'Unanswered'}`}
                 >
                   {idx + 1}
                 </button>
@@ -571,11 +671,11 @@ export const QuizTakingView: React.FC<QuizTakingViewProps> = ({ attemptId, onSub
 
             {/* Feedback Navigation Button */}
             <button
-              onClick={() => setCurrentIndex(totalMCQs)}
+              onClick={() => setCurrentIndex(totalQuestions)}
               className={`palette-btn is-feedback ${isFeedbackAnswered ? 'is-answered' : ''} ${isFeedbackActive ? 'is-active' : ''}`}
               title="Assessment Feedback"
             >
-              11 • Feedback
+              {totalQuestions + 1} • Feedback
             </button>
           </div>
 
@@ -632,7 +732,7 @@ export const QuizTakingView: React.FC<QuizTakingViewProps> = ({ attemptId, onSub
             </div>
 
             <p style={{ fontSize: '0.9375rem', color: 'rgba(255, 255, 255, 0.85)', lineHeight: 1.5, marginBottom: '1.25rem' }}>
-              All 10 multiple-choice questions and the feedback response are strictly compulsory before manual submission.
+              All {totalQuestions} questions and the feedback response are strictly compulsory before manual submission.
             </p>
 
             <div style={{
@@ -690,7 +790,7 @@ export const QuizTakingView: React.FC<QuizTakingViewProps> = ({ attemptId, onSub
             </div>
 
             <p style={{ fontSize: '0.9375rem', color: 'rgba(255, 255, 255, 0.85)', lineHeight: 1.5, marginBottom: '1.25rem' }}>
-              You have completed all 10 questions and provided feedback.
+              You have completed all {totalQuestions} questions and provided feedback.
               Once submitted, your answers will be permanently recorded and graded.
             </p>
 
@@ -706,7 +806,7 @@ export const QuizTakingView: React.FC<QuizTakingViewProps> = ({ attemptId, onSub
             }}>
               <span style={{ color: '#34d399', fontSize: '1.25rem' }}>✓</span>
               <div style={{ fontSize: '0.875rem', color: '#ffffff', fontWeight: 600 }}>
-                All 11 items completed and validated.
+                All {totalItems} items completed and validated.
               </div>
             </div>
 

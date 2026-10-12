@@ -81,7 +81,7 @@ class QuizPublisher
 
         // 3. Fetch Questions and Options
         $questionsStmt = $this->db->prepare(
-            'SELECT id, question_text, image_path, display_order FROM questions ' .
+            'SELECT id, question_text, type, image_path, display_order FROM questions ' .
             'WHERE quiz_id = :qid ORDER BY display_order ASC, id ASC'
         );
         $questionsStmt->execute(['qid' => $quizId]);
@@ -98,6 +98,23 @@ class QuizPublisher
 
         foreach ($questions as $q) {
             $qid = (int) $q['id'];
+            $qType = $q['type'] ?? 'mcq';
+
+            if ($qType === 'written') {
+                $bundleQuestions[] = [
+                    'id' => $qid,
+                    'text' => $q['question_text'],
+                    'image_url' => $q['image_path'] ?? null,
+                    'image_path' => $q['image_path'] ?? null,
+                    'display_order' => (int) $q['display_order'],
+                    'type' => 'written',
+                    'options' => [],
+                ];
+                $structure[(string) $qid] = [];
+                // Written questions do not have an option-based answer key
+                continue;
+            }
+
             $optionsStmt->execute(['qid' => $qid]);
             $options = $optionsStmt->fetchAll(PDO::FETCH_ASSOC);
 
@@ -131,6 +148,7 @@ class QuizPublisher
                 'image_url' => $q['image_path'] ?? null,
                 'image_path' => $q['image_path'] ?? null,
                 'display_order' => (int) $q['display_order'],
+                'type' => 'mcq',
                 'options' => $cleanOptions,
             ];
 
@@ -259,9 +277,10 @@ class QuizPublisher
         $targetGroups = array_values(array_filter(array_map('intval', (array) ($settings['target_groups'] ?? [])), static fn($gid) => $gid > 0));
         $targetDepts = array_values(array_filter(array_map('trim', (array) ($settings['target_departments'] ?? [])), static fn($d) => $d !== ''));
         $targetZones = array_values(array_filter(array_map('trim', (array) ($settings['target_zones'] ?? [])), static fn($z) => $z !== ''));
+        $targetDesignations = array_values(array_filter(array_map('trim', (array) ($settings['target_designations'] ?? [])), static fn($des) => $des !== ''));
 
         // Determine eligible employees
-        if ($targetAudience === 'all' || (empty($targetGroups) && empty($targetDepts) && empty($targetZones))) {
+        if ($targetAudience === 'all' || (empty($targetGroups) && empty($targetDepts) && empty($targetZones) && empty($targetDesignations))) {
             $empStmt = $this->db->query("SELECT id FROM employees WHERE status = 'active' ORDER BY id ASC");
             $eligibleEmpIds = $empStmt->fetchAll(PDO::FETCH_COLUMN);
         } else {
@@ -278,6 +297,12 @@ class QuizPublisher
                 $zonePlaceholders = implode(',', array_fill(0, count($targetZones), '?'));
                 $where[] = "e.zone_region IN ({$zonePlaceholders})";
                 $params = array_merge($params, $targetZones);
+            }
+
+            if (!empty($targetDesignations)) {
+                $desigPlaceholders = implode(',', array_fill(0, count($targetDesignations), '?'));
+                $where[] = "e.designation IN ({$desigPlaceholders})";
+                $params = array_merge($params, $targetDesignations);
             }
 
             $joinGroup = '';

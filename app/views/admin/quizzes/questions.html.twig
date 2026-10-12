@@ -5,7 +5,12 @@
 {% block content %}
 <div style="margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center;">
     <a href="/admin/quizzes" style="font-size: 0.875rem; color: #2563eb; text-decoration: none;">&larr; Back to Quizzes</a>
-    <div style="display: flex; gap: 8px; align-items: center;">
+    <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+        {% if quiz.status == 'draft' %}
+            <a href="#bulk-import-card" class="btn btn-secondary" style="padding: 6px 14px; font-size: 0.85rem; background: #f0fdf4; color: #16a34a; border: 1px solid #bbf7d0; text-decoration: none; display: inline-flex; align-items: center; gap: 4px;">
+                📥 Bulk Question Upload
+            </a>
+        {% endif %}
         <button type="button" class="btn btn-secondary" style="padding: 6px 14px; font-size: 0.85rem; background: #eff6ff; color: #2563eb; border: 1px solid #bfdbfe;" onclick="openShareModal('{{ quiz.code }}', '{{ quiz.title|e('js') }}')">🔗 Share Quiz Link</button>
         {% if quiz.status == 'draft' and questions|length > 0 %}
             <form action="/admin/quizzes/{{ quiz.id }}/publish" method="POST" style="display: inline;" onsubmit="return confirm('Ready to publish this quiz? This will freeze questions, create the immutable snapshot, and materialize the employee roster.');">
@@ -44,7 +49,7 @@
             </p            <p style="font-size: 0.85rem; color: #475569; margin: 0;">
                 Target Audience: 
                 <strong>
-                    {% if (quiz.settings.target_audience|default('all') == 'all') or (quiz.settings.target_groups|default([]) is empty and quiz.settings.target_departments|default([]) is empty and quiz.settings.target_zones|default([]) is empty) %}
+                    {% if (quiz.settings.target_audience|default('all') == 'all') or (quiz.settings.target_groups|default([]) is empty and quiz.settings.target_departments|default([]) is empty and quiz.settings.target_zones|default([]) is empty and quiz.settings.target_designations|default([]) is empty) %}
                         All Active Employees
                     {% else %}
                         {% set audienceParts = [] %}
@@ -53,6 +58,9 @@
                         {% endif %}
                         {% if quiz.settings.target_zones|default([]) is not empty %}
                             {% set audienceParts = audienceParts|merge(['Zones: ' ~ quiz.settings.target_zones|join(', ')]) %}
+                        {% endif %}
+                        {% if quiz.settings.target_designations|default([]) is not empty %}
+                            {% set audienceParts = audienceParts|merge(['Desigs: ' ~ quiz.settings.target_designations|join(', ')]) %}
                         {% endif %}
                         {% if quiz.settings.target_groups|default([]) is not empty %}
                             {% set groupNames = [] %}
@@ -76,10 +84,11 @@
 <!-- Target Audience Configuration Card (Only when draft) -->
 {% if quiz.status == 'draft' %}
 {% set is_custom = false %}
-{% if (quiz.settings.target_audience|default('') in ['custom', 'groups', 'departments', 'zones']) or
+{% if (quiz.settings.target_audience|default('') in ['custom', 'groups', 'departments', 'zones', 'designations']) or
       quiz.settings.target_groups|default([]) is not empty or
       quiz.settings.target_departments|default([]) is not empty or
-      quiz.settings.target_zones|default([]) is not empty %}
+      quiz.settings.target_zones|default([]) is not empty or
+      quiz.settings.target_designations|default([]) is not empty %}
     {% set is_custom = true %}
 {% endif %}
 <div class="card" style="margin-bottom: 24px; border-left: 4px solid #2563eb;">
@@ -168,7 +177,30 @@
                     {% endif %}
                 </div>
 
-                <!-- 3. Groups -->
+                <!-- 3. Designations -->
+                <div style="margin-bottom: 16px; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 6px; padding: 12px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                        <span style="font-weight: 600; font-size: 0.875rem; color: #1e293b;">💼 Designations ({{ designations|default([])|length }}):</span>
+                        <div style="font-size: 0.775rem;">
+                            <a href="javascript:void(0)" onclick="setEditCheckboxes('target_designations[]', true)" style="color: #2563eb; text-decoration: none; margin-right: 8px;">Select All</a>
+                            <a href="javascript:void(0)" onclick="setEditCheckboxes('target_designations[]', false)" style="color: #64748b; text-decoration: none;">Clear</a>
+                        </div>
+                    </div>
+                    {% if designations|default([]) is not empty %}
+                    <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 6px;">
+                        {% for desig in designations %}
+                            <label style="display: flex; align-items: center; gap: 6px; font-size: 0.825rem; cursor: pointer; padding: 4px 6px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 4px;">
+                                <input type="checkbox" name="target_designations[]" value="{{ desig }}" {% if desig in quiz.settings.target_designations|default([]) %}checked{% endif %}>
+                                <span>{{ desig }}</span>
+                            </label>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <p style="font-size: 0.8rem; color: #94a3b8; margin: 0;">No designations found on active employees.</p>
+                    {% endif %}
+                </div>
+
+                <!-- 4. Groups -->
                 <div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 6px; padding: 12px;">
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
                         <span style="font-weight: 600; font-size: 0.875rem; color: #1e293b;">👥 Employee Groups ({{ groups|default([])|length }}):</span>
@@ -212,14 +244,54 @@ function setEditCheckboxes(name, checked) {
     </div>
 {% endif %}
 
+<!-- Bulk Question Upload Card (Only when draft) -->
+{% if quiz.status == 'draft' %}
+<div id="bulk-import-card" class="card" style="margin-bottom: 26px; border-left: 4px solid #16a34a; background: #fafdfa;">
+    <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 16px; margin-bottom: 14px;">
+        <div>
+            <div style="display: flex; align-items: center; gap: 8px;">
+                <h3 style="font-size: 1.15rem; font-weight: 700; margin: 0; color: #166534;">
+                    📥 Bulk Question Upload (Excel / CSV)
+                </h3>
+                <span class="badge" style="background: #dcfce7; color: #15803d; font-size: 0.75rem; font-weight: 700;">Supports 40+ Questions</span>
+            </div>
+            <p style="font-size: 0.85rem; color: #475569; margin: 4px 0 0 0;">
+                Quickly populate your entire assessment in one upload. Supports both <strong>Multiple Choice Questions (MCQ)</strong> and <strong>Written-Answer Questions</strong>.
+            </p>
+        </div>
+        <a href="/admin/quizzes/questions/sample-template" class="btn btn-secondary" style="font-size: 0.85rem; padding: 7px 14px; background: #ffffff; color: #166534; border: 1px solid #86efac; text-decoration: none; display: inline-flex; align-items: center; gap: 6px;">
+            <span>📄</span> Download Excel/CSV Sample Template
+        </a>
+    </div>
+
+    <form action="/admin/quizzes/{{ quiz.id }}/questions/import" method="POST" enctype="multipart/form-data" style="display: flex; gap: 14px; align-items: center; flex-wrap: wrap; background: #ffffff; padding: 16px; border-radius: 8px; border: 1px solid #dcfce7;">
+        <div style="flex: 1; min-width: 260px;">
+            <label style="display: block; font-size: 0.8rem; font-weight: 600; color: #334155; margin-bottom: 4px;">
+                Select Excel (.xlsx) or CSV (.csv) file with questions:
+            </label>
+            <input type="file" name="questions_file" accept=".csv,.xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv" required class="form-control" style="font-size: 0.85rem; padding: 6px 12px;">
+        </div>
+        <div style="padding-top: 18px;">
+            <button type="submit" class="btn btn-primary" style="background: #16a34a; border-color: #15803d; font-weight: 600; padding: 8px 20px; font-size: 0.9rem;">
+                Upload & Import Questions
+            </button>
+        </div>
+    </form>
+
+    <div style="margin-top: 12px; font-size: 0.8rem; color: #64748b; line-height: 1.45;">
+        <strong>Excel Format Guidelines:</strong> Required columns: <code>Question Text</code>, <code>Question Type</code> (<code>mcq</code> or <code>written</code>), <code>Option A</code>, <code>Option B</code>, <code>Option C</code>, <code>Option D</code>, <code>Correct Option</code> (<code>A</code>, <code>B</code>, <code>C</code>, or <code>D</code> for MCQs; leave blank for written questions).
+    </div>
+</div>
+{% endif %}
+
 <!-- Add Questions Form (Only when draft) -->
 {% if quiz.status == 'draft' %}
 <div class="card" style="margin-bottom: 30px;">
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; border-bottom: 1px solid var(--border-color); padding-bottom: 12px;">
         <h3 style="font-size: 1.15rem; font-weight: 600; margin: 0;">
-            Add Questions to Quiz
+            Add Questions Manually
         </h3>
-        <span style="font-size: 0.825rem; color: #64748b;">Fill in questions below, add more if needed, and save all at once.</span>
+        <span style="font-size: 0.825rem; color: #64748b;">Fill in questions below, choose question type (MCQ or Written), and save all at once.</span>
     </div>
 
     <form id="multi-question-form" action="/admin/quizzes/{{ quiz.id }}/questions" method="POST" enctype="multipart/form-data">
@@ -230,6 +302,16 @@ function setEditCheckboxes(name, checked) {
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
                     <span class="question-num-badge" style="font-weight: 700; font-size: 0.95rem; color: #2563eb;">Question #1</span>
                     <button type="button" class="btn-remove-q btn" style="display: none; background: #fee2e2; color: #dc2626; border: none; padding: 3px 10px; font-size: 0.775rem; border-radius: 4px; cursor: pointer;" onclick="removeQuestionBlock(this)">✕ Remove</button>
+                </div>
+
+                <div style="display: flex; gap: 16px; margin-bottom: 16px; flex-wrap: wrap;">
+                    <div style="flex: 1; min-width: 220px;">
+                        <label class="form-label" style="font-weight: 500;">Question Type *</label>
+                        <select name="questions[0][type]" class="form-control q-type-select" style="max-width: 320px;" onchange="handleTypeChange(this, 0)">
+                            <option value="mcq">Multiple Choice Question (MCQ)</option>
+                            <option value="written">Written-Answer Question (Text Response)</option>
+                        </select>
+                    </div>
                 </div>
 
                 <div class="form-group" style="margin-bottom: 16px;">
@@ -252,8 +334,8 @@ function setEditCheckboxes(name, checked) {
                     </div>
                 </div>
 
-                <!-- Options -->
-                <div>
+                <!-- Options (Only for MCQ) -->
+                <div id="options-wrapper-0" class="q-options-wrapper">
                     <label class="form-label" style="margin-bottom: 10px; font-weight: 500;">
                         Answer Options <small style="color: #64748b; font-weight: normal;">(select the radio button next to the correct answer) *</small>
                     </label>
@@ -267,7 +349,7 @@ function setEditCheckboxes(name, checked) {
                                     <span style="font-size: 0.75rem; color: #16a34a;">(Correct)</span>
                                 </label>
                             </div>
-                            <input type="text" name="questions[0][options][]" class="form-control" placeholder="Option {{ loop.index }} text..." {% if optIdx < 2 %}required{% endif %} style="flex: 1;">
+                            <input type="text" name="questions[0][options][]" class="form-control q-opt-input" placeholder="Option {{ loop.index }} text..." {% if optIdx < 2 %}required{% endif %} style="flex: 1;">
                         </div>
                         {% endfor %}
                     </div>
@@ -303,8 +385,13 @@ function setEditCheckboxes(name, checked) {
             <div style="padding: 18px 20px; border-bottom: 1px solid var(--border-color); {% if loop.last %}border-bottom: none;{% endif %}">
                 <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; margin-bottom: 12px;">
                     <div>
-                        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
+                        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px; flex-wrap: wrap;">
                             <span style="font-weight: 700; color: #2563eb;">Q{{ loop.index }}.</span>
+                            {% if q.type == 'written' %}
+                                <span class="badge" style="background: #e0e7ff; color: #3730a3; font-size: 0.75rem; font-weight: 700;">Written Answer</span>
+                            {% else %}
+                                <span class="badge" style="background: #f1f5f9; color: #475569; font-size: 0.75rem; font-weight: 700;">MCQ</span>
+                            {% endif %}
                             <span style="font-weight: 600; font-size: 0.95rem; color: #1e293b;">{{ q.question_text }}</span>
                         </div>
                         {% if q.image_path %}
@@ -317,7 +404,7 @@ function setEditCheckboxes(name, checked) {
                     </div>
                     {% if quiz.status == 'draft' %}
                     <div style="display: flex; gap: 6px; align-items: center;">
-                        <button type="button" class="btn btn-secondary" style="padding: 4px 10px; font-size: 0.775rem;" onclick="openEditModal({{ q.id }}, {{ q.question_text|json_encode }}, {{ q.image_path|json_encode }}, {{ q.options|json_encode }})">Edit</button>
+                        <button type="button" class="btn btn-secondary" style="padding: 4px 10px; font-size: 0.775rem;" onclick="openEditModal({{ q.id }}, {{ q.question_text|json_encode }}, {{ q.image_path|json_encode }}, {{ q.options|json_encode }}, '{{ q.type|default('mcq') }}')">Edit</button>
                         <form action="/admin/quizzes/{{ quiz.id }}/questions/{{ q.id }}/delete" method="POST" onsubmit="return confirm('Are you sure you want to delete Question {{ loop.index }}?');">
                             <button type="submit" class="btn" style="background: #fee2e2; color: #dc2626; border: none; padding: 4px 10px; font-size: 0.775rem; border-radius: 4px; cursor: pointer;">Delete</button>
                         </form>
@@ -325,6 +412,11 @@ function setEditCheckboxes(name, checked) {
                     {% endif %}
                 </div>
 
+                {% if q.type == 'written' %}
+                <div style="margin-left: 24px; padding: 12px 16px; background: #f8fafc; border: 1px dashed #cbd5e1; border-radius: 6px; font-size: 0.85rem; color: #475569; display: flex; align-items: center; gap: 8px;">
+                    <span>✍️</span> <strong>Written-Answer Question:</strong> Candidates type responses directly in the quiz session within the active timer.
+                </div>
+                {% else %}
                 <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 8px; margin-left: 24px;">
                     {% for opt in q.options %}
                     <div style="display: flex; align-items: center; gap: 8px; padding: 6px 12px; border-radius: 6px; font-size: 0.875rem; border: 1px solid {% if opt.is_correct %}#86efac{% else %}#e2e8f0{% endif %}; background: {% if opt.is_correct %}#f0fdf4{% else %}#f8fafc{% endif %};">
@@ -339,6 +431,7 @@ function setEditCheckboxes(name, checked) {
                     </div>
                     {% endfor %}
                 </div>
+                {% endif %}
             </div>
             {% endfor %}
         </div>
@@ -407,6 +500,28 @@ function removeQuestionBlock(btn) {
     }
 }
 
+function handleTypeChange(select, index) {
+    const wrapper = document.getElementById(`options-wrapper-${index}`);
+    if (!wrapper) return;
+    const isWritten = select.value === 'written';
+    wrapper.style.display = isWritten ? 'none' : 'block';
+    const optInputs = wrapper.querySelectorAll('.q-opt-input');
+    optInputs.forEach((inp, idx) => {
+        inp.required = !isWritten && idx < 2;
+    });
+}
+
+function toggleEditModalType(type) {
+    const wrapper = document.getElementById('edit-options-wrapper');
+    if (!wrapper) return;
+    const isWritten = type === 'written';
+    wrapper.style.display = isWritten ? 'none' : 'block';
+    const optInputs = wrapper.querySelectorAll('input[name="options[]"]');
+    optInputs.forEach((inp, idx) => {
+        inp.required = !isWritten && idx < 2;
+    });
+}
+
 document.getElementById('btn-add-another')?.addEventListener('click', function() {
     const container = document.getElementById('questions-container');
     const newIndex = questionCount++;
@@ -416,6 +531,16 @@ document.getElementById('btn-add-another')?.addEventListener('click', function()
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
                 <span class="question-num-badge" style="font-weight: 700; font-size: 0.95rem; color: #2563eb;">Question #${newIndex + 1}</span>
                 <button type="button" class="btn-remove-q btn" style="background: #fee2e2; color: #dc2626; border: none; padding: 3px 10px; font-size: 0.775rem; border-radius: 4px; cursor: pointer;" onclick="removeQuestionBlock(this)">✕ Remove</button>
+            </div>
+
+            <div style="display: flex; gap: 16px; margin-bottom: 16px; flex-wrap: wrap;">
+                <div style="flex: 1; min-width: 220px;">
+                    <label class="form-label" style="font-weight: 500;">Question Type *</label>
+                    <select name="questions[${newIndex}][type]" class="form-control q-type-select" style="max-width: 320px;" onchange="handleTypeChange(this, ${newIndex})">
+                        <option value="mcq">Multiple Choice Question (MCQ)</option>
+                        <option value="written">Written-Answer Question (Text Response)</option>
+                    </select>
+                </div>
             </div>
 
             <div class="form-group" style="margin-bottom: 16px;">
@@ -437,7 +562,7 @@ document.getElementById('btn-add-another')?.addEventListener('click', function()
                 </div>
             </div>
 
-            <div>
+            <div id="options-wrapper-${newIndex}" class="q-options-wrapper">
                 <label class="form-label" style="margin-bottom: 10px; font-weight: 500;">
                     Answer Options <small style="color: #64748b; font-weight: normal;">(select the radio button next to the correct answer) *</small>
                 </label>
@@ -447,28 +572,28 @@ document.getElementById('btn-add-another')?.addEventListener('click', function()
                             <input type="radio" id="q_${newIndex}_opt_0" name="questions[${newIndex}][correct_option]" value="0" checked>
                             <label for="q_${newIndex}_opt_0" style="font-size: 0.85rem; cursor: pointer; color: #475569; font-weight: 500;">Option A <span style="font-size: 0.75rem; color: #16a34a;">(Correct)</span></label>
                         </div>
-                        <input type="text" name="questions[${newIndex}][options][]" class="form-control" placeholder="Option 1 text..." required style="flex: 1;">
+                        <input type="text" name="questions[${newIndex}][options][]" class="form-control q-opt-input" placeholder="Option 1 text..." required style="flex: 1;">
                     </div>
                     <div style="display: flex; align-items: center; gap: 12px;">
                         <div style="display: flex; align-items: center; gap: 8px; min-width: 140px;">
                             <input type="radio" id="q_${newIndex}_opt_1" name="questions[${newIndex}][correct_option]" value="1">
                             <label for="q_${newIndex}_opt_1" style="font-size: 0.85rem; cursor: pointer; color: #475569; font-weight: 500;">Option B <span style="font-size: 0.75rem; color: #16a34a;">(Correct)</span></label>
                         </div>
-                        <input type="text" name="questions[${newIndex}][options][]" class="form-control" placeholder="Option 2 text..." required style="flex: 1;">
+                        <input type="text" name="questions[${newIndex}][options][]" class="form-control q-opt-input" placeholder="Option 2 text..." required style="flex: 1;">
                     </div>
                     <div style="display: flex; align-items: center; gap: 12px;">
                         <div style="display: flex; align-items: center; gap: 8px; min-width: 140px;">
                             <input type="radio" id="q_${newIndex}_opt_2" name="questions[${newIndex}][correct_option]" value="2">
                             <label for="q_${newIndex}_opt_2" style="font-size: 0.85rem; cursor: pointer; color: #475569; font-weight: 500;">Option C <span style="font-size: 0.75rem; color: #16a34a;">(Correct)</span></label>
                         </div>
-                        <input type="text" name="questions[${newIndex}][options][]" class="form-control" placeholder="Option 3 text..." style="flex: 1;">
+                        <input type="text" name="questions[${newIndex}][options][]" class="form-control q-opt-input" placeholder="Option 3 text..." style="flex: 1;">
                     </div>
                     <div style="display: flex; align-items: center; gap: 12px;">
                         <div style="display: flex; align-items: center; gap: 8px; min-width: 140px;">
                             <input type="radio" id="q_${newIndex}_opt_3" name="questions[${newIndex}][correct_option]" value="3">
                             <label for="q_${newIndex}_opt_3" style="font-size: 0.85rem; cursor: pointer; color: #475569; font-weight: 500;">Option D <span style="font-size: 0.75rem; color: #16a34a;">(Correct)</span></label>
                         </div>
-                        <input type="text" name="questions[${newIndex}][options][]" class="form-control" placeholder="Option 4 text..." style="flex: 1;">
+                        <input type="text" name="questions[${newIndex}][options][]" class="form-control q-opt-input" placeholder="Option 4 text..." style="flex: 1;">
                     </div>
                 </div>
             </div>
@@ -488,12 +613,17 @@ document.getElementById('btn-add-another')?.addEventListener('click', function()
 // Initial update
 updateQuestionBadges();
 
-function openEditModal(questionId, text, imagePath, options) {
+function openEditModal(questionId, text, imagePath, options, type = 'mcq') {
     const modal = document.getElementById('edit-question-modal');
     const form = document.getElementById('edit-question-form');
     form.action = `/admin/quizzes/{{ quiz.id }}/questions/${questionId}/edit`;
 
     document.getElementById('edit-q-text').value = text;
+    const typeSelect = document.getElementById('edit-q-type');
+    if (typeSelect) {
+        typeSelect.value = type || 'mcq';
+        toggleEditModalType(type || 'mcq');
+    }
 
     const imgContainer = document.getElementById('edit-current-img-container');
     const currentImg = document.getElementById('edit-current-img');
@@ -512,7 +642,8 @@ function openEditModal(questionId, text, imagePath, options) {
     optionsContainer.innerHTML = '';
 
     const optionLabels = ['Option A', 'Option B', 'Option C', 'Option D', 'Option E'];
-    options.forEach((opt, idx) => {
+    const safeOptions = Array.isArray(options) ? options : [];
+    safeOptions.forEach((opt, idx) => {
         const isChecked = opt.is_correct == 1 ? 'checked' : '';
         const optLabel = optionLabels[idx] || `Option ${idx + 1}`;
         const row = document.createElement('div');
@@ -551,6 +682,14 @@ function escapeHtml(str) {
         </div>
         <form id="edit-question-form" action="" method="POST" enctype="multipart/form-data" style="padding: 20px; overflow-y: auto; display: flex; flex-direction: column; gap: 16px;">
             <div class="form-group">
+                <label class="form-label" style="font-weight: 500;">Question Type *</label>
+                <select id="edit-q-type" name="question_type" class="form-control" style="max-width: 320px;" onchange="toggleEditModalType(this.value)">
+                    <option value="mcq">Multiple Choice Question (MCQ)</option>
+                    <option value="written">Written-Answer Question (Text Response)</option>
+                </select>
+            </div>
+
+            <div class="form-group">
                 <label class="form-label" style="font-weight: 500;">Question Prompt *</label>
                 <textarea id="edit-q-text" name="question_text" rows="3" required class="form-control" placeholder="Type question prompt..."></textarea>
             </div>
@@ -567,7 +706,7 @@ function escapeHtml(str) {
                 <small style="color: #64748b;">Upload a new image to replace the current image (JPG, PNG, WEBP, GIF)</small>
             </div>
 
-            <div>
+            <div id="edit-options-wrapper">
                 <label class="form-label" style="font-weight: 500; margin-bottom: 8px;">
                     Answer Options * <small style="color: #64748b; font-weight: normal;">(Select radio button for the correct option)</small>
                 </label>

@@ -60,26 +60,47 @@
         <table>
             <thead>
                 <tr>
-                    <th>Question ID</th>
-                    <th>Selected Option ID</th>
-                    <th>Result</th>
-                    <th>Sequence #</th>
-                    <th>Answered At ({{ company_tz }})</th>
+                    <th style="width: 35%;">Question</th>
+                    <th style="width: 12%;">Type</th>
+                    <th style="width: 30%;">Candidate Response</th>
+                    <th style="width: 10%;">Result</th>
+                    <th style="width: 13%;">Answered At ({{ company_tz }})</th>
                 </tr>
             </thead>
             <tbody>
                 {% for ans in attempt.answers %}
                 <tr>
-                    <td><code>#{{ ans.question_id }}</code></td>
                     <td>
-                        {% if ans.selected_option_id %}
-                            <code>#{{ ans.selected_option_id }}</code>
+                        <div style="font-weight: 500; color: #1e293b; margin-bottom: 2px;">{{ ans.question_text }}</div>
+                        <small style="color: #64748b;">Question ID: #{{ ans.question_id }}</small>
+                    </td>
+                    <td>
+                        {% if ans.question_type == 'written' %}
+                            <span class="badge" style="background: #e0e7ff; color: #3730a3; font-weight: 600;">Written</span>
                         {% else %}
-                            <span style="color: #94a3b8;">Unanswered</span>
+                            <span class="badge" style="background: #f1f5f9; color: #475569; font-weight: 600;">MCQ</span>
                         {% endif %}
                     </td>
                     <td>
-                        {% if ans.is_correct is not null %}
+                        {% if ans.question_type == 'written' %}
+                            {% if ans.text_answer %}
+                                <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 8px 12px; font-size: 0.875rem; white-space: pre-wrap; color: #0f172a;">{{ ans.text_answer }}</div>
+                            {% else %}
+                                <span style="color: #94a3b8; font-style: italic;">No response submitted</span>
+                            {% endif %}
+                        {% else %}
+                            {% if ans.selected_option_id %}
+                                <div style="font-weight: 500; color: #1e293b;">{{ ans.selected_option_text|default('Option #' ~ ans.selected_option_id) }}</div>
+                                <small style="color: #64748b;">Option ID: #{{ ans.selected_option_id }}</small>
+                            {% else %}
+                                <span style="color: #94a3b8;">Unanswered</span>
+                            {% endif %}
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if ans.question_type == 'written' %}
+                            <span class="badge badge-info" style="background: #f0fdf4; color: #15803d; border: 1px solid #bbf7d0;">Submitted</span>
+                        {% elseif ans.is_correct is not null %}
                             {% if ans.is_correct == 1 %}
                                 <span class="badge badge-success">Correct</span>
                             {% else %}
@@ -89,7 +110,6 @@
                             <span class="badge badge-warning">Ungraded</span>
                         {% endif %}
                     </td>
-                    <td>{{ ans.seq }}</td>
                     <td>{{ ans.answered_at ? ans.answered_at|company_date('d M Y, h:i:s A') : '—' }}</td>
                 </tr>
                 {% else %}

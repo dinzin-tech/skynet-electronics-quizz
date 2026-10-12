@@ -77,7 +77,7 @@ class SyncManager {
     const seq = this.currentSeq;
 
     // 1. Immediately write to IndexedDB (durable client copy)
-    await offlineDB.saveAnswer(this.attemptId, qid, oid, seq);
+    await offlineDB.saveAnswer(this.attemptId, qid, oid, null, seq);
 
     this.setStatus('saving');
 
@@ -89,6 +89,35 @@ class SyncManager {
     this.debounceTimer = setTimeout(() => {
       this.flush();
     }, 400);
+
+    return seq;
+  }
+
+  /**
+   * Called whenever user types/changes a written response.
+   */
+  public async queueWrittenAnswer(qid: number, text: string): Promise<number> {
+    if (!this.attemptId) {
+      throw new Error('SyncManager not initialized with attemptId');
+    }
+
+    this.currentSeq += 1;
+    const seq = this.currentSeq;
+    const encodedText = encodeURIComponent(text.trim());
+
+    // 1. Immediately write to IndexedDB (durable client copy)
+    await offlineDB.saveAnswer(this.attemptId, qid, 0, encodedText, seq);
+
+    this.setStatus('saving');
+
+    // 2. Debounce HTTP PUT request by 500ms
+    if (this.debounceTimer) {
+      clearTimeout(this.debounceTimer);
+    }
+
+    this.debounceTimer = setTimeout(() => {
+      this.flush();
+    }, 500);
 
     return seq;
   }

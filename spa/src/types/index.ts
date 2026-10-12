@@ -59,6 +59,7 @@ export interface Question {
   image_url?: string | null;
   image_path?: string | null;
   display_order: number;
+  type?: 'mcq' | 'written';
   options: AnswerOption[];
 }
 
@@ -94,7 +95,7 @@ export interface StartAttemptResponse {
   portal_closing_ms?: number;
   layout: AttemptLayout;
   bundle_url: string;
-  answers: Record<string, { selected_option_id: number; seq: number }>;
+  answers: Record<string, { selected_option_id: number; text_answer?: string | null; seq: number }>;
   server_now_ms: number;
 }
 
@@ -107,7 +108,7 @@ export interface AttemptStateResponse {
   submitted_ms: number;
   max_seq: number;
   layout: AttemptLayout | null;
-  answers: Record<string, { selected_option_id: number; seq: number }>;
+  answers: Record<string, { selected_option_id: number; text_answer?: string | null; seq: number }>;
   feedback?: string | null;
   server_now_ms: number;
   result?: {
@@ -121,7 +122,8 @@ export interface AttemptStateResponse {
 
 export interface SaveItem {
   q: number;
-  o: number;
+  o?: number | null;
+  t?: string | null;
   seq: number;
   ts?: number;
 }

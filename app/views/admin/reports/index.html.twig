@@ -14,7 +14,7 @@
     <div class="alert alert-success">{{ success }}</div>
 {% endif %}
 
-<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 32px;">
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 24px; margin-bottom: 32px;">
     <div class="card">
         <h3 style="font-size: 1.05rem; font-weight: 600; margin-bottom: 8px;">Submissions Report</h3>
         <p style="font-size: 0.85rem; color: #64748b; margin-bottom: 20px;">
@@ -53,6 +53,26 @@
                 </select>
             </div>
             <button type="submit" class="btn btn-primary">Generate Results CSV</button>
+        </form>
+    </div>
+
+    <div class="card">
+        <h3 style="font-size: 1.05rem; font-weight: 600; margin-bottom: 8px;">Question-Wise Summary Report</h3>
+        <p style="font-size: 0.85rem; color: #64748b; margin-bottom: 20px;">
+            Aggregated question performance: Correct, Incorrect, and Unanswered counts &amp; percentages per question.
+        </p>
+
+        <form action="/admin/reports/export" method="POST">
+            <input type="hidden" name="report_type" value="question_summary">
+            <div class="form-group">
+                <label class="form-label" for="qsum_quiz_id">Target Quiz</label>
+                <select id="qsum_quiz_id" name="quiz_id" class="form-control">
+                    {% for q in quizzes %}
+                        <option value="{{ q.id }}">[{{ q.code }}] {{ q.title }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <button type="submit" class="btn btn-primary">Generate Question Summary CSV</button>
         </form>
     </div>
 </div>
