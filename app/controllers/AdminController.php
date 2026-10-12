@@ -8,6 +8,7 @@ use App\Services\Auth\AuthService;
 use App\Services\DashboardService;
 use App\Services\EmployeeImportService;
 use App\Services\EmployeeService;
+use App\Services\QuestionImportService;
 use App\Services\QuestionService;
 use App\Services\QuizFinalizerService;
 use App\Services\QuizPublisher;
@@ -38,6 +39,7 @@ class AdminController extends Controller
     private EmployeeService $employeeService;
     private EmployeeImportService $importService;
     private QuestionService $questionService;
+    private QuestionImportService $questionImportService;
     private QuizService $quizService;
     private QuizPublisher $quizPublisher;
     private QuizWarmer $quizWarmer;
@@ -55,6 +57,7 @@ class AdminController extends Controller
         $this->employeeService = new EmployeeService($this->db);
         $this->importService = new EmployeeImportService($this->db);
         $this->questionService = new QuestionService($this->db);
+        $this->questionImportService = new QuestionImportService($this->db);
         $this->quizService = new QuizService($this->db);
         $this->quizPublisher = new QuizPublisher($this->db);
         $this->quizWarmer = new QuizWarmer($this->db);
@@ -170,6 +173,7 @@ class AdminController extends Controller
         }
 
         $quizKpis = $selectedQuizId > 0 ? $this->dashboardService->getQuizKpis($selectedQuizId) : null;
+        $questionSummary = $selectedQuizId > 0 ? $this->dashboardService->getQuestionWiseSummary($selectedQuizId) : [];
 
         return $this->render('admin/dashboard.html.twig', [
             'admin' => $this->getAdminUser(),
@@ -178,6 +182,7 @@ class AdminController extends Controller
             'quizzes' => $quizzes,
             'selected_quiz_id' => $selectedQuizId,
             'quiz_kpis' => $quizKpis,
+            'question_summary' => $questionSummary,
         ]);
     }
 
@@ -616,6 +621,21 @@ class AdminController extends Controller
     }
 
     /**
+     * @return array<int, string>
+     */
+    private function getDistinctDesignations(): array
+    {
+        try {
+            $stmt = $this->db->query(
+                "SELECT DISTINCT designation FROM employees WHERE status = 'active' AND designation IS NOT NULL AND designation != '' ORDER BY designation ASC"
+            );
+            return $stmt->fetchAll(PDO::FETCH_COLUMN) ?: [];
+        } catch (\Throwable $e) {
+            return [];
+        }
+    }
+
+    /**
      * @Route(path="/admin/quizzes", methods="GET", name="admin.quizzes")
      */
     public function quizzes(Request $request): Response
@@ -639,8 +659,9 @@ class AdminController extends Controller
             $targetGroups = $settings['target_groups'] ?? [];
             $targetDepts = $settings['target_departments'] ?? [];
             $targetZones = $settings['target_zones'] ?? [];
+            $targetDesignations = $settings['target_designations'] ?? [];
 
-            if ($targetAudience === 'all' || (empty($targetGroups) && empty($targetDepts) && empty($targetZones))) {
+            if ($targetAudience === 'all' || (empty($targetGroups) && empty($targetDepts) && empty($targetZones) && empty($targetDesignations))) {
                 $q['audience_label'] = 'All Active Employees';
             } else {
                 $labels = [];
@@ -649,6 +670,9 @@ class AdminController extends Controller
                 }
                 if (!empty($targetZones)) {
                     $labels[] = 'Zones: ' . (count($targetZones) <= 2 ? implode(', ', $targetZones) : count($targetZones) . ' zones');
+                }
+                if (!empty($targetDesignations)) {
+                    $labels[] = 'Desig: ' . (count($targetDesignations) <= 2 ? implode(', ', $targetDesignations) : count($targetDesignations) . ' desigs');
                 }
                 if (!empty($targetGroups)) {
                     $names = [];
@@ -729,15 +753,18 @@ class AdminController extends Controller
                 $selectedGroups = (array) ($request->input('target_groups') ?? $request->get('target_groups', []));
                 $selectedDepts = (array) ($request->input('target_departments') ?? $request->get('target_departments', []));
                 $selectedZones = (array) ($request->input('target_zones') ?? $request->get('target_zones', []));
+                $selectedDesignations = (array) ($request->input('target_designations') ?? $request->get('target_designations', []));
 
                 $targetGroups = [];
                 $targetDepts = [];
                 $targetZones = [];
+                $targetDesignations = [];
 
                 if ($targetAudience !== 'all') {
                     $targetGroups = array_values(array_filter(array_map('intval', $selectedGroups), fn($g) => $g > 0));
                     $targetDepts = array_values(array_filter(array_map('trim', $selectedDepts), fn($d) => $d !== ''));
                     $targetZones = array_values(array_filter(array_map('trim', $selectedZones), fn($z) => $z !== ''));
+                    $targetDesignations = array_values(array_filter(array_map('trim', $selectedDesignations), fn($des) => $des !== ''));
                 }
 
                 $created = $this->quizService->create([
@@ -759,6 +786,7 @@ class AdminController extends Controller
                         'target_groups' => $targetGroups,
                         'target_departments' => $targetDepts,
                         'target_zones' => $targetZones,
+                        'target_designations' => $targetDesignations,
                     ],
                 ], $adminId);
 
@@ -777,6 +805,7 @@ class AdminController extends Controller
                     'groups' => $groups,
                     'departments' => $this->getDistinctDepartments(),
                     'zones' => $this->getDistinctZones(),
+                    'designations' => $this->getDistinctDesignations(),
                     'error' => $e->getMessage(),
                     'old' => $request->getPostData(),
                 ]);
@@ -790,6 +819,7 @@ class AdminController extends Controller
             'groups' => $groups,
             'departments' => $this->getDistinctDepartments(),
             'zones' => $this->getDistinctZones(),
+            'designations' => $this->getDistinctDesignations(),
             'old' => null,
         ]);
     }
@@ -850,15 +880,18 @@ class AdminController extends Controller
                 $selectedGroups = (array) ($request->input('target_groups') ?? $request->get('target_groups', []));
                 $selectedDepts = (array) ($request->input('target_departments') ?? $request->get('target_departments', []));
                 $selectedZones = (array) ($request->input('target_zones') ?? $request->get('target_zones', []));
+                $selectedDesignations = (array) ($request->input('target_designations') ?? $request->get('target_designations', []));
 
                 $targetGroups = [];
                 $targetDepts = [];
                 $targetZones = [];
+                $targetDesignations = [];
 
                 if ($targetAudience !== 'all') {
                     $targetGroups = array_values(array_filter(array_map('intval', $selectedGroups), fn($g) => $g > 0));
                     $targetDepts = array_values(array_filter(array_map('trim', $selectedDepts), fn($d) => $d !== ''));
                     $targetZones = array_values(array_filter(array_map('trim', $selectedZones), fn($z) => $z !== ''));
+                    $targetDesignations = array_values(array_filter(array_map('trim', $selectedDesignations), fn($des) => $des !== ''));
                 }
 
                 $this->quizService->update($quizId, [
@@ -880,6 +913,7 @@ class AdminController extends Controller
                         'target_groups' => $targetGroups,
                         'target_departments' => $targetDepts,
                         'target_zones' => $targetZones,
+                        'target_designations' => $targetDesignations,
                     ],
                 ], $adminId);
 
@@ -894,6 +928,7 @@ class AdminController extends Controller
                     'groups' => $groups,
                     'departments' => $this->getDistinctDepartments(),
                     'zones' => $this->getDistinctZones(),
+                    'designations' => $this->getDistinctDesignations(),
                     'error' => $e->getMessage(),
                     'old' => $request->getPostData(),
                 ]);
@@ -908,6 +943,7 @@ class AdminController extends Controller
             'groups' => $groups,
             'departments' => $this->getDistinctDepartments(),
             'zones' => $this->getDistinctZones(),
+            'designations' => $this->getDistinctDesignations(),
             'old' => null,
         ]);
     }
@@ -965,17 +1001,24 @@ class AdminController extends Controller
                             continue;
                         }
 
+                        $qType = strtolower(trim((string) ($qData['type'] ?? 'mcq')));
+                        if (!in_array($qType, ['mcq', 'written'], true)) {
+                            $qType = 'mcq';
+                        }
+
                         $correctIndex = (int) ($qData['correct_option'] ?? 0);
                         $rawOptions = (array) ($qData['options'] ?? []);
 
                         $options = [];
-                        foreach ($rawOptions as $idx => $optText) {
-                            $optText = trim((string) $optText);
-                            if ($optText !== '') {
-                                $options[] = [
-                                    'text' => $optText,
-                                    'is_correct' => ($idx === $correctIndex),
-                                ];
+                        if ($qType === 'mcq') {
+                            foreach ($rawOptions as $idx => $optText) {
+                                $optText = trim((string) $optText);
+                                if ($optText !== '') {
+                                    $options[] = [
+                                        'text' => $optText,
+                                        'is_correct' => ($idx === $correctIndex),
+                                    ];
+                                }
                             }
                         }
 
@@ -995,7 +1038,7 @@ class AdminController extends Controller
                             }
                         }
 
-                        $this->questionService->addQuestion($quizId, $qText, $options, 0, $imagePath);
+                        $this->questionService->addQuestion($quizId, $qText, $options, 0, $imagePath, $qType);
                         $addedCount++;
                     }
 
@@ -1056,6 +1099,7 @@ class AdminController extends Controller
                     'groups' => $groups,
                     'departments' => $this->getDistinctDepartments(),
                     'zones' => $this->getDistinctZones(),
+                    'designations' => $this->getDistinctDesignations(),
                     'error' => $e->getMessage(),
                     'old' => $request->getPostData(),
                 ]);
@@ -1077,6 +1121,7 @@ class AdminController extends Controller
             'groups' => $groups,
             'departments' => $this->getDistinctDepartments(),
             'zones' => $this->getDistinctZones(),
+            'designations' => $this->getDistinctDesignations(),
             'success' => $success,
             'error' => $error,
             'old' => null,
@@ -1100,15 +1145,18 @@ class AdminController extends Controller
         $selectedGroups = (array) $request->get('target_groups', []);
         $selectedDepts = (array) $request->get('target_departments', []);
         $selectedZones = (array) $request->get('target_zones', []);
+        $selectedDesignations = (array) $request->get('target_designations', []);
 
         $targetGroups = [];
         $targetDepts = [];
         $targetZones = [];
+        $targetDesignations = [];
 
         if ($targetAudience !== 'all') {
             $targetGroups = array_values(array_filter(array_map('intval', $selectedGroups), fn($g) => $g > 0));
             $targetDepts = array_values(array_filter(array_map('trim', $selectedDepts), fn($d) => $d !== ''));
             $targetZones = array_values(array_filter(array_map('trim', $selectedZones), fn($z) => $z !== ''));
+            $targetDesignations = array_values(array_filter(array_map('trim', $selectedDesignations), fn($des) => $des !== ''));
         }
 
         try {
@@ -1118,6 +1166,7 @@ class AdminController extends Controller
                     'target_groups' => $targetGroups,
                     'target_departments' => $targetDepts,
                     'target_zones' => $targetZones,
+                    'target_designations' => $targetDesignations,
                 ],
             ], $adminId);
             Session::set('flash_success', 'Target audience updated successfully.');
@@ -1172,14 +1221,19 @@ class AdminController extends Controller
             $rawOptions = (array) ($request->input('options') ?? $request->get('options', []));
             $removeImage = (bool) ($request->input('remove_image') ?? $request->get('remove_image', false));
 
+            $rawType = trim((string) ($request->input('question_type') ?? $request->get('question_type', 'mcq')));
+            $qType = in_array(strtolower($rawType), ['written', 'text'], true) ? 'written' : 'mcq';
+
             $options = [];
-            foreach ($rawOptions as $idx => $optText) {
-                $optText = trim((string) $optText);
-                if ($optText !== '') {
-                    $options[] = [
-                        'text' => $optText,
-                        'is_correct' => ($idx === $correctIndex),
-                    ];
+            if ($qType === 'mcq') {
+                foreach ($rawOptions as $idx => $optText) {
+                    $optText = trim((string) $optText);
+                    if ($optText !== '') {
+                        $options[] = [
+                            'text' => $optText,
+                            'is_correct' => ($idx === $correctIndex),
+                        ];
+                    }
                 }
             }
 
@@ -1202,10 +1256,75 @@ class AdminController extends Controller
                 }
             }
 
-            $this->questionService->updateQuestion($questionId, $questionText, $options, $imagePath, $removeImage);
+            $this->questionService->updateQuestion($questionId, $questionText, $options, $imagePath, $removeImage, $qType);
             Session::set('flash_success', 'Question updated successfully.');
         } catch (\Throwable $e) {
             Session::set('flash_error', 'Failed to update question: ' . $e->getMessage());
+        }
+
+        return $this->redirect("/admin/quizzes/{$quizId}/questions");
+    }
+
+    /**
+     * @Route(path="/admin/quizzes/questions/sample-template", methods="GET", name="admin.quizzes.questions.sample_template")
+     */
+    public function questionSampleTemplate(Request $request): Response
+    {
+        if ($authRedirect = $this->requireAdmin()) {
+            return $authRedirect;
+        }
+
+        $csvContent = $this->questionImportService->getSampleTemplateCsv();
+
+        return new Response($csvContent, 200, [
+            'Content-Type' => 'text/csv; charset=utf-8',
+            'Content-Disposition' => 'attachment; filename="quiz_questions_sample_template.csv"',
+        ]);
+    }
+
+    /**
+     * @Route(path="/admin/quizzes/{id}/questions/import", methods="POST", name="admin.quizzes.questions.import")
+     */
+    public function quizQuestionsImport(Request $request, string $id): Response
+    {
+        if ($authRedirect = $this->requireAdmin()) {
+            return $authRedirect;
+        }
+
+        $quizId = (int) $id;
+        $quiz = $this->quizService->getById($quizId);
+        if (!$quiz) {
+            Session::set('flash_error', 'Quiz not found');
+            return $this->redirect('/admin/quizzes');
+        }
+
+        if (empty($_FILES['questions_file']['tmp_name']) || !is_uploaded_file($_FILES['questions_file']['tmp_name'])) {
+            Session::set('flash_error', 'Please choose a valid Excel (.xlsx) or CSV (.csv) file to upload.');
+            return $this->redirect("/admin/quizzes/{$quizId}/questions");
+        }
+
+        $file = $_FILES['questions_file'];
+        $ext = strtolower(pathinfo((string) $file['name'], PATHINFO_EXTENSION));
+        if (!in_array($ext, ['csv', 'xlsx', 'txt'], true)) {
+            Session::set('flash_error', 'Invalid file format. Please upload an Excel (.xlsx) or CSV file.');
+            return $this->redirect("/admin/quizzes/{$quizId}/questions");
+        }
+
+        $tempPath = $file['tmp_name'];
+
+        try {
+            $result = $this->questionImportService->import($quizId, $tempPath);
+            if (!empty($result['errors'])) {
+                $errSummary = implode('<br>', array_slice($result['errors'], 0, 10));
+                if (count($result['errors']) > 10) {
+                    $errSummary .= '<br>...and ' . (count($result['errors']) - 10) . ' more errors.';
+                }
+                Session::set('flash_error', "Question upload failed due to formatting errors:<br>{$errSummary}");
+            } else {
+                Session::set('flash_success', "Successfully imported {$result['imported_count']} questions into this quiz!");
+            }
+        } catch (\Throwable $e) {
+            Session::set('flash_error', 'Import error: ' . $e->getMessage());
         }
 
         return $this->redirect("/admin/quizzes/{$quizId}/questions");

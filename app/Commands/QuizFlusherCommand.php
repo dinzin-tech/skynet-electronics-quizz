@@ -107,11 +107,12 @@ class QuizFlusherCommand
                 continue;
             }
 
-            // Record format: "oid|seq|ts_ms"
+            // Record format: "oid|seq|ts_ms|text"
             $recParts = explode('|', $record);
             $oid = (int) ($recParts[0] ?? 0);
             $seq = (int) ($recParts[1] ?? 0);
             $tsMs = (int) ($recParts[2] ?? 0);
+            $txt = isset($recParts[3]) && $recParts[3] !== '' ? urldecode($recParts[3]) : null;
 
             // Get numeric attempt_id
             $numericAttId = (int) ($redis->hGet("att:{$aid}", 'id') ?: 0);
@@ -133,10 +134,11 @@ class QuizFlusherCommand
                   '.' . sprintf('%03d', $tsMs % 1000)
                 : gmdate('Y-m-d H:i:s.000');
 
-            $rows[] = '(?, ?, ?, ?, ?)';
+            $rows[] = '(?, ?, ?, ?, ?, ?)';
             $bindings[] = $numericAttId;
             $bindings[] = (int) $qid;
             $bindings[] = $oid > 0 ? $oid : null;
+            $bindings[] = $txt;
             $bindings[] = $seq;
             $bindings[] = $answeredAt;
         }
@@ -151,10 +153,11 @@ class QuizFlusherCommand
         }
 
         $sql = 'INSERT INTO attempt_answers ' .
-               '(attempt_id, question_id, selected_option_id, seq, answered_at) ' .
+               '(attempt_id, question_id, selected_option_id, text_answer, seq, answered_at) ' .
                'VALUES ' . implode(', ', $rows) . ' ' .
                'ON DUPLICATE KEY UPDATE ' .
                'selected_option_id = IF(VALUES(seq) >= seq, VALUES(selected_option_id), selected_option_id), ' .
+               'text_answer = IF(VALUES(seq) >= seq, VALUES(text_answer), text_answer), ' .
                'answered_at = IF(VALUES(seq) >= seq, VALUES(answered_at), answered_at), ' .
                'seq = IF(VALUES(seq) >= seq, VALUES(seq), seq)';
 

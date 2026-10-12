@@ -179,10 +179,13 @@ class SubmissionsService
 
         // Fetch recorded answers
         $ansStmt = $this->db->prepare(
-            'SELECT aa.question_id, aa.selected_option_id, aa.is_correct, aa.seq, aa.answered_at '
+            'SELECT aa.question_id, aa.selected_option_id, aa.text_answer, aa.is_correct, aa.seq, aa.answered_at, '
+            . 'q.type AS question_type, q.question_text, ao.option_text AS selected_option_text '
             . 'FROM attempt_answers aa '
+            . 'JOIN questions q ON q.id = aa.question_id '
+            . 'LEFT JOIN answer_options ao ON ao.id = aa.selected_option_id '
             . 'WHERE aa.attempt_id = :id '
-            . 'ORDER BY aa.question_id ASC'
+            . 'ORDER BY q.display_order ASC, aa.question_id ASC'
         );
         $ansStmt->execute(['id' => $attemptId]);
         $attempt['answers'] = $ansStmt->fetchAll(PDO::FETCH_ASSOC);

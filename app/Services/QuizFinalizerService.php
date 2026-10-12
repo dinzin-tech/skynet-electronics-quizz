@@ -141,10 +141,11 @@ class QuizFinalizerService
         );
 
         $insertAnsStmt = $this->db->prepare(
-            'INSERT INTO attempt_answers (attempt_id, question_id, selected_option_id, seq, answered_at, is_correct) ' .
-            'VALUES (:aid, :qid, :oid, :seq, :at, :is_correct) ' .
+            'INSERT INTO attempt_answers (attempt_id, question_id, selected_option_id, text_answer, seq, answered_at, is_correct) ' .
+            'VALUES (:aid, :qid, :oid, :txt, :seq, :at, :is_correct) ' .
             'ON DUPLICATE KEY UPDATE ' .
             'selected_option_id = VALUES(selected_option_id), ' .
+            'text_answer = VALUES(text_answer), ' .
             'is_correct = VALUES(is_correct)'
         );
 
@@ -194,11 +195,12 @@ class QuizFinalizerService
                     $oid = (int) ($parts[0] ?? 0);
                     $seq = (int) ($parts[1] ?? 0);
                     $tsMs = (int) ($parts[2] ?? 0);
+                    $txt = isset($parts[3]) && $parts[3] !== '' ? urldecode($parts[3]) : null;
 
                     if ($oid > 0) {
                         $selectedAnswers[$qid] = $oid;
                     }
-                    $answerMeta[$qid] = ['oid' => $oid > 0 ? $oid : null, 'seq' => $seq, 'ts' => $tsMs];
+                    $answerMeta[$qid] = ['oid' => $oid > 0 ? $oid : null, 'txt' => $txt, 'seq' => $seq, 'ts' => $tsMs];
                 }
             }
 
@@ -275,6 +277,7 @@ class QuizFinalizerService
                         'aid' => $numericId,
                         'qid' => $qid,
                         'oid' => $meta['oid'],
+                        'txt' => $meta['txt'] ?? null,
                         'seq' => $meta['seq'],
                         'at' => $atDate,
                         'is_correct' => $correctnessMap[$qid] ?? null,

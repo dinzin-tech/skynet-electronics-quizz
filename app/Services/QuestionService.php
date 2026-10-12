@@ -24,13 +24,16 @@ class QuestionService
      *
      * @param array<int, array{text: string, is_correct: bool}> $options
      */
-    public function addQuestion(int $quizId, string $questionText, array $options, int $displayOrder = 0, ?string $imagePath = null): array
+    public function addQuestion(int $quizId, string $questionText, array $options = [], int $displayOrder = 0, ?string $imagePath = null, string $type = 'mcq'): array
     {
         $questionText = trim($questionText);
         if ($questionText === '') {
             throw new InvalidArgumentException('Question text cannot be empty');
         }
-        $this->validateOptions($options);
+        $type = in_array(strtolower($type), ['written', 'text'], true) ? 'written' : 'mcq';
+        if ($type === 'mcq') {
+            $this->validateOptions($options);
+        }
 
         // Check if quiz has started attempts
         $this->assertQuizNotStarted($quizId);
@@ -46,23 +49,26 @@ class QuestionService
         $this->db->beginTransaction();
         try {
             $qStmt = $this->db->prepare(
-                'INSERT INTO questions (quiz_id, question_text, image_path, display_order) VALUES (:qid, :text, :img, :ord)'
+                'INSERT INTO questions (quiz_id, question_text, type, image_path, display_order) VALUES (:qid, :text, :type, :img, :ord)'
             );
             $qStmt->execute([
                 'qid' => $quizId,
                 'text' => $questionText,
+                'type' => $type,
                 'img' => $imagePath,
                 'ord' => $displayOrder,
             ]);
             $questionId = (int) $this->db->lastInsertId();
 
-            $optStmt = $this->db->prepare(
-                'INSERT INTO answer_options (question_id, option_text, is_correct, display_order) VALUES (?, ?, ?, ?)'
-            );
+            if ($type === 'mcq' && !empty($options)) {
+                $optStmt = $this->db->prepare(
+                    'INSERT INTO answer_options (question_id, option_text, is_correct, display_order) VALUES (?, ?, ?, ?)'
+                );
 
-            foreach ($options as $idx => $opt) {
-                $isCorrect = !empty($opt['is_correct']) ? 1 : 0;
-                $optStmt->execute([$questionId, trim($opt['text']), $isCorrect, $idx + 1]);
+                foreach ($options as $idx => $opt) {
+                    $isCorrect = !empty($opt['is_correct']) ? 1 : 0;
+                    $optStmt->execute([$questionId, trim($opt['text']), $isCorrect, $idx + 1]);
+                }
             }
 
             $this->db->commit();
@@ -76,17 +82,24 @@ class QuestionService
     /**
      * Update an existing question and its options.
      */
-    public function updateQuestion(int $questionId, string $questionText, array $options, ?string $imagePath = null, bool $removeImage = false): array
+    public function updateQuestion(int $questionId, string $questionText, array $options = [], ?string $imagePath = null, bool $removeImage = false, ?string $type = null): array
     {
         $questionText = trim($questionText);
         if ($questionText === '') {
             throw new InvalidArgumentException('Question text cannot be empty');
         }
-        $this->validateOptions($options);
 
         $q = $this->getQuestion($questionId);
         if (!$q) {
             throw new InvalidArgumentException("Question {$questionId} not found");
+        }
+
+        $effectiveType = $type !== null
+            ? (in_array(strtolower($type), ['written', 'text'], true) ? 'written' : 'mcq')
+            : (string) ($q['type'] ?? 'mcq');
+
+        if ($effectiveType === 'mcq') {
+            $this->validateOptions($options);
         }
 
         $this->assertQuizNotStarted((int) $q['quiz_id']);
@@ -94,26 +107,28 @@ class QuestionService
         $this->db->beginTransaction();
         try {
             if ($imagePath !== null) {
-                $updateQ = $this->db->prepare('UPDATE questions SET question_text = :text, image_path = :img WHERE id = :id');
-                $updateQ->execute(['text' => $questionText, 'img' => $imagePath, 'id' => $questionId]);
+                $updateQ = $this->db->prepare('UPDATE questions SET question_text = :text, type = :type, image_path = :img WHERE id = :id');
+                $updateQ->execute(['text' => $questionText, 'type' => $effectiveType, 'img' => $imagePath, 'id' => $questionId]);
             } elseif ($removeImage) {
-                $updateQ = $this->db->prepare('UPDATE questions SET question_text = :text, image_path = NULL WHERE id = :id');
-                $updateQ->execute(['text' => $questionText, 'id' => $questionId]);
+                $updateQ = $this->db->prepare('UPDATE questions SET question_text = :text, type = :type, image_path = NULL WHERE id = :id');
+                $updateQ->execute(['text' => $questionText, 'type' => $effectiveType, 'id' => $questionId]);
             } else {
-                $updateQ = $this->db->prepare('UPDATE questions SET question_text = :text WHERE id = :id');
-                $updateQ->execute(['text' => $questionText, 'id' => $questionId]);
+                $updateQ = $this->db->prepare('UPDATE questions SET question_text = :text, type = :type WHERE id = :id');
+                $updateQ->execute(['text' => $questionText, 'type' => $effectiveType, 'id' => $questionId]);
             }
 
             // Replace options
             $this->db->prepare('DELETE FROM answer_options WHERE question_id = :qid')->execute(['qid' => $questionId]);
 
-            $optStmt = $this->db->prepare(
-                'INSERT INTO answer_options (question_id, option_text, is_correct, display_order) VALUES (?, ?, ?, ?)'
-            );
+            if ($effectiveType === 'mcq' && !empty($options)) {
+                $optStmt = $this->db->prepare(
+                    'INSERT INTO answer_options (question_id, option_text, is_correct, display_order) VALUES (?, ?, ?, ?)'
+                );
 
-            foreach ($options as $idx => $opt) {
-                $isCorrect = !empty($opt['is_correct']) ? 1 : 0;
-                $optStmt->execute([$questionId, trim($opt['text']), $isCorrect, $idx + 1]);
+                foreach ($options as $idx => $opt) {
+                    $isCorrect = !empty($opt['is_correct']) ? 1 : 0;
+                    $optStmt->execute([$questionId, trim($opt['text']), $isCorrect, $idx + 1]);
+                }
             }
 
             $this->db->commit();
@@ -182,7 +197,7 @@ class QuestionService
         $errors = [];
 
         $qStmt = $this->db->prepare(
-            'SELECT id, question_text, display_order FROM questions WHERE quiz_id = :qid ORDER BY display_order ASC'
+            'SELECT id, question_text, display_order, type FROM questions WHERE quiz_id = :qid ORDER BY display_order ASC'
         );
         $qStmt->execute(['qid' => $quizId]);
         $questions = $qStmt->fetchAll(PDO::FETCH_ASSOC);
@@ -197,6 +212,11 @@ class QuestionService
         );
 
         foreach ($questions as $q) {
+            $qType = $q['type'] ?? 'mcq';
+            if ($qType === 'written') {
+                continue; // Written questions do not require answer options
+            }
+
             $optStmt->execute(['qid' => $q['id']]);
             $options = $optStmt->fetchAll(PDO::FETCH_ASSOC);
 
@@ -251,7 +271,7 @@ class QuestionService
     public function getQuestionsByQuiz(int $quizId): array
     {
         $qStmt = $this->db->prepare(
-            'SELECT id, question_text, image_path, display_order FROM questions WHERE quiz_id = :qid ORDER BY display_order ASC, id ASC'
+            'SELECT id, question_text, type, image_path, display_order FROM questions WHERE quiz_id = :qid ORDER BY display_order ASC, id ASC'
         );
         $qStmt->execute(['qid' => $quizId]);
         $questions = $qStmt->fetchAll(PDO::FETCH_ASSOC);

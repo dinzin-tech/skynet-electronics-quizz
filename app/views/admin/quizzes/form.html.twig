@@ -124,13 +124,14 @@
         </h3>
 
         {% set is_custom = false %}
-        {% if old is not null and old.target_audience|default('') in ['custom', 'groups', 'departments', 'zones'] %}
+        {% if old is not null and old.target_audience|default('') in ['custom', 'groups', 'departments', 'zones', 'designations'] %}
             {% set is_custom = true %}
         {% elseif quiz is not null and (
-            quiz.settings.target_audience|default('') in ['custom', 'groups', 'departments', 'zones'] or
+            quiz.settings.target_audience|default('') in ['custom', 'groups', 'departments', 'zones', 'designations'] or
             quiz.settings.target_groups|default([]) is not empty or
             quiz.settings.target_departments|default([]) is not empty or
-            quiz.settings.target_zones|default([]) is not empty
+            quiz.settings.target_zones|default([]) is not empty or
+            quiz.settings.target_designations|default([]) is not empty
         ) and 'all' not in quiz.settings.target_groups|default([]) %}
             {% set is_custom = true %}
         {% endif %}
@@ -146,13 +147,13 @@
                 </label>
                 <label style="display: flex; align-items: center; gap: 8px; font-size: 0.95rem; cursor: pointer;">
                     <input type="radio" name="target_audience" value="custom" id="audience_custom" {% if is_custom %}checked{% endif %} onchange="toggleAudienceCustom(true)">
-                    <strong>Targeted Criteria (Combine Departments, Zones & Groups)</strong>
+                    <strong>Targeted Criteria (Combine Departments, Zones, Designations & Groups)</strong>
                 </label>
             </div>
 
             <div id="custom-audience-selector" style="display: {% if is_custom %}block{% else %}none{% endif %}; background: #f8fafc; border: 1px solid var(--border-color); border-radius: 8px; padding: 18px; margin-top: 12px;">
                 <div style="font-size: 0.825rem; color: #475569; margin-bottom: 16px; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 6px; padding: 10px 14px;">
-                    ℹ <strong>Combinable Targeting:</strong> If you select values in multiple sections (e.g. Department + Zone), employees must match <strong>all active sections</strong> to be enrolled. If you leave a section completely unselected, all values in that section are eligible.
+                    ℹ <strong>Combinable Targeting:</strong> If you select values in multiple sections (e.g. Designation + Department + Zone), employees must match <strong>all active sections</strong> to be enrolled. If you leave a section completely unselected, all values in that section are eligible. For example, selecting OEC will enroll only active employees with the OEC designation.
                 </div>
 
                 <!-- 1. Departments Section -->
@@ -213,7 +214,36 @@
                     {% endif %}
                 </div>
 
-                <!-- 3. Groups Section -->
+                <!-- 3. Designations Section -->
+                <div style="margin-bottom: 20px; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 6px; padding: 14px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                        <span style="font-weight: 600; font-size: 0.9rem; color: #1e293b;">💼 Filter by Designation ({{ designations|default([])|length }}):</span>
+                        <div style="font-size: 0.8rem;">
+                            <a href="javascript:void(0)" onclick="setCheckboxes('target_designations[]', true)" style="color: #2563eb; text-decoration: none; margin-right: 10px;">Select All</a>
+                            <a href="javascript:void(0)" onclick="setCheckboxes('target_designations[]', false)" style="color: #64748b; text-decoration: none;">Clear</a>
+                        </div>
+                    </div>
+                    {% if designations|default([]) is not empty %}
+                    <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px;">
+                        {% for desig in designations %}
+                            {% set isDesigChecked = false %}
+                            {% if old is not null and desig in old.target_designations|default([]) %}
+                                {% set isDesigChecked = true %}
+                            {% elseif quiz is not null and desig in quiz.settings.target_designations|default([]) %}
+                                {% set isDesigChecked = true %}
+                            {% endif %}
+                            <label style="display: flex; align-items: center; gap: 8px; font-size: 0.875rem; cursor: pointer; padding: 5px 8px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 4px;">
+                                <input type="checkbox" name="target_designations[]" value="{{ desig }}" {% if isDesigChecked %}checked{% endif %}>
+                                <span>{{ desig }}</span>
+                            </label>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <p style="font-size: 0.825rem; color: #94a3b8; margin: 0;">No designations found on active employees.</p>
+                    {% endif %}
+                </div>
+
+                <!-- 4. Groups Section -->
                 <div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 6px; padding: 14px;">
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
                         <span style="font-weight: 600; font-size: 0.9rem; color: #1e293b;">👥 Filter by Employee Groups ({{ groups|default([])|length }}):</span>

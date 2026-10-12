@@ -8,7 +8,8 @@ interface StoredAnswer {
   key: string; // `${attempt_id}:${q}`
   attempt_id: string;
   q: number;
-  o: number;
+  o?: number | null;
+  t?: string | null;
   seq: number;
   acked: number; // 0 = unacked, 1 = acked
   updated_at: number;
@@ -36,7 +37,13 @@ class OfflineDatabase {
     return this.dbPromise;
   }
 
-  public async saveAnswer(attemptId: string, q: number, o: number, seq: number): Promise<void> {
+  public async saveAnswer(
+    attemptId: string,
+    q: number,
+    o: number | null = null,
+    t: string | null = null,
+    seq: number = 0
+  ): Promise<void> {
     const db = await this.getDB();
     return new Promise((resolve, reject) => {
       const tx = db.transaction(STORE_ANSWERS, 'readwrite');
@@ -46,6 +53,7 @@ class OfflineDatabase {
         attempt_id: attemptId,
         q,
         o,
+        t,
         seq,
         acked: 0,
         updated_at: Date.now(),
@@ -67,7 +75,7 @@ class OfflineDatabase {
           (r) => r.attempt_id === attemptId && r.acked === 0
         );
         records.sort((a, b) => a.seq - b.seq);
-        resolve(records.map((r) => ({ q: r.q, o: r.o, seq: r.seq, ts: r.updated_at })));
+        resolve(records.map((r) => ({ q: r.q, o: r.o, t: r.t, seq: r.seq, ts: r.updated_at })));
       };
       req.onerror = () => reject(req.error);
     });
@@ -93,17 +101,17 @@ class OfflineDatabase {
     });
   }
 
-  public async getAllAnswers(attemptId: string): Promise<Record<string, { o: number; seq: number }>> {
+  public async getAllAnswers(attemptId: string): Promise<Record<string, { o?: number | null; t?: string | null; seq: number }>> {
     const db = await this.getDB();
     return new Promise((resolve, reject) => {
       const tx = db.transaction(STORE_ANSWERS, 'readonly');
       const store = tx.objectStore(STORE_ANSWERS);
       const req = store.getAll();
       req.onsuccess = () => {
-        const result: Record<string, { o: number; seq: number }> = {};
+        const result: Record<string, { o?: number | null; t?: string | null; seq: number }> = {};
         const records = (req.result as StoredAnswer[]).filter((r) => r.attempt_id === attemptId);
         for (const r of records) {
-          result[r.q.toString()] = { o: r.o, seq: r.seq };
+          result[r.q.toString()] = { o: r.o ?? null, t: r.t ?? null, seq: r.seq };
         }
         resolve(result);
       };

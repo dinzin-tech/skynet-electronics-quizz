@@ -109,4 +109,86 @@
     <p style="color: #64748b; font-size: 0.9rem;">No active quiz selected or available.</p>
     {% endif %}
 </div>
+
+{% if selected_quiz_id > 0 and question_summary is not empty %}
+<div class="card" style="padding: 0; margin-top: 24px;">
+    <div style="padding: 16px 20px; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+        <div>
+            <h3 style="font-size: 1.05rem; font-weight: 600; margin: 0; display: flex; align-items: center; gap: 8px;">
+                <span>📊 Question-Wise Performance Breakdown</span>
+                <span class="badge badge-info" style="font-size: 0.75rem;">{{ question_summary|length }} Questions</span>
+            </h3>
+            <p style="font-size: 0.825rem; color: #64748b; margin: 4px 0 0 0;">
+                Showing employee response counts and ratios across completed attempts.
+            </p>
+        </div>
+        <div>
+            <form action="/admin/reports/export" method="POST" style="margin: 0; display: inline-block;">
+                <input type="hidden" name="report_type" value="question_summary">
+                <input type="hidden" name="quiz_id" value="{{ selected_quiz_id }}">
+                <button type="submit" class="btn btn-secondary" style="font-size: 0.8rem; padding: 6px 14px; display: flex; align-items: center; gap: 6px;">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                    Download Question CSV
+                </button>
+            </form>
+        </div>
+    </div>
+    <div class="table-wrap">
+        <table>
+            <thead>
+                <tr>
+                    <th style="width: 50px;">#</th>
+                    <th>Question</th>
+                    <th style="width: 100px;">Answered</th>
+                    <th style="width: 140px;">Correct</th>
+                    <th style="width: 140px;">Incorrect</th>
+                    <th style="width: 140px;">Unanswered</th>
+                    <th style="width: 180px;">Accuracy Bar</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for q in question_summary %}
+                <tr>
+                    <td><strong>Q{{ q.display_order }}</strong></td>
+                    <td>
+                        <div style="font-weight: 500; color: #1e293b; max-width: 480px; white-space: normal; line-height: 1.4;">
+                            {{ q.question_text }}
+                        </div>
+                    </td>
+                    <td>
+                        <strong style="color: #334155;">{{ q.answered_count }}</strong>
+                        <span style="font-size: 0.775rem; color: #94a3b8;">/ {{ q.total_attempts }}</span>
+                    </td>
+                    <td>
+                        <span style="display: inline-flex; align-items: center; gap: 4px; color: #16a34a; font-weight: 700;">
+                            ✓ {{ q.correct_count }}
+                        </span>
+                        <div style="font-size: 0.75rem; color: #16a34a;">{{ q.correct_pct }}%</div>
+                    </td>
+                    <td>
+                        <span style="display: inline-flex; align-items: center; gap: 4px; color: #dc2626; font-weight: 700;">
+                            ✗ {{ q.incorrect_count }}
+                        </span>
+                        <div style="font-size: 0.75rem; color: #dc2626;">{{ q.incorrect_pct }}%</div>
+                    </td>
+                    <td>
+                        <span style="display: inline-flex; align-items: center; gap: 4px; color: #64748b; font-weight: 600;">
+                            — {{ q.unanswered_count }}
+                        </span>
+                        <div style="font-size: 0.75rem; color: #64748b;">{{ q.unanswered_pct }}%</div>
+                    </td>
+                    <td>
+                        <div style="background: #e2e8f0; border-radius: 999px; height: 10px; width: 100%; overflow: hidden; display: flex;">
+                            <div style="background: #16a34a; width: {{ q.correct_pct }}%; height: 100%;" title="Correct: {{ q.correct_pct }}%"></div>
+                            <div style="background: #dc2626; width: {{ q.incorrect_pct }}%; height: 100%;" title="Incorrect: {{ q.incorrect_pct }}%"></div>
+                            <div style="background: #94a3b8; width: {{ q.unanswered_pct }}%; height: 100%;" title="Unanswered: {{ q.unanswered_pct }}%"></div>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
 {% endblock %}

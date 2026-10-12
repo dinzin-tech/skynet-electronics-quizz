@@ -276,4 +276,77 @@ class QuizPublisherTest extends TestCase
         $this->db->exec("DELETE FROM employees WHERE id IN ({$emp1Id}, {$emp2Id}, {$emp3Id})");
         $this->db->exec("DELETE FROM `groups` WHERE id = {$testGroupId}");
     }
+
+    public function test_sync_roster_targeted_by_designation_alone_and_combined(): void
+    {
+        $desigOec = 'OEC_' . bin2hex(random_bytes(3));
+        $desigMgr = 'MGR_' . bin2hex(random_bytes(3));
+        $deptSales = 'SALES_' . bin2hex(random_bytes(3));
+
+        // Create Employees with designations
+        $stmt = $this->db->prepare("INSERT INTO employees (public_id, employee_code, name, department, designation, status, created_at, updated_at) VALUES (:p, :c, :n, :d, :des, 'active', NOW(), NOW())");
+        
+        $p1 = bin2hex(random_bytes(10));
+        $stmt->execute([':p' => $p1, ':c' => 'EMP_DES_1', ':n' => 'Alice OEC', ':d' => $deptSales, ':des' => $desigOec]);
+        $emp1Id = (int) $this->db->lastInsertId();
+
+        $p2 = bin2hex(random_bytes(10));
+        $stmt->execute([':p' => $p2, ':c' => 'EMP_DES_2', ':n' => 'Bob Mgr', ':d' => $deptSales, ':des' => $desigMgr]);
+        $emp2Id = (int) $this->db->lastInsertId();
+
+        $p3 = bin2hex(random_bytes(10));
+        $stmt->execute([':p' => $p3, ':c' => 'EMP_DES_3', ':n' => 'Charlie OEC', ':d' => 'OTHER_DEPT', ':des' => $desigOec]);
+        $emp3Id = (int) $this->db->lastInsertId();
+
+        // 1. Quiz targeted ONLY by Designation OEC
+        $quiz1 = $this->quizService->create([
+            'title' => 'OEC Only Quiz',
+            'duration_seconds' => 600,
+            'start_at' => gmdate('Y-m-d H:i:s'),
+            'end_at' => gmdate('Y-m-d H:i:s', time() + 3600),
+            'settings' => [
+                'target_audience' => 'custom',
+                'target_designations' => [$desigOec],
+            ],
+        ], $this->adminId);
+        $qId1 = (int) $quiz1['id'];
+        $this->questionService->addQuestion($qId1, 'Q1?', [['text' => 'A', 'is_correct' => true], ['text' => 'B', 'is_correct' => false]]);
+
+        $count1 = $this->quizPublisher->syncRoster($qId1, 1, 1);
+        $this->assertSame(2, $count1); // Alice and Charlie
+        $enrolled1 = $this->db->query("SELECT employee_id FROM attempts WHERE quiz_id = {$qId1}")->fetchAll(PDO::FETCH_COLUMN);
+        $this->assertContains((string) $emp1Id, array_map('strval', $enrolled1));
+        $this->assertContains((string) $emp3Id, array_map('strval', $enrolled1));
+        $this->assertNotContains((string) $emp2Id, array_map('strval', $enrolled1));
+
+        // 2. Quiz targeted by Designation OEC AND Department Sales (combinable)
+        $quiz2 = $this->quizService->create([
+            'title' => 'OEC in Sales Quiz',
+            'duration_seconds' => 600,
+            'start_at' => gmdate('Y-m-d H:i:s'),
+            'end_at' => gmdate('Y-m-d H:i:s', time() + 3600),
+            'settings' => [
+                'target_audience' => 'custom',
+                'target_departments' => [$deptSales],
+                'target_designations' => [$desigOec],
+            ],
+        ], $this->adminId);
+        $qId2 = (int) $quiz2['id'];
+        $this->questionService->addQuestion($qId2, 'Q1?', [['text' => 'A', 'is_correct' => true], ['text' => 'B', 'is_correct' => false]]);
+
+        $count2 = $this->quizPublisher->syncRoster($qId2, 1, 1);
+        $this->assertSame(1, $count2); // Only Alice
+        $enrolled2 = $this->db->query("SELECT employee_id FROM attempts WHERE quiz_id = {$qId2}")->fetchAll(PDO::FETCH_COLUMN);
+        $this->assertContains((string) $emp1Id, array_map('strval', $enrolled2));
+        $this->assertNotContains((string) $emp2Id, array_map('strval', $enrolled2));
+        $this->assertNotContains((string) $emp3Id, array_map('strval', $enrolled2));
+
+        // Cleanup
+        $this->db->exec("DELETE FROM attempts WHERE quiz_id IN ({$qId1}, {$qId2})");
+        $this->db->exec("DELETE FROM answer_options WHERE question_id IN (SELECT id FROM questions WHERE quiz_id IN ({$qId1}, {$qId2}))");
+        $this->db->exec("DELETE FROM questions WHERE quiz_id IN ({$qId1}, {$qId2})");
+        $this->db->exec("DELETE FROM quizzes WHERE id IN ({$qId1}, {$qId2})");
+        $this->db->exec("DELETE FROM employees WHERE id IN ({$emp1Id}, {$emp2Id}, {$emp3Id})");
+    }
 }
+
