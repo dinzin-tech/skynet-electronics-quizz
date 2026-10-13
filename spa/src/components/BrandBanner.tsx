@@ -8,6 +8,7 @@ interface BrandBannerProps {
   onLogout?: () => void;
   children?: React.ReactNode;
   compact?: boolean;
+  hideBadges?: boolean;
 }
 
 export const BrandBanner: React.FC<BrandBannerProps> = ({
@@ -17,6 +18,7 @@ export const BrandBanner: React.FC<BrandBannerProps> = ({
   onLogout,
   children,
   compact = false,
+  hideBadges = false,
 }) => {
   const user = getStoredUser();
 
@@ -60,24 +62,26 @@ export const BrandBanner: React.FC<BrandBannerProps> = ({
         {/* Center / Right Status & Navigation */}
         <div className="brand-meta-cluster">
           {/* Dynamic Week & Status Badges */}
-          <div className="brand-badge-row">
-            {displayWeekLabel && (
-              <span className="pill-badge pill-week">
-                <span className="pill-dot"></span>
-                {displayWeekLabel}
-              </span>
-            )}
+          {!hideBadges && (
+            <div className="brand-badge-row">
+              {displayWeekLabel && (
+                <span className="pill-badge pill-week">
+                  <span className="pill-dot"></span>
+                  {displayWeekLabel}
+                </span>
+              )}
 
-            {statusBadge && (
-              <span className="pill-badge pill-status">
-                {statusBadge}
-              </span>
-            )}
+              {statusBadge && (
+                <span className="pill-badge pill-status">
+                  {statusBadge}
+                </span>
+              )}
 
-            <span className="pill-badge pill-challenge hidden-xs">
-              {challengeBadgeText}
-            </span>
-          </div>
+              <span className="pill-badge pill-challenge hidden-xs">
+                {challengeBadgeText}
+              </span>
+            </div>
+          )}
 
           {/* Children (e.g. Timer, Question Progress) */}
           {children && <div className="brand-header-children">{children}</div>}
