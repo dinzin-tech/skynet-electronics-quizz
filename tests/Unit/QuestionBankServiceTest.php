@@ -291,4 +291,65 @@ class QuestionBankServiceTest extends TestCase
             $this->db->exec("DELETE FROM employees WHERE id = {$empId}");
         }
     }
+
+    public function test_sync_legacy_quiz_questions(): void
+    {
+        // 1. Create a legacy quiz with NO question_bank_id
+        $legacyQuiz = $this->quizService->create([
+            'title' => 'Legacy Direct Quiz Test ' . bin2hex(random_bytes(3)),
+            'description' => 'Legacy test desc',
+            'duration_seconds' => 1200,
+            'start_at' => gmdate('Y-m-d H:i:s'),
+            'end_at' => gmdate('Y-m-d H:i:s', time() + 3600),
+        ], $this->adminId);
+        $quizId = (int) $legacyQuiz['id'];
+
+        // Directly attach questions to this quiz without a bank_id
+        $this->db->prepare(
+            "INSERT INTO questions (quiz_id, question_bank_id, question_text, type, display_order) " .
+            "VALUES (?, NULL, 'Direct legacy question 1', 'mcq', 1)"
+        )->execute([$quizId]);
+        $qId1 = (int) $this->db->lastInsertId();
+
+        $this->db->prepare(
+            "INSERT INTO questions (quiz_id, question_bank_id, question_text, type, display_order) " .
+            "VALUES (?, NULL, 'Direct legacy question 2', 'written', 2)"
+        )->execute([$quizId]);
+        $qId2 = (int) $this->db->lastInsertId();
+
+        try {
+            // Verify initial state: quiz has no bank
+            $qBefore = $this->quizService->getById($quizId);
+            $this->assertNull($qBefore['question_bank_id']);
+
+            // Run synchronization
+            $res = $this->bankService->syncLegacyQuizQuestions();
+            $this->assertGreaterThanOrEqual(1, $res['migrated_banks']);
+
+            // Verify quiz now has question_bank_id
+            $qAfter = $this->quizService->getById($quizId);
+            $this->assertNotNull($qAfter['question_bank_id']);
+            $bankId = (int) $qAfter['question_bank_id'];
+
+            // Verify questions have question_bank_id set
+            $stmt = $this->db->prepare("SELECT question_bank_id FROM questions WHERE id = ?");
+            $stmt->execute([$qId1]);
+            $this->assertSame($bankId, (int) $stmt->fetchColumn());
+
+            $stmt->execute([$qId2]);
+            $this->assertSame($bankId, (int) $stmt->fetchColumn());
+
+            // Verify question bank exists and has count 2
+            $bank = $this->bankService->getById($bankId);
+            $this->assertNotNull($bank);
+            $this->assertStringContainsString('Legacy Direct Quiz Test', $bank['title']);
+            $this->assertSame(2, $bank['question_count']);
+        } finally {
+            $this->db->exec("DELETE FROM questions WHERE quiz_id = {$quizId}");
+            if (isset($bankId)) {
+                $this->db->exec("DELETE FROM question_banks WHERE id = {$bankId}");
+            }
+            $this->db->exec("DELETE FROM quizzes WHERE id = {$quizId}");
+        }
+    }
 }

@@ -1005,8 +1005,22 @@ class AdminController extends Controller
             return $this->redirect("/admin/question-banks/{$quiz['question_bank_id']}/questions");
         }
 
-        Session::set('flash_error', 'Please link a Question Bank to this quiz.');
-        return $this->redirect("/admin/quizzes/{$quizId}/edit");
+        // Auto-support old quiz questions or link a dedicated question bank
+        $bankId = $this->questionBankService->syncQuizLegacyQuestions($quizId);
+        if ($bankId) {
+            Session::set('flash_success', 'Questions for this quiz are now managed via Question Bank: ' . htmlspecialchars($quiz['title']) . ' (Bank)');
+            return $this->redirect("/admin/question-banks/{$bankId}/questions");
+        }
+
+        // If no questions exist, create a draft question bank for this quiz
+        $newBankId = $this->questionBankService->create(
+            trim($quiz['title']) . ' (Bank)',
+            $quiz['description'] ?? 'Question bank for ' . $quiz['title'],
+            (int) ($quiz['created_by'] ?? 1)
+        );
+        $this->quizService->update($quizId, ['question_bank_id' => $newBankId]);
+
+        return $this->redirect("/admin/question-banks/{$newBankId}/questions");
     }
 
     /**
@@ -1092,6 +1106,9 @@ class AdminController extends Controller
             return $authRedirect;
         }
 
+        // Synchronize any legacy direct questions so all old questions appear in Question Banks
+        $this->questionBankService->syncLegacyQuizQuestions();
+
         $banks = $this->questionBankService->getAll();
         $totalQuestions = array_sum(array_column($banks, 'question_count'));
         $lockedCount = count(array_filter($banks, fn($b) => !empty($b['is_locked'])));
@@ -1104,6 +1121,7 @@ class AdminController extends Controller
         return $this->render('admin/question_banks/index.html.twig', [
             'admin' => $this->getAdminUser(),
             'current_route' => 'question_banks',
+            'banks' => $banks,
             'question_banks' => $banks,
             'total_banks' => count($banks),
             'total_questions' => $totalQuestions,
@@ -1111,6 +1129,25 @@ class AdminController extends Controller
             'success' => $success,
             'error' => $error,
         ]);
+    }
+
+    /**
+     * @Route(path="/admin/question-banks/sync-legacy", methods="POST", name="admin.question_banks.sync_legacy")
+     */
+    public function questionBanksSyncLegacy(Request $request): Response
+    {
+        if ($authRedirect = $this->requireAdmin()) {
+            return $authRedirect;
+        }
+
+        $res = $this->questionBankService->syncLegacyQuizQuestions();
+        if ($res['migrated_banks'] > 0) {
+            Session::set('flash_success', "Successfully synced {$res['migrated_banks']} legacy quiz(zes) into Question Banks.");
+        } else {
+            Session::set('flash_success', 'All quiz questions are already fully synchronized with Question Banks.');
+        }
+
+        return $this->redirect('/admin/question-banks');
     }
 
     /**

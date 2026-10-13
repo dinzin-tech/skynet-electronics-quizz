@@ -9,6 +9,11 @@
         <p style="color: #64748b; font-size: 0.875rem; margin: 4px 0 0 0;">Create and maintain central repositories of questions for assessments.</p>
     </div>
     <div style="display: flex; gap: 10px;">
+        <form action="/admin/question-banks/sync-legacy" method="POST" style="margin: 0;">
+            <button type="submit" class="btn btn-secondary" title="Scan and package any direct quiz questions into Question Banks">
+                ⚡ Sync Legacy Questions
+            </button>
+        </form>
         <a href="/admin/question-banks/sample-template" class="btn btn-secondary">
             📥 Sample Template (.csv)
         </a>

@@ -54,8 +54,14 @@
                                         ({{ q.question_count|default(0) }} questions)
                                     {% endif %}
                                 </a>
+                            {% elseif q.question_count > 0 %}
+                                <a href="/admin/quizzes/{{ q.id }}/questions" style="color: #b45309; text-decoration: none; background: #fef3c7; border: 1px solid #fde68a; padding: 2px 7px; border-radius: 4px; font-weight: 500; font-size: 0.75rem;" title="Click to view or convert to a Question Bank">
+                                    ⚡ Legacy Questions ({{ q.question_count }})
+                                </a>
                             {% else %}
-                                <span style="color: #dc2626; background: #fee2e2; padding: 2px 7px; border-radius: 4px; font-size: 0.75rem;">No Bank Linked</span>
+                                <a href="/admin/quizzes/{{ q.id }}/questions" style="color: #64748b; text-decoration: none; background: #f1f5f9; border: 1px solid #e2e8f0; padding: 2px 7px; border-radius: 4px; font-size: 0.75rem;">
+                                    + Add Questions
+                                </a>
                             {% endif %}
                         </div>
                     </td>
@@ -85,6 +91,10 @@
                             {% if q.question_bank_id %}
                                 <a href="/admin/question-banks/{{ q.question_bank_id }}/questions" class="btn btn-secondary" style="padding: 4px 10px; font-size: 0.775rem;">
                                     Bank Questions ({{ q.question_count|default(0) }})
+                                </a>
+                            {% else %}
+                                <a href="/admin/quizzes/{{ q.id }}/questions" class="btn btn-secondary" style="padding: 4px 10px; font-size: 0.775rem;">
+                                    Manage Questions ({{ q.question_count|default(0) }})
                                 </a>
                             {% endif %}
 
