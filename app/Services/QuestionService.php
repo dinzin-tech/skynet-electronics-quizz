@@ -403,7 +403,7 @@ class QuestionService
         $questions = $directQStmt->fetchAll(PDO::FETCH_ASSOC);
 
         if (empty($questions)) {
-            $errors[] = 'Quiz must be linked to a Question Bank or contain at least one question';
+            $errors[] = 'Quiz must contain at least one question (or be linked to a Question Bank)';
             return ['valid' => false, 'errors' => $errors, 'question_count' => 0];
         }
 
@@ -564,7 +564,8 @@ FROM quizzes qz
 WHERE qz.question_bank_id = :bank_id 
   AND qz.status = 'published'
   AND (
-      (qz.start_at <= NOW() AND qz.end_at >= NOW())
+      (qz.start_at <= UTC_TIMESTAMP() AND qz.end_at >= UTC_TIMESTAMP())
+      OR (qz.start_at <= NOW() AND qz.end_at >= NOW())
       OR EXISTS (
           SELECT 1 FROM attempts a 
           WHERE a.quiz_id = qz.id 

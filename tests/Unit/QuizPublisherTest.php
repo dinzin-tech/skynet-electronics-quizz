@@ -283,6 +283,8 @@ class QuizPublisherTest extends TestCase
         $desigMgr = 'MGR_' . bin2hex(random_bytes(3));
         $deptSales = 'SALES_' . bin2hex(random_bytes(3));
 
+        $this->db->exec("DELETE FROM employees WHERE employee_code LIKE 'EMP_DES_%'");
+
         // Create Employees with designations
         $stmt = $this->db->prepare("INSERT INTO employees (public_id, employee_code, name, department, designation, status, created_at, updated_at) VALUES (:p, :c, :n, :d, :des, 'active', NOW(), NOW())");
 

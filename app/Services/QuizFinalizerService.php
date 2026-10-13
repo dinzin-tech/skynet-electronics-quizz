@@ -207,7 +207,7 @@ class QuizFinalizerService
 
             // Extract assigned questions for this attempt from its layout
             $assignedQids = [];
-            if ($redis) {
+            if ($redis && method_exists($redis, 'hGet')) {
                 $attLayoutRaw = $redis->hGet("att:{$aid}", 'layout');
                 if ($attLayoutRaw) {
                     $attLayout = is_string($attLayoutRaw) ? json_decode($attLayoutRaw, true) : $attLayoutRaw;

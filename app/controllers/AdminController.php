@@ -799,7 +799,7 @@ class AdminController extends Controller
                 ], $adminId);
 
                 Session::set('flash_success', 'Quiz created successfully! You can configure target audience below or publish when ready.');
-                return $this->redirect("/admin/quizzes/{$created['id']}/audience");
+                return $this->redirect("/admin/quizzes/{$created['id']}/questions");
             } catch (\Throwable $e) {
                 $groups = [];
                 try {

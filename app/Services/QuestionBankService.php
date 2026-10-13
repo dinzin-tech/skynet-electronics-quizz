@@ -129,7 +129,8 @@ FROM quizzes qz
 WHERE qz.question_bank_id = :bank_id 
   AND qz.status = 'published'
   AND (
-      (qz.start_at <= NOW() AND qz.end_at >= NOW())
+      (qz.start_at <= UTC_TIMESTAMP() AND qz.end_at >= UTC_TIMESTAMP())
+      OR (qz.start_at <= NOW() AND qz.end_at >= NOW())
       OR EXISTS (
           SELECT 1 FROM attempts a 
           WHERE a.quiz_id = qz.id 
@@ -145,8 +146,16 @@ SQL
     /**
      * Create a new question bank.
      */
-    public function create(array $data, int $adminId = 1): int
+    public function create(array|string $data, string|int $descriptionOrAdminId = '', int $adminId = 1): int
     {
+        if (is_string($data)) {
+            $data = [
+                'title' => $data,
+                'description' => is_string($descriptionOrAdminId) ? $descriptionOrAdminId : '',
+            ];
+            $adminId = is_int($descriptionOrAdminId) ? $descriptionOrAdminId : $adminId;
+        }
+
         $title = trim((string) ($data['title'] ?? ''));
         if ($title === '') {
             throw new InvalidArgumentException('Question Bank title is required.');
@@ -170,8 +179,15 @@ SQL
     /**
      * Update question bank title and description.
      */
-    public function update(int $id, array $data): bool
+    public function update(int $id, array|string $data, ?string $description = null): bool
     {
+        if (is_string($data)) {
+            $data = [
+                'title' => $data,
+                'description' => $description,
+            ];
+        }
+
         $title = trim((string) ($data['title'] ?? ''));
         if ($title === '') {
             throw new InvalidArgumentException('Question Bank title is required.');
