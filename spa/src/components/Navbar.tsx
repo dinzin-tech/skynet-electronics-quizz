@@ -7,6 +7,7 @@ interface NavbarProps {
   statusBadge?: string;
   onLogout?: () => void;
   children?: React.ReactNode;
+  hideBadges?: boolean;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -15,6 +16,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   statusBadge,
   onLogout,
   children,
+  hideBadges = false,
 }) => {
   return (
     <BrandBanner
@@ -22,6 +24,7 @@ export const Navbar: React.FC<NavbarProps> = ({
       totalWeeks={totalWeeks}
       statusBadge={statusBadge}
       onLogout={onLogout}
+      hideBadges={hideBadges}
     >
       {children}
     </BrandBanner>

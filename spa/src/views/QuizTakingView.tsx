@@ -25,6 +25,7 @@ export const QuizTakingView: React.FC<QuizTakingViewProps> = ({ attemptId, onSub
   const [syncStatus, setSyncStatus] = useState<SyncStatus>('synced');
   const [showReviewModal, setShowReviewModal] = useState(false);
   const [showIncompleteAlert, setShowIncompleteAlert] = useState(false);
+  const [showMobilePalette, setShowMobilePalette] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [submittingReason, setSubmittingReason] = useState<'manual' | 'timeout' | null>(null);
   const [loading, setLoading] = useState(true);
@@ -315,38 +316,87 @@ export const QuizTakingView: React.FC<QuizTakingViewProps> = ({ attemptId, onSub
 
   return (
     <div className="peak-app-bg" style={{ minHeight: '100dvh', display: 'flex', flexDirection: 'column' }}>
-      {/* Top Brand Banner with Dual Timers & Sync Status */}
-      <Navbar
-        currentWeekLabel={bundle?.week_label || (bundle?.week_number ? `WEEK - ${bundle.week_number}` : undefined)}
-        statusBadge="CONTEST LIVE"
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', flexWrap: 'wrap' }}>
+      {/* Tier 1: Top Brand Banner with Sync Status & Mobile Palette Trigger */}
+      <Navbar hideBadges={true}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem' }}>
           {/* Real-time Save Indicator */}
           <div className={`sync-indicator sync-${syncStatus}`} style={{ fontSize: '0.75rem', padding: '0.25rem 0.6rem' }}>
             <span style={{ fontSize: '0.625rem' }}>●</span>
-            {syncStatus === 'synced' && 'Answers Synced'}
+            {syncStatus === 'synced' && 'Synced'}
             {syncStatus === 'saving' && 'Saving...'}
-            {syncStatus === 'offline' && 'Offline (Queued)'}
-            {syncStatus === 'error' && 'Sync Retry'}
+            {syncStatus === 'offline' && 'Offline'}
+            {syncStatus === 'error' && 'Retry'}
           </div>
 
-          {/* DUAL TIMERS */}
-          {attemptState?.deadline_ms && (
-            <DualTimer
-              deadlineMs={attemptState.deadline_ms}
-              portalClosingMs={attemptState.portal_closing_ms}
-              onExpire={handleTimeoutExpire}
-            />
-          )}
+          {/* Quick Mobile Palette Trigger */}
+          <button
+            onClick={() => setShowMobilePalette(true)}
+            className="btn-mobile-palette-trigger"
+            title="Open Question Navigation Palette"
+          >
+            <span>📋</span>
+            <span>Palette</span>
+            <span className="palette-count-pill">{totalAnswered}/{totalItems}</span>
+          </button>
         </div>
       </Navbar>
+
+      {/* Tier 2: Sticky Examination HUD Banner */}
+      <div className="exam-hud-banner">
+        <div className="exam-hud-inner">
+          {/* Row 1: Badges & Question Counter Status */}
+          <div className="exam-hud-meta-row">
+            <div className="exam-hud-badges">
+              <span className="pill-badge pill-week">
+                <span className="pill-dot"></span>
+                {bundle?.week_label || (bundle?.week_number ? `WEEK - ${bundle.week_number}` : 'WEEK - 1')}
+              </span>
+              <span className="pill-badge pill-status">
+                CONTEST LIVE
+              </span>
+            </div>
+
+            <div className="exam-hud-progress">
+              <span className="exam-hud-question-label">
+                {isFeedbackActive
+                  ? `Item ${totalItems} of ${totalItems} • Feedback`
+                  : `Question ${currentIndex + 1} of ${totalQuestions}${currentQuestion?.type === 'written' ? ' • Written' : ''}`}
+              </span>
+              <span className={`exam-hud-status-badge ${
+                (isFeedbackActive
+                  ? isFeedbackAnswered
+                  : currentQuestion?.type === 'written'
+                  ? (writtenAnswers[currentQuestion?.id?.toString() || ''] || '').trim().length > 0
+                  : selectedOptionId !== undefined) ? 'is-completed' : 'is-pending'
+              }`}>
+                {(isFeedbackActive
+                  ? isFeedbackAnswered
+                  : currentQuestion?.type === 'written'
+                  ? (writtenAnswers[currentQuestion?.id?.toString() || ''] || '').trim().length > 0
+                  : selectedOptionId !== undefined) ? '✓ Completed' : 'Pending'}
+              </span>
+            </div>
+          </div>
+
+          {/* Row 2: Dual Timers */}
+          {attemptState?.deadline_ms && (
+            <div className="exam-hud-timers">
+              <DualTimer
+                deadlineMs={attemptState.deadline_ms}
+                portalClosingMs={attemptState.portal_closing_ms}
+                onExpire={handleTimeoutExpire}
+              />
+            </div>
+          )}
+        </div>
+      </div>
 
       {/* Main Examination Workspace: Left Canvas + Right Palette */}
       <div className="exam-taking-wrapper">
         {/* Left: Active Question Canvas */}
         <main style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
           {/* Question or Feedback Card */}
-          <div className="glass-card-dark" style={{ padding: '2rem 1.75rem', position: 'relative' }}>
+          <div className="glass-card-dark exam-question-card">
             {/* Header: Item Counter & Answered Badge */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
               <span style={{
@@ -402,13 +452,7 @@ export const QuizTakingView: React.FC<QuizTakingViewProps> = ({ attemptId, onSub
             {!isFeedbackActive && currentQuestion ? (
               <div>
                 {/* Question Prompt */}
-                <h3 style={{
-                  fontSize: '1.35rem',
-                  fontWeight: 700,
-                  color: '#ffffff',
-                  lineHeight: 1.5,
-                  marginBottom: '1.5rem',
-                }}>
+                <h3 className="exam-question-title">
                   {currentQuestion.text}
                 </h3>
 
@@ -485,44 +529,15 @@ export const QuizTakingView: React.FC<QuizTakingViewProps> = ({ attemptId, onSub
                           key={option.id}
                           onClick={() => handleSelectOption(option.id)}
                           disabled={submitting}
-                          style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '1rem',
-                            padding: '1rem 1.25rem',
-                            borderRadius: '12px',
-                            border: isSelected
-                              ? '2px solid var(--peak-gold-main)'
-                              : '1px solid rgba(255, 255, 255, 0.14)',
-                            background: isSelected
-                              ? 'linear-gradient(135deg, rgba(245, 197, 66, 0.18) 0%, rgba(200, 150, 40, 0.12) 100%)'
-                              : 'rgba(255, 255, 255, 0.04)',
-                            color: '#ffffff',
-                            cursor: 'pointer',
-                            textAlign: 'left',
-                            transition: 'all 0.2s ease',
-                            boxShadow: isSelected ? '0 0 14px rgba(245, 197, 66, 0.25)' : 'none',
-                          }}
+                          className={`quiz-option-btn ${isSelected ? 'is-selected' : ''}`}
                         >
                           {/* Option Letter Tag */}
-                          <div style={{
-                            width: '32px',
-                            height: '32px',
-                            borderRadius: '8px',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            fontWeight: 800,
-                            fontSize: '0.9375rem',
-                            background: isSelected ? 'var(--peak-gold-main)' : 'rgba(255, 255, 255, 0.1)',
-                            color: isSelected ? '#1c0407' : 'rgba(255, 255, 255, 0.85)',
-                            flexShrink: 0,
-                          }}>
+                          <div className="quiz-option-letter">
                             {letterLabel}
                           </div>
 
                           {/* Option Text */}
-                          <div style={{ fontSize: '1rem', lineHeight: 1.45, flex: 1 }}>
+                          <div className="quiz-option-text">
                             {option.text}
                           </div>
                         </button>
@@ -578,58 +593,62 @@ export const QuizTakingView: React.FC<QuizTakingViewProps> = ({ attemptId, onSub
           </div>
 
           {/* Bottom Action / Navigation Controls */}
-          <div style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            gap: '1rem',
-            flexWrap: 'wrap',
-          }}>
-            {/* Previous Button */}
-            <button
-              onClick={() => setCurrentIndex((prev) => Math.max(0, prev - 1))}
-              disabled={currentIndex === 0 || submitting}
-              className="btn-secondary"
-              style={{
-                padding: '0.85rem 1.75rem',
-                borderRadius: '12px',
-                fontWeight: 700,
-                opacity: currentIndex === 0 ? 0.4 : 1,
-                cursor: currentIndex === 0 ? 'not-allowed' : 'pointer',
-              }}
-            >
-              ← Previous
-            </button>
+          <div className="quiz-bottom-nav-bar">
+            <div className="quiz-bottom-nav-row1">
+              {/* Previous Button */}
+              <button
+                onClick={() => setCurrentIndex((prev) => Math.max(0, prev - 1))}
+                disabled={currentIndex === 0 || submitting}
+                className="btn-secondary quiz-nav-btn"
+                style={{
+                  opacity: currentIndex === 0 ? 0.4 : 1,
+                  cursor: currentIndex === 0 ? 'not-allowed' : 'pointer',
+                }}
+              >
+                ← Previous
+              </button>
 
-            {/* Next or Review & Submit */}
-            <div style={{ display: 'flex', gap: '0.75rem' }}>
+              {/* Next Question / Go to Feedback */}
               {currentIndex < totalQuestions ? (
                 <button
                   onClick={() => setCurrentIndex((prev) => prev + 1)}
                   disabled={submitting}
-                  className="peak-submit-btn"
-                  style={{ padding: '0.85rem 2rem', fontSize: '1rem' }}
+                  className="peak-submit-btn quiz-nav-btn"
                 >
-                  {currentIndex === totalQuestions - 1 ? 'Go to Feedback →' : 'Next Question →'}
+                  {currentIndex === totalQuestions - 1 ? 'Feedback →' : 'Next →'}
                 </button>
-              ) : null}
-
-              {/* Review & Submit Button (always accessible) */}
-              <button
-                onClick={handleReviewAndSubmitClick}
-                disabled={submitting}
-                className="peak-submit-btn"
-                style={{
-                  padding: '0.85rem 2.25rem',
-                  fontSize: '1rem',
-                  background: remainingCount === 0
-                    ? 'linear-gradient(135deg, #10b981 0%, #059669 100%)'
-                    : 'linear-gradient(135deg, #d4af37 0%, #996515 100%)',
-                }}
-              >
-                Review & Submit ({totalAnswered}/{totalItems})
-              </button>
+              ) : (
+                <button
+                  onClick={handleReviewAndSubmitClick}
+                  disabled={submitting}
+                  className="peak-submit-btn quiz-nav-btn"
+                  style={{
+                    background: remainingCount === 0
+                      ? 'linear-gradient(135deg, #10b981 0%, #059669 100%)'
+                      : 'linear-gradient(135deg, #d4af37 0%, #996515 100%)',
+                  }}
+                >
+                  Submit
+                </button>
+              )}
             </div>
+
+            {/* Review & Submit Full-Width Primary Action */}
+            <button
+              onClick={handleReviewAndSubmitClick}
+              disabled={submitting}
+              className="peak-submit-btn quiz-submit-final-btn"
+              style={{
+                background: remainingCount === 0
+                  ? 'linear-gradient(135deg, #10b981 0%, #059669 100%)'
+                  : 'linear-gradient(135deg, #d4af37 0%, #996515 100%)',
+              }}
+            >
+              <span>Review & Submit</span>
+              <span className="quiz-submit-badge">
+                {totalAnswered} / {totalItems} Done
+              </span>
+            </button>
           </div>
         </main>
 
@@ -828,6 +847,91 @@ export const QuizTakingView: React.FC<QuizTakingViewProps> = ({ attemptId, onSub
                 {submitting ? 'Submitting...' : 'Yes, Submit Final'}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 3: Mobile Slide-Up Question Palette Drawer */}
+      {showMobilePalette && (
+        <div className="peak-modal-backdrop" onClick={() => setShowMobilePalette(false)}>
+          <div className="mobile-palette-sheet" onClick={(e) => e.stopPropagation()}>
+            <div className="mobile-palette-header">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <span style={{ fontSize: '1.1rem' }}>📋</span>
+                <span style={{ fontSize: '1.05rem', fontWeight: 800, color: '#ffffff' }}>Question Palette</span>
+              </div>
+              <button
+                onClick={() => setShowMobilePalette(false)}
+                className="mobile-palette-close-btn"
+                aria-label="Close palette"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="palette-status-bar" style={{ margin: '0.75rem 0 1rem' }}>
+              <div className="palette-status-pill is-answered">
+                <span>●</span> Answered: {totalAnswered}/{totalItems}
+              </div>
+              <div className="palette-status-pill is-remaining">
+                Remaining: {remainingCount}
+              </div>
+            </div>
+
+            <div className="palette-grid">
+              {orderedQuestions.map((q, idx) => {
+                const isAnswered = q.type === 'written'
+                  ? (writtenAnswers[q.id.toString()] || '').trim().length > 0
+                  : answers[q.id.toString()] !== undefined;
+                const isActive = currentIndex === idx;
+
+                return (
+                  <button
+                    key={q.id}
+                    onClick={() => {
+                      setCurrentIndex(idx);
+                      setShowMobilePalette(false);
+                    }}
+                    className={`palette-btn ${isAnswered ? 'is-answered' : ''} ${isActive ? 'is-active' : ''}`}
+                    title={`Question ${idx + 1}`}
+                  >
+                    {idx + 1}
+                  </button>
+                );
+              })}
+
+              <button
+                onClick={() => {
+                  setCurrentIndex(totalQuestions);
+                  setShowMobilePalette(false);
+                }}
+                className={`palette-btn is-feedback ${isFeedbackAnswered ? 'is-answered' : ''} ${isFeedbackActive ? 'is-active' : ''}`}
+                title="Assessment Feedback"
+              >
+                {totalQuestions + 1} • Feedback
+              </button>
+            </div>
+
+            <button
+              onClick={() => {
+                setShowMobilePalette(false);
+                handleReviewAndSubmitClick();
+              }}
+              disabled={submitting}
+              className="peak-submit-btn"
+              style={{
+                width: '100%',
+                padding: '0.85rem',
+                marginTop: '0.5rem',
+                borderRadius: '12px',
+                fontWeight: 800,
+                background: remainingCount === 0
+                  ? 'linear-gradient(135deg, #10b981 0%, #059669 100%)'
+                  : 'linear-gradient(135deg, #d4af37 0%, #996515 100%)',
+              }}
+            >
+              Review & Submit ({totalAnswered}/{totalItems})
+            </button>
           </div>
         </div>
       )}
