@@ -17,7 +17,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess, defaultQui
   // Fetch dynamic programme info & schedule on mount
   useEffect(() => {
     let isMounted = true;
-    api.getProgrammeInfo()
+    api.getProgrammeInfo(defaultQuizCode)
       .then((data) => {
         if (isMounted) {
           setProgramme(data);
@@ -29,7 +29,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess, defaultQui
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [defaultQuizCode]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -58,19 +58,35 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess, defaultQui
   };
 
   const totalWeeks = programme?.total_weeks || 5;
-  const currentWeek = programme?.current_week || 1;
-  const currentWeekLabel = programme?.current_week_label || `WEEK - ${currentWeek}`;
+
+  // Identify targeted week: match defaultQuizCode if present, otherwise fall back to programme.current_week
+  const matchedWeek = defaultQuizCode && programme?.weeks?.find(
+    (w) => w.code && w.code.toUpperCase() === defaultQuizCode.toUpperCase()
+  );
+  const currentWeek = matchedWeek ? matchedWeek.week_number : (programme?.current_week || 1);
+  const currentWeekLabel = matchedWeek
+    ? `WEEK - ${currentWeek}`
+    : (programme?.current_week_label || `WEEK - ${currentWeek}`);
   const statusBadge = programme?.status_badge || 'CONTEST LIVE';
   const durationTagline =
     programme?.duration_tagline ||
     'Five weeks. Five knowledge areas. One chance each week to raise your game.';
 
-  const weeksList = programme?.weeks || Array.from({ length: totalWeeks }, (_, i) => ({
+  const weeksList = (programme?.weeks || Array.from({ length: totalWeeks }, (_, i) => ({
     week_number: i + 1,
     label: String(i + 1).padStart(2, '0'),
     status: (i + 1 === currentWeek ? 'active' : i + 1 < currentWeek ? 'completed' : 'upcoming') as 'active' | 'completed' | 'upcoming',
     title: `Week ${i + 1}`,
-  }));
+    code: null,
+  }))).map((w) => {
+    if (w.week_number === currentWeek) {
+      return { ...w, status: 'active' as const };
+    }
+    if (w.week_number < currentWeek) {
+      return { ...w, status: 'completed' as const };
+    }
+    return w;
+  });
 
   return (
     <div className="peak-portal-wrapper">

@@ -10,7 +10,7 @@ type Screen = 'entry' | 'taking' | 'result';
 
 function getInitialQuizCode(): string {
   const path = window.location.pathname;
-  const match = path.match(/\/quiz\/([A-Za-z0-9_-]+)/);
+  const match = path.match(/\/(?:quiz|quizz)\/([A-Za-z0-9_-]+)/i);
   if (match && match[1]) {
     return match[1].toUpperCase();
   }

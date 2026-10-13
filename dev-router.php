@@ -37,7 +37,7 @@ if (file_exists($publicFile) && !is_dir($publicFile)) {
 }
 
 // 3. Employee SPA routing
-if (preg_match('#^/quiz/#', $uri) || $uri === '/app' || $uri === '/app/') {
+if (preg_match('#^/(quiz|quizz)/#', $uri) || $uri === '/app' || $uri === '/app/') {
     $spaHtml = __DIR__ . '/public/app/index.html';
     if (file_exists($spaHtml)) {
         header('Content-Type: text/html; charset=utf-8');

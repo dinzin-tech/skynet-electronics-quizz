@@ -85,12 +85,22 @@ $router->get('/api/time', function (array $params, array $config, mixed $redis, 
 
 // 1a. GET /api/programme/info (Public Peak Pursuit programme metadata & schedule)
 $router->get('/api/programme/info', function (array $params, array $config, mixed $redis, int $nowMs): void {
+    $targetCode = trim((string) ($_GET['code'] ?? $_GET['quiz_code'] ?? ''));
+
     $pdo = \Core\Database::getInstance()->getConnection();
-    $stmt = $pdo->prepare(
-        'SELECT id, code, title, week_number, start_at, end_at, status ' .
-        'FROM quizzes WHERE status = "published" ORDER BY week_number ASC, start_at ASC'
-    );
-    $stmt->execute();
+    if ($targetCode !== '') {
+        $stmt = $pdo->prepare(
+            'SELECT id, code, title, week_number, start_at, end_at, status ' .
+            'FROM quizzes WHERE status = "published" OR code = :target_code ORDER BY week_number ASC, start_at ASC'
+        );
+        $stmt->execute(['target_code' => $targetCode]);
+    } else {
+        $stmt = $pdo->prepare(
+            'SELECT id, code, title, week_number, start_at, end_at, status ' .
+            'FROM quizzes WHERE status = "published" ORDER BY week_number ASC, start_at ASC'
+        );
+        $stmt->execute();
+    }
     $quizzes = $stmt->fetchAll(\PDO::FETCH_ASSOC);
 
     $utcTz = new \DateTimeZone('UTC');
@@ -98,6 +108,7 @@ $router->get('/api/programme/info', function (array $params, array $config, mixe
     $activeQuiz = null;
     $nearestUpcoming = null;
     $lastPast = null;
+    $targetQuiz = null;
 
     $quizByWeek = [];
     foreach ($quizzes as $q) {
@@ -120,9 +131,14 @@ $router->get('/api/programme/info', function (array $params, array $config, mixe
             'week_number' => $weekNum,
             'start_ms' => $startMs,
             'end_ms' => $endMs,
+            'status' => $q['status'],
         ];
 
         $quizByWeek[$weekNum] = $qData;
+
+        if ($targetCode !== '' && strcasecmp((string) $q['code'], $targetCode) === 0) {
+            $targetQuiz = $qData;
+        }
 
         if ($nowMs >= $startMs && $nowMs <= $endMs) {
             if ($activeQuiz === null) {
@@ -139,23 +155,34 @@ $router->get('/api/programme/info', function (array $params, array $config, mixe
         }
     }
 
-    $currentQuiz = $activeQuiz ?? $nearestUpcoming ?? $lastPast;
+    $currentQuiz = $targetQuiz ?? $activeQuiz ?? $nearestUpcoming ?? $lastPast;
     $currentWeek = $currentQuiz ? (int) $currentQuiz['week_number'] : 1;
-    $statusBadge = $activeQuiz !== null ? 'CONTEST LIVE' : ($nearestUpcoming !== null ? 'UPCOMING' : 'CONCLUDED');
+
+    if ($targetQuiz !== null) {
+        if ($targetQuiz['start_ms'] > 0 && $nowMs < $targetQuiz['start_ms']) {
+            $statusBadge = 'UPCOMING';
+        } elseif ($targetQuiz['end_ms'] > 0 && $nowMs > $targetQuiz['end_ms']) {
+            $statusBadge = 'CONCLUDED';
+        } else {
+            $statusBadge = 'CONTEST LIVE';
+        }
+    } else {
+        $statusBadge = $activeQuiz !== null ? 'CONTEST LIVE' : ($nearestUpcoming !== null ? 'UPCOMING' : 'CONCLUDED');
+    }
 
     // Build week milestones for 1..maxWeek
     $weeks = [];
     for ($w = 1; $w <= $maxWeek; $w++) {
         $qInfo = $quizByWeek[$w] ?? null;
         $status = 'upcoming';
-        if ($qInfo) {
-            if ($nowMs >= $qInfo['start_ms'] && $nowMs <= $qInfo['end_ms']) {
-                $status = 'active';
-            } elseif ($nowMs > $qInfo['end_ms']) {
-                $status = 'completed';
-            }
+        if ($w === $currentWeek) {
+            $status = 'active';
         } elseif ($w < $currentWeek) {
             $status = 'completed';
+        } elseif ($qInfo) {
+            if ($nowMs > $qInfo['end_ms'] && $qInfo['end_ms'] > 0) {
+                $status = 'completed';
+            }
         }
 
         $weeks[] = [
