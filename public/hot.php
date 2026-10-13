@@ -34,6 +34,52 @@ if (!file_exists($configFile)) {
 
 $config = require $configFile;
 
+// Ensure database environment variables are populated for hot endpoints that query MySQL (e.g. /api/programme/info, /api/quiz/list)
+if (!empty($config['database']) && is_array($config['database'])) {
+    $_ENV['DEFAULT_DB_HOST'] = $_ENV['DEFAULT_DB_HOST'] ?? $config['database']['host'] ?? '127.0.0.1';
+    $_ENV['DEFAULT_DB_DATABASE'] = $_ENV['DEFAULT_DB_DATABASE'] ?? $config['database']['database'] ?? 'corp_quizz';
+    $_ENV['DEFAULT_DB_USER'] = $_ENV['DEFAULT_DB_USER'] ?? $config['database']['user'] ?? 'root';
+    $_ENV['DEFAULT_DB_PASSWORD'] = $_ENV['DEFAULT_DB_PASSWORD'] ?? $config['database']['password'] ?? '';
+}
+if (!isset($_ENV['DEFAULT_DB_HOST']) && class_exists(\Dotenv\Dotenv::class) && file_exists(__DIR__ . '/../.env')) {
+    \Dotenv\Dotenv::createImmutable(dirname(__DIR__))->safeLoad();
+}
+
+/**
+ * Safe database connection helper for hot path endpoints.
+ *
+ * @param array<string, mixed> $config
+ * @return \PDO|null
+ */
+function getHotPdo(array $config): ?\PDO
+{
+    static $pdoInstance = null;
+    if ($pdoInstance !== null) {
+        return $pdoInstance;
+    }
+
+    $dbConfig = $config['database'] ?? [];
+    $host = $_ENV['DEFAULT_DB_HOST'] ?? $dbConfig['host'] ?? '127.0.0.1';
+    $dbname = $_ENV['DEFAULT_DB_DATABASE'] ?? $dbConfig['database'] ?? 'corp_quizz';
+    $user = $_ENV['DEFAULT_DB_USER'] ?? $dbConfig['user'] ?? 'root';
+    $password = $_ENV['DEFAULT_DB_PASSWORD'] ?? $dbConfig['password'] ?? '';
+
+    try {
+        $dsn = "mysql:host={$host};dbname={$dbname};charset=utf8mb4";
+        $options = [
+            \PDO::ATTR_ERRMODE => \PDO::ERRMODE_EXCEPTION,
+            \PDO::ATTR_DEFAULT_FETCH_MODE => \PDO::FETCH_ASSOC,
+            \PDO::ATTR_EMULATE_PREPARES => false,
+            \PDO::ATTR_TIMEOUT => 3,
+        ];
+        $pdoInstance = new \PDO($dsn, $user, $password, $options);
+        return $pdoInstance;
+    } catch (\Throwable $e) {
+        error_log('Hot path PDO connection error: ' . $e->getMessage());
+        return null;
+    }
+}
+
 // Connect to Redis via unix socket (or local TCP fallback)
 try {
     $redis = HotRedis::getConnection($config);
@@ -87,21 +133,29 @@ $router->get('/api/time', function (array $params, array $config, mixed $redis, 
 $router->get('/api/programme/info', function (array $params, array $config, mixed $redis, int $nowMs): void {
     $targetCode = trim((string) ($_GET['code'] ?? $_GET['quiz_code'] ?? ''));
 
-    $pdo = \Core\Database::getInstance()->getConnection();
-    if ($targetCode !== '') {
-        $stmt = $pdo->prepare(
-            'SELECT id, code, title, week_number, start_at, end_at, status ' .
-            'FROM quizzes WHERE status = "published" OR code = :target_code ORDER BY week_number ASC, start_at ASC'
-        );
-        $stmt->execute(['target_code' => $targetCode]);
-    } else {
-        $stmt = $pdo->prepare(
-            'SELECT id, code, title, week_number, start_at, end_at, status ' .
-            'FROM quizzes WHERE status = "published" ORDER BY week_number ASC, start_at ASC'
-        );
-        $stmt->execute();
+    $pdo = getHotPdo($config);
+    $quizzes = [];
+    if ($pdo !== null) {
+        try {
+            if ($targetCode !== '') {
+                $stmt = $pdo->prepare(
+                    'SELECT id, code, title, week_number, start_at, end_at, status ' .
+                    'FROM quizzes WHERE status = "published" OR code = :target_code ORDER BY week_number ASC, start_at ASC'
+                );
+                $stmt->execute(['target_code' => $targetCode]);
+            } else {
+                $stmt = $pdo->prepare(
+                    'SELECT id, code, title, week_number, start_at, end_at, status ' .
+                    'FROM quizzes WHERE status = "published" ORDER BY week_number ASC, start_at ASC'
+                );
+                $stmt->execute();
+            }
+            $quizzes = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+        } catch (\Throwable $e) {
+            error_log('Programme info query error: ' . $e->getMessage());
+            $quizzes = [];
+        }
     }
-    $quizzes = $stmt->fetchAll(\PDO::FETCH_ASSOC);
 
     $utcTz = new \DateTimeZone('UTC');
     $maxWeek = 5;
@@ -224,13 +278,21 @@ $router->get('/api/quiz/list', function (array $params, array $config, mixed $re
 
     $uid = (string) $claims['uid'];
 
-    $pdo = \Core\Database::getInstance()->getConnection();
-    $stmt = $pdo->prepare(
-        'SELECT id, code, title, description, week_number, duration_seconds, start_at, end_at, status ' .
-        'FROM quizzes WHERE status = "published" ORDER BY week_number ASC, start_at ASC'
-    );
-    $stmt->execute();
-    $quizzes = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+    $pdo = getHotPdo($config);
+    $quizzes = [];
+    if ($pdo !== null) {
+        try {
+            $stmt = $pdo->prepare(
+                'SELECT id, code, title, description, week_number, duration_seconds, start_at, end_at, status ' .
+                'FROM quizzes WHERE status = "published" ORDER BY week_number ASC, start_at ASC'
+            );
+            $stmt->execute();
+            $quizzes = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+        } catch (\Throwable $e) {
+            error_log('Quiz list query error: ' . $e->getMessage());
+            $quizzes = [];
+        }
+    }
 
     $utcTz = new \DateTimeZone('UTC');
     $items = [];
