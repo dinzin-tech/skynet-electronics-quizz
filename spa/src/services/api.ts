@@ -121,8 +121,9 @@ export const api = {
     return res;
   },
 
-  async getProgrammeInfo(): Promise<import('../types').ProgrammeInfo> {
-    return request<import('../types').ProgrammeInfo>('/api/programme/info');
+  async getProgrammeInfo(code?: string): Promise<import('../types').ProgrammeInfo> {
+    const query = code ? `?code=${encodeURIComponent(code)}` : '';
+    return request<import('../types').ProgrammeInfo>(`/api/programme/info${query}`);
   },
 
   async getQuizList(): Promise<{ quizzes: import('../types').QuizListItem[]; server_now_ms: number }> {

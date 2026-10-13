@@ -1,0 +1,18 @@
+RewriteEngine On
+
+# 1. Hot path endpoints bypass framework bootstrap
+RewriteCond %{REQUEST_URI} ^/api/(quiz|attempts|time|programme) [NC]
+RewriteRule ^ hot.php [L]
+
+# 2. Employee SPA routing
+RewriteCond %{REQUEST_URI} ^/(quiz|quizz)/ [NC,OR]
+RewriteCond %{REQUEST_URI} ^/app(/.*)?$ [NC]
+RewriteRule ^ app/index.html [L]
+
+# 3. Allow real files and directories
+RewriteCond %{REQUEST_FILENAME} -f [OR]
+RewriteCond %{REQUEST_FILENAME} -d
+RewriteRule ^ - [L]
+
+# 4. Default: framework entry point
+RewriteRule ^ index.php [L]
