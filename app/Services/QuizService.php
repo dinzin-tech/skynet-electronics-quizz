@@ -58,7 +58,7 @@ class QuizService
         $sql = "SELECT q.id, q.public_id, q.code, q.title, q.description, q.week_number, q.duration_seconds, q.start_at, q.end_at, " .
                "q.status, q.current_version, q.published_at, q.created_at, q.updated_at, q.question_bank_id, q.random_question_count, " .
                "qb.title AS bank_title, " .
-               "COALESCE((SELECT COUNT(*) FROM questions qn WHERE qn.question_bank_id = q.question_bank_id), (SELECT COUNT(*) FROM questions qn2 WHERE qn2.quiz_id = q.id)) AS question_count " .
+               "CASE WHEN q.question_bank_id IS NOT NULL THEN (SELECT COUNT(*) FROM questions qn WHERE qn.question_bank_id = q.question_bank_id) ELSE (SELECT COUNT(*) FROM questions qn2 WHERE qn2.quiz_id = q.id) END AS question_count " .
                "FROM quizzes q " .
                "LEFT JOIN question_banks qb ON qb.id = q.question_bank_id " .
                "{$whereClause} ORDER BY q.id DESC LIMIT :limit OFFSET :offset";

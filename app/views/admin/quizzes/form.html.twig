@@ -57,9 +57,9 @@
 
         <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 16px; margin-bottom: 16px;">
             <div class="form-group">
-                <label class="form-label" for="question_bank_id">Question Bank *</label>
-                <select id="question_bank_id" name="question_bank_id" class="form-control" required>
-                    <option value="">-- Select Question Bank --</option>
+                <label class="form-label" for="question_bank_id">Question Bank</label>
+                <select id="question_bank_id" name="question_bank_id" class="form-control">
+                    <option value="">-- Auto-create Dedicated Bank (or select existing) --</option>
                     {% for bank in question_banks %}
                         <option value="{{ bank.id }}" {% if old.question_bank_id|default(quiz.question_bank_id|default('')) == bank.id %}selected{% endif %}>
                             {{ bank.title }} ({{ bank.question_count }} questions){% if bank.is_locked %} [Active Assessment Linked]{% endif %}

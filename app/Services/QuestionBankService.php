@@ -261,4 +261,111 @@ SQL
         $stmt->execute(['bank_id' => $bankId]);
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
+
+    /**
+     * Migrate/synchronize any legacy quiz questions into Question Banks.
+     * Finds questions that belong to quizzes directly (quiz_id IS NOT NULL)
+     * and ensures they are safely encapsulated within a Question Bank.
+     *
+     * @return array{migrated_banks: int, total_banks: int}
+     */
+    public function syncLegacyQuizQuestions(): array
+    {
+        $migratedBanks = 0;
+
+        // 1. Find all distinct quiz IDs that have direct questions without a question_bank_id
+        $unlinkedQStmt = $this->db->query(
+            'SELECT DISTINCT quiz_id FROM questions ' .
+            'WHERE quiz_id IS NOT NULL AND (question_bank_id IS NULL OR question_bank_id = 0)'
+        );
+        $quizIds = $unlinkedQStmt ? $unlinkedQStmt->fetchAll(PDO::FETCH_COLUMN) : [];
+
+        // 2. Also find quizzes that have question_bank_id IS NULL but have questions in questions table
+        $quizzesWithoutBankStmt = $this->db->query(
+            'SELECT qz.id FROM quizzes qz WHERE (qz.question_bank_id IS NULL OR qz.question_bank_id = 0) ' .
+            'AND EXISTS (SELECT 1 FROM questions q WHERE q.quiz_id = qz.id)'
+        );
+        $extraQuizIds = $quizzesWithoutBankStmt ? $quizzesWithoutBankStmt->fetchAll(PDO::FETCH_COLUMN) : [];
+        $allQuizIds = array_unique(array_merge($quizIds, $extraQuizIds));
+
+        foreach ($allQuizIds as $qid) {
+            $bankId = $this->syncQuizLegacyQuestions((int) $qid);
+            if ($bankId) {
+                $migratedBanks++;
+            }
+        }
+
+        $cntStmt = $this->db->query('SELECT COUNT(*) FROM question_banks');
+        $totalBanks = (int) ($cntStmt ? $cntStmt->fetchColumn() : 0);
+
+        return [
+            'migrated_banks' => $migratedBanks,
+            'total_banks' => $totalBanks,
+        ];
+    }
+
+    /**
+     * Ensure questions of a specific quiz are backed by a Question Bank.
+     * If the quiz has a question_bank_id, links any pending direct questions.
+     * If it doesn't, creates a new Question Bank from the quiz and links questions + quiz.
+     */
+    public function syncQuizLegacyQuestions(int $quizId): ?int
+    {
+        $qStmt = $this->db->prepare(
+            'SELECT id, title, description, question_bank_id, created_by, created_at ' .
+            'FROM quizzes WHERE id = :id'
+        );
+        $qStmt->execute(['id' => $quizId]);
+        $quiz = $qStmt->fetch(PDO::FETCH_ASSOC);
+
+        if (!$quiz) {
+            return null;
+        }
+
+        $bankId = !empty($quiz['question_bank_id']) ? (int) $quiz['question_bank_id'] : null;
+
+        // Count how many questions this quiz has directly
+        $directQStmt = $this->db->prepare('SELECT COUNT(*) FROM questions WHERE quiz_id = :qid');
+        $directQStmt->execute(['qid' => $quizId]);
+        $directCount = (int) $directQStmt->fetchColumn();
+
+        if ($directCount === 0 && $bankId) {
+            return $bankId;
+        }
+
+        if (!$bankId) {
+            // Check if a question bank with this title already exists
+            $bankTitle = trim((string) $quiz['title']) . ' (Bank)';
+            $findBank = $this->db->prepare('SELECT id FROM question_banks WHERE title = :t LIMIT 1');
+            $findBank->execute(['t' => $bankTitle]);
+            $existingBankId = $findBank->fetchColumn();
+
+            if ($existingBankId) {
+                $bankId = (int) $existingBankId;
+            } else {
+                $bankDesc = !empty($quiz['description'])
+                    ? (string) $quiz['description']
+                    : 'Imported from quiz ' . $quiz['title'];
+                $adminId = !empty($quiz['created_by']) ? (int) $quiz['created_by'] : 1;
+                $bankId = $this->create($bankTitle, $bankDesc, $adminId);
+            }
+
+            // Link quiz to the bank
+            $this->db->prepare('UPDATE quizzes SET question_bank_id = :bid WHERE id = :qid')->execute([
+                'bid' => $bankId,
+                'qid' => $quizId,
+            ]);
+        }
+
+        // Link all direct questions to this bank
+        $this->db->prepare(
+            'UPDATE questions SET question_bank_id = :bid ' .
+            'WHERE quiz_id = :qid AND (question_bank_id IS NULL OR question_bank_id = 0)'
+        )->execute([
+            'bid' => $bankId,
+            'qid' => $quizId,
+        ]);
+
+        return $bankId;
+    }
 }
