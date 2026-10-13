@@ -214,7 +214,7 @@ class QuestionBankServiceTest extends TestCase
         $attId = (int) $this->db->lastInsertId();
 
         // Mock redis that returns attempt layout with only questions 2 and 4
-        $redisMock = new class($attPublicId) {
+        $redisMock = new class ($attPublicId) {
             private string $attId;
             public array $att = [];
 
