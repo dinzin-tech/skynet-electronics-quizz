@@ -78,13 +78,22 @@ class QuizPublisher
 
         $newVersion = ((int) $quiz['current_version']) + 1;
         $settings = json_decode((string) $quiz['settings'], true) ?? [];
+        $randomQuestionCount = !empty($quiz['random_question_count']) ? (int) $quiz['random_question_count'] : 0;
 
-        // 3. Fetch Questions and Options
-        $questionsStmt = $this->db->prepare(
-            'SELECT id, question_text, type, image_path, display_order FROM questions ' .
-            'WHERE quiz_id = :qid ORDER BY display_order ASC, id ASC'
-        );
-        $questionsStmt->execute(['qid' => $quizId]);
+        // 3. Fetch Questions and Options (from Question Bank if linked, or direct quiz questions)
+        if (!empty($quiz['question_bank_id'])) {
+            $questionsStmt = $this->db->prepare(
+                'SELECT id, question_text, type, image_path, display_order FROM questions ' .
+                'WHERE question_bank_id = :bid ORDER BY display_order ASC, id ASC'
+            );
+            $questionsStmt->execute(['bid' => (int) $quiz['question_bank_id']]);
+        } else {
+            $questionsStmt = $this->db->prepare(
+                'SELECT id, question_text, type, image_path, display_order FROM questions ' .
+                'WHERE quiz_id = :qid ORDER BY display_order ASC, id ASC'
+            );
+            $questionsStmt->execute(['qid' => $quizId]);
+        }
         $questions = $questionsStmt->fetchAll(PDO::FETCH_ASSOC);
 
         $optionsStmt = $this->db->prepare(
@@ -171,9 +180,10 @@ class QuizPublisher
             'start_at' => $quiz['start_at'],
             'end_at' => $quiz['end_at'],
             'version' => $newVersion,
-            'total_questions' => count($bundleQuestions),
+            'total_questions' => $randomQuestionCount > 0 ? $randomQuestionCount : count($bundleQuestions),
             'settings' => [
                 'navigation' => $settings['navigation'] ?? [],
+                'random_question_count' => $randomQuestionCount,
             ],
             'questions' => $bundleQuestions,
         ];
@@ -202,6 +212,7 @@ class QuizPublisher
         // 5. Insert Snapshot & Update Quiz
         $this->db->beginTransaction();
         try {
+            $totalQuestionsForAttempt = $randomQuestionCount > 0 ? $randomQuestionCount : count($bundleQuestions);
             $snapStmt = $this->db->prepare(
                 'INSERT INTO quiz_snapshots (quiz_id, version, question_count, bundle_path, ' .
                 'bundle_sha256, answer_key, structure, created_at) ' .
@@ -210,7 +221,7 @@ class QuizPublisher
             $snapStmt->execute([
                 'qid' => $quizId,
                 'ver' => $newVersion,
-                'qc' => count($bundleQuestions),
+                'qc' => $totalQuestionsForAttempt,
                 'bpath' => $bundlePath,
                 'bsha' => $bundleSha256,
                 'akey' => json_encode($answerKey, JSON_THROW_ON_ERROR),

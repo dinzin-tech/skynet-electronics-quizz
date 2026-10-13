@@ -24,7 +24,210 @@ class QuestionImportService
     }
 
     /**
-     * Import questions from CSV or XLSX into a quiz.
+     * Import questions from CSV or XLSX into a Question Bank.
+     *
+     * @return array{total_rows: int, imported_count: int, errors: string[]}
+     */
+    public function importToBank(int $bankId, string $filePath): array
+    {
+        if (!file_exists($filePath)) {
+            throw new InvalidArgumentException("File not found: {$filePath}");
+        }
+
+        if (filesize($filePath) > self::MAX_FILE_SIZE) {
+            throw new InvalidArgumentException('File size exceeds the 10 MB limit');
+        }
+
+        // Verify bank exists
+        $bStmt = $this->db->prepare('SELECT id, title FROM question_banks WHERE id = :id');
+        $bStmt->execute(['id' => $bankId]);
+        $bank = $bStmt->fetch(PDO::FETCH_ASSOC);
+
+        if (!$bank) {
+            throw new InvalidArgumentException("Question Bank ID {$bankId} not found");
+        }
+
+        // Check if bank is locked
+        $qService = new QuestionService($this->db);
+        $qService->assertBankNotLocked($bankId);
+
+        $ext = strtolower(pathinfo($filePath, PATHINFO_EXTENSION));
+        if ($ext === 'xlsx') {
+            $rows = $this->parseXlsx($filePath);
+        } else {
+            $rows = $this->parseCsv($filePath);
+        }
+
+        if (empty($rows)) {
+            throw new InvalidArgumentException('The uploaded file does not contain any question data');
+        }
+
+        $header = array_shift($rows);
+        $colMap = $this->resolveHeaderColumns($header);
+
+        $importedCount = 0;
+        $errors = [];
+        $validQuestions = [];
+
+        // Determine current max display order in this bank
+        $maxOrderStmt = $this->db->prepare('SELECT COALESCE(MAX(display_order), 0) FROM questions WHERE question_bank_id = :bid');
+        $maxOrderStmt->execute(['bid' => $bankId]);
+        $currentOrder = (int) $maxOrderStmt->fetchColumn();
+
+        foreach ($rows as $rowIdx => $row) {
+            $lineNum = $rowIdx + 2; // 1-based, accounting for header
+
+            // Skip empty rows
+            $hasData = false;
+            foreach ($row as $val) {
+                if (trim((string) $val) !== '') {
+                    $hasData = true;
+                    break;
+                }
+            }
+            if (!$hasData) {
+                continue;
+            }
+
+            $questionText = trim((string) ($row[$colMap['question_text']] ?? ''));
+            if ($questionText === '') {
+                $errors[] = "Row {$lineNum}: Question text is missing";
+                continue;
+            }
+
+            $rawType = strtolower(trim((string) ($row[$colMap['type']] ?? 'mcq')));
+            $type = in_array($rawType, ['written', 'text', 'written-answer', 'essay'], true) ? 'written' : 'mcq';
+
+            $currentOrder++;
+            $customOrder = isset($colMap['display_order']) && isset($row[$colMap['display_order']])
+                ? (int) trim((string) $row[$colMap['display_order']])
+                : 0;
+            $displayOrder = $customOrder > 0 ? $customOrder : $currentOrder;
+
+            if ($type === 'written') {
+                $validQuestions[] = [
+                    'text' => $questionText,
+                    'type' => 'written',
+                    'display_order' => $displayOrder,
+                    'options' => [],
+                ];
+                continue;
+            }
+
+            // MCQ Question options parsing
+            $rawOptions = [];
+            foreach (['option_a', 'option_b', 'option_c', 'option_d'] as $optKey) {
+                if (isset($colMap[$optKey]) && isset($row[$colMap[$optKey]])) {
+                    $optText = trim((string) $row[$colMap[$optKey]]);
+                    if ($optText !== '') {
+                        $rawOptions[] = $optText;
+                    }
+                }
+            }
+
+            if (count($rawOptions) < 2) {
+                $errors[] = "Row {$lineNum}: MCQ questions require at least 2 options (Option A and Option B)";
+                continue;
+            }
+
+            // Resolve correct option
+            $rawCorrect = strtoupper(trim((string) ($row[$colMap['correct_option']] ?? '')));
+            $correctIdx = -1;
+
+            if (in_array($rawCorrect, ['A', '1'], true)) {
+                $correctIdx = 0;
+            } elseif (in_array($rawCorrect, ['B', '2'], true)) {
+                $correctIdx = 1;
+            } elseif (in_array($rawCorrect, ['C', '3'], true)) {
+                $correctIdx = 2;
+            } elseif (in_array($rawCorrect, ['D', '4'], true)) {
+                $correctIdx = 3;
+            } else {
+                foreach ($rawOptions as $idx => $optTxt) {
+                    if (strcasecmp($optTxt, $rawCorrect) === 0) {
+                        $correctIdx = $idx;
+                        break;
+                    }
+                }
+            }
+
+            if ($correctIdx < 0 || $correctIdx >= count($rawOptions)) {
+                $errors[] = "Row {$lineNum}: Correct option must be A, B, C, or D (found: '{$rawCorrect}')";
+                continue;
+            }
+
+            $options = [];
+            foreach ($rawOptions as $idx => $optTxt) {
+                $options[] = [
+                    'text' => $optTxt,
+                    'is_correct' => ($idx === $correctIdx) ? 1 : 0,
+                    'display_order' => $idx + 1,
+                ];
+            }
+
+            $validQuestions[] = [
+                'text' => $questionText,
+                'type' => 'mcq',
+                'display_order' => $displayOrder,
+                'options' => $options,
+            ];
+        }
+
+        if (!empty($errors)) {
+            return [
+                'total_rows' => count($rows),
+                'imported_count' => 0,
+                'errors' => $errors,
+            ];
+        }
+
+        // Commit valid questions atomically into bank
+        $this->db->beginTransaction();
+        try {
+            $insertQStmt = $this->db->prepare(
+                'INSERT INTO questions (question_bank_id, quiz_id, question_text, type, display_order) VALUES (:bid, NULL, :text, :type, :ord)'
+            );
+            $insertOptStmt = $this->db->prepare(
+                'INSERT INTO answer_options (question_id, option_text, is_correct, display_order) VALUES (:qid, :text, :corr, :ord)'
+            );
+
+            foreach ($validQuestions as $q) {
+                $insertQStmt->execute([
+                    'bid' => $bankId,
+                    'text' => $q['text'],
+                    'type' => $q['type'],
+                    'ord' => $q['display_order'],
+                ]);
+                $questionId = (int) $this->db->lastInsertId();
+
+                if ($q['type'] === 'mcq') {
+                    foreach ($q['options'] as $opt) {
+                        $insertOptStmt->execute([
+                            'qid' => $questionId,
+                            'text' => $opt['text'],
+                            'corr' => $opt['is_correct'],
+                            'ord' => $opt['display_order'],
+                        ]);
+                    }
+                }
+                $importedCount++;
+            }
+
+            $this->db->commit();
+
+            return [
+                'total_rows' => count($rows),
+                'imported_count' => $importedCount,
+                'errors' => [],
+            ];
+        } catch (\Throwable $e) {
+            $this->db->rollBack();
+            throw $e;
+        }
+    }
+
+    /**
+     * Import questions from CSV or XLSX into a quiz (legacy).
      *
      * @return array{total_rows: int, imported_count: int, errors: string[]}
      */
@@ -38,13 +241,17 @@ class QuestionImportService
             throw new InvalidArgumentException('File size exceeds the 10 MB limit');
         }
 
-        // Verify quiz exists and is in draft status
-        $qStmt = $this->db->prepare('SELECT id, status FROM quizzes WHERE id = :id');
+        // Check if quiz has a linked question bank
+        $qStmt = $this->db->prepare('SELECT id, status, question_bank_id FROM quizzes WHERE id = :id');
         $qStmt->execute(['id' => $quizId]);
         $quiz = $qStmt->fetch(PDO::FETCH_ASSOC);
 
         if (!$quiz) {
             throw new InvalidArgumentException("Quiz ID {$quizId} not found");
+        }
+
+        if (!empty($quiz['question_bank_id'])) {
+            return $this->importToBank((int) $quiz['question_bank_id'], $filePath);
         }
 
         if ($quiz['status'] !== 'draft') {

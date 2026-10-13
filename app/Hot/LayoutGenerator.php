@@ -16,21 +16,30 @@ class LayoutGenerator
      * @param array<int|string, array<int, int>> $structure Map of qid => [oid, oid, ...]
      * @param bool $randomizeQuestions
      * @param bool $randomizeOptions
+     * @param int $randomQuestionCount If > 0, randomly samples this number of questions from the structure
      * @return array{q: array<int, int>, o: array<string, array<int, int>>}
      */
     public static function generate(
         array $structure,
         bool $randomizeQuestions = true,
-        bool $randomizeOptions = true
+        bool $randomizeOptions = true,
+        int $randomQuestionCount = 0
     ): array {
         $questionIds = array_map('intval', array_keys($structure));
 
-        if ($randomizeQuestions && count($questionIds) > 1) {
+        // Always shuffle if random question sampling is requested or question randomization is enabled
+        if (($randomizeQuestions || $randomQuestionCount > 0) && count($questionIds) > 1) {
             $questionIds = self::fisherYatesShuffle($questionIds);
         }
 
+        // Sample subset of random questions if requested
+        if ($randomQuestionCount > 0 && $randomQuestionCount < count($questionIds)) {
+            $questionIds = array_slice($questionIds, 0, $randomQuestionCount);
+        }
+
         $optionsMap = [];
-        foreach ($structure as $qid => $optionIds) {
+        foreach ($questionIds as $qid) {
+            $optionIds = $structure[(string) $qid] ?? $structure[$qid] ?? [];
             $optList = array_map('intval', $optionIds);
             if ($randomizeOptions && count($optList) > 1) {
                 $optList = self::fisherYatesShuffle($optList);
@@ -39,7 +48,7 @@ class LayoutGenerator
         }
 
         return [
-            'q' => $questionIds,
+            'q' => array_values($questionIds),
             'o' => $optionsMap,
         ];
     }

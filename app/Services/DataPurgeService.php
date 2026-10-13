@@ -74,6 +74,7 @@ class DataPurgeService
                 'answer_options',
                 'questions',
                 'quizzes',
+                'question_banks',
             ],
             'mysql_nullify'      => [],
             'redis_patterns'     => [
@@ -149,6 +150,7 @@ class DataPurgeService
                 'answer_options',
                 'questions',
                 'quizzes',
+                'question_banks',
                 'export_jobs',
                 'audit_logs',
             ],

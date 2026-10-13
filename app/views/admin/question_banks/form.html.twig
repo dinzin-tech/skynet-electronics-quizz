@@ -1,0 +1,41 @@
+{% extends "admin/layout.html.twig" %}
+
+{% block page_title %}{% if bank %}Edit Question Bank - {{ bank.title }}{% else %}Create Question Bank{% endif %}{% endblock %}
+
+{% block content %}
+<div style="margin-bottom: 24px;">
+    <a href="/admin/question-banks" style="font-size: 0.875rem; color: #2563eb; text-decoration: none;">&larr; Back to Question Banks</a>
+</div>
+
+{% if error %}
+    <div class="alert alert-error">{{ error }}</div>
+{% endif %}
+
+<div class="card" style="max-width: 650px;">
+    <h3 style="font-size: 1.15rem; font-weight: 600; margin: 0 0 16px 0; border-bottom: 1px solid var(--border-color); padding-bottom: 10px;">
+        {% if bank %}Edit Question Bank{% else %}New Question Bank Details{% endif %}
+    </h3>
+
+    <form action="{% if bank %}/admin/question-banks/{{ bank.id }}/edit{% else %}/admin/question-banks/create{% endif %}" method="POST">
+        <div class="form-group">
+            <label class="form-label" for="title">Question Bank Title *</label>
+            <input type="text" id="title" name="title" required class="form-control" placeholder="e.g. Information Security & Compliance 2026" value="{{ old.title|default(bank.title|default('')) }}">
+            <small style="color: #64748b; font-size: 0.8125rem; display: block; margin-top: 4px;">
+                A recognizable name for this collection of questions.
+            </small>
+        </div>
+
+        <div class="form-group">
+            <label class="form-label" for="description">Description / Notes</label>
+            <textarea id="description" name="description" rows="4" class="form-control" placeholder="Optional overview of the topics, difficulty, or purpose of this question bank...">{{ old.description|default(bank.description|default('')) }}</textarea>
+        </div>
+
+        <div style="display: flex; gap: 12px; margin-top: 24px; border-top: 1px solid var(--border-color); padding-top: 16px;">
+            <button type="submit" class="btn btn-primary" style="padding: 9px 24px;">
+                {% if bank %}Save Changes{% else %}Create Bank & Add Questions{% endif %}
+            </button>
+            <a href="/admin/question-banks" class="btn btn-secondary">Cancel</a>
+        </div>
+    </form>
+</div>
+{% endblock %}

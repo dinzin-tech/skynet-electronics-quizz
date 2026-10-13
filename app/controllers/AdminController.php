@@ -8,6 +8,7 @@ use App\Services\Auth\AuthService;
 use App\Services\DashboardService;
 use App\Services\EmployeeImportService;
 use App\Services\EmployeeService;
+use App\Services\QuestionBankService;
 use App\Services\QuestionImportService;
 use App\Services\QuestionService;
 use App\Services\QuizFinalizerService;
@@ -38,6 +39,7 @@ class AdminController extends Controller
     private DashboardService $dashboardService;
     private EmployeeService $employeeService;
     private EmployeeImportService $importService;
+    private QuestionBankService $questionBankService;
     private QuestionService $questionService;
     private QuestionImportService $questionImportService;
     private QuizService $quizService;
@@ -56,6 +58,7 @@ class AdminController extends Controller
         $this->dashboardService = new DashboardService($this->db);
         $this->employeeService = new EmployeeService($this->db);
         $this->importService = new EmployeeImportService($this->db);
+        $this->questionBankService = new QuestionBankService($this->db);
         $this->questionService = new QuestionService($this->db);
         $this->questionImportService = new QuestionImportService($this->db);
         $this->quizService = new QuizService($this->db);
@@ -766,6 +769,9 @@ class AdminController extends Controller
                     $targetZones = array_values(array_filter(array_map('trim', $selectedZones), fn($z) => $z !== ''));
                     $targetDesignations = array_values(array_filter(array_map('trim', $selectedDesignations), fn($des) => $des !== ''));
                 }
+                $questionBankId = (int) ($request->input('question_bank_id') ?? $request->get('question_bank_id', 0));
+                $rawRandCount = $request->input('random_question_count') ?? $request->get('random_question_count', null);
+                $randomQuestionCount = $rawRandCount !== null && trim((string) $rawRandCount) !== '' && (int) $rawRandCount > 0 ? (int) $rawRandCount : null;
 
                 $created = $this->quizService->create([
                     'title' => $title,
@@ -773,6 +779,8 @@ class AdminController extends Controller
                     'week_number' => $weekNumber,
                     'description' => $desc,
                     'feedback_question' => $feedbackQuestion,
+                    'question_bank_id' => $questionBankId > 0 ? $questionBankId : null,
+                    'random_question_count' => $randomQuestionCount,
                     'duration_minutes' => $duration,
                     'duration_seconds' => $duration * 60,
                     'start_at' => $startUtc,
@@ -790,7 +798,7 @@ class AdminController extends Controller
                     ],
                 ], $adminId);
 
-                Session::set('flash_success', 'Quiz created successfully. Now add questions below before publishing.');
+                Session::set('flash_success', 'Quiz created successfully! You can configure target audience below or publish when ready.');
                 return $this->redirect("/admin/quizzes/{$created['id']}/questions");
             } catch (\Throwable $e) {
                 $groups = [];
@@ -802,6 +810,7 @@ class AdminController extends Controller
                 return $this->render('admin/quizzes/form.html.twig', [
                     'admin' => $this->getAdminUser(),
                     'current_route' => 'quizzes',
+                    'question_banks' => $this->questionBankService->getAll(),
                     'groups' => $groups,
                     'departments' => $this->getDistinctDepartments(),
                     'zones' => $this->getDistinctZones(),
@@ -816,6 +825,7 @@ class AdminController extends Controller
         return $this->render('admin/quizzes/form.html.twig', [
             'admin' => $this->getAdminUser(),
             'current_route' => 'quizzes',
+            'question_banks' => $this->questionBankService->getAll(),
             'groups' => $groups,
             'departments' => $this->getDistinctDepartments(),
             'zones' => $this->getDistinctZones(),
@@ -836,7 +846,6 @@ class AdminController extends Controller
         $admin = $this->getAdminUser();
         $adminId = (int) ($admin['id'] ?? 1);
         $quizId = (int) $id;
-
         $quiz = $this->quizService->getById($quizId);
         if (!$quiz) {
             Session::set('flash_error', 'Quiz not found');
@@ -853,6 +862,10 @@ class AdminController extends Controller
                 $windowEnd = (string) ($request->input('window_end') ?? $request->get('window_end', ''));
                 $duration = (int) ($request->input('duration_minutes') ?? $request->get('duration_minutes', 30));
                 $weekNumber = max(1, (int) ($request->input('week_number') ?? $request->get('week_number', $quiz['week_number'] ?? 1)));
+
+                $questionBankId = (int) ($request->input('question_bank_id') ?? $request->get('question_bank_id', 0));
+                $rawRandCount = $request->input('random_question_count') ?? $request->get('random_question_count', null);
+                $randomQuestionCount = $rawRandCount !== null && trim((string) $rawRandCount) !== '' && (int) $rawRandCount > 0 ? (int) $rawRandCount : null;
 
                 $scoring = [
                     'marks_per_correct' => (float) ($request->input('marks_per_correct') ?? $request->get('marks_per_correct', 1.0)),
@@ -900,6 +913,8 @@ class AdminController extends Controller
                     'week_number' => $weekNumber,
                     'description' => $desc,
                     'feedback_question' => $feedbackQuestion,
+                    'question_bank_id' => $questionBankId > 0 ? $questionBankId : null,
+                    'random_question_count' => $randomQuestionCount,
                     'duration_minutes' => $duration,
                     'duration_seconds' => $duration * 60,
                     'start_at' => $startUtc,
@@ -925,6 +940,7 @@ class AdminController extends Controller
                     'admin' => $this->getAdminUser(),
                     'current_route' => 'quizzes',
                     'quiz' => $quiz,
+                    'question_banks' => $this->questionBankService->getAll(),
                     'groups' => $groups,
                     'departments' => $this->getDistinctDepartments(),
                     'zones' => $this->getDistinctZones(),
@@ -940,6 +956,7 @@ class AdminController extends Controller
             'admin' => $this->getAdminUser(),
             'current_route' => 'quizzes',
             'quiz' => $quiz,
+            'question_banks' => $this->questionBankService->getAll(),
             'groups' => $groups,
             'departments' => $this->getDistinctDepartments(),
             'zones' => $this->getDistinctZones(),
@@ -969,7 +986,7 @@ class AdminController extends Controller
     }
 
     /**
-     * @Route(path="/admin/quizzes/{id}/questions", methods="GET,POST", name="admin.quizzes.questions")
+     * @Route(path="/admin/quizzes/{id}/questions", methods="GET", name="admin.quizzes.questions")
      */
     public function quizQuestions(Request $request, string $id): Response
     {
@@ -984,8 +1001,255 @@ class AdminController extends Controller
             return $this->redirect('/admin/quizzes');
         }
 
+        if (!empty($quiz['question_bank_id'])) {
+            return $this->redirect("/admin/question-banks/{$quiz['question_bank_id']}/questions");
+        }
+
+        Session::set('flash_error', 'Please link a Question Bank to this quiz.');
+        return $this->redirect("/admin/quizzes/{$quizId}/edit");
+    }
+
+    /**
+     * @Route(path="/admin/quizzes/{id}/audience", methods="GET,POST", name="admin.quizzes.audience")
+     */
+    public function quizAudience(Request $request, string $id): Response
+    {
+        if ($authRedirect = $this->requireAdmin()) {
+            return $authRedirect;
+        }
+
+        $admin = $this->getAdminUser();
+        $adminId = (int) ($admin['id'] ?? 1);
+        $quizId = (int) $id;
+        $quiz = $this->quizService->getById($quizId);
+        if (!$quiz) {
+            Session::set('flash_error', 'Quiz not found');
+            return $this->redirect('/admin/quizzes');
+        }
+
+        if ($request->getMethod() === 'POST') {
+            $targetAudience = (string) $request->get('target_audience', 'all');
+            $selectedGroups = (array) $request->get('target_groups', []);
+            $selectedDepts = (array) $request->get('target_departments', []);
+            $selectedZones = (array) $request->get('target_zones', []);
+            $selectedDesignations = (array) $request->get('target_designations', []);
+
+            $targetGroups = [];
+            $targetDepts = [];
+            $targetZones = [];
+            $targetDesignations = [];
+
+            if ($targetAudience !== 'all') {
+                $targetGroups = array_values(array_filter(array_map('intval', $selectedGroups), fn($g) => $g > 0));
+                $targetDepts = array_values(array_filter(array_map('trim', $selectedDepts), fn($d) => $d !== ''));
+                $targetZones = array_values(array_filter(array_map('trim', $selectedZones), fn($z) => $z !== ''));
+                $targetDesignations = array_values(array_filter(array_map('trim', $selectedDesignations), fn($des) => $des !== ''));
+            }
+
+            try {
+                $this->quizService->update($quizId, [
+                    'settings' => [
+                        'target_audience' => $targetAudience,
+                        'target_groups' => $targetGroups,
+                        'target_departments' => $targetDepts,
+                        'target_zones' => $targetZones,
+                        'target_designations' => $targetDesignations,
+                    ],
+                ], $adminId);
+                Session::set('flash_success', 'Target audience updated successfully.');
+            } catch (\Throwable $e) {
+                Session::set('flash_error', 'Failed to update audience: ' . $e->getMessage());
+            }
+
+            return $this->redirect("/admin/quizzes/{$quizId}/audience");
+        }
+
+        $groups = $this->db->query('SELECT id, name, description FROM `groups` ORDER BY name ASC')->fetchAll(PDO::FETCH_ASSOC);
+        $success = Session::get('flash_success');
+        $error = Session::get('flash_error');
+        Session::delete('flash_success');
+        Session::delete('flash_error');
+
+        return $this->render('admin/quizzes/audience.html.twig', [
+            'admin' => $this->getAdminUser(),
+            'current_route' => 'quizzes',
+            'quiz' => $quiz,
+            'groups' => $groups,
+            'departments' => $this->getDistinctDepartments(),
+            'zones' => $this->getDistinctZones(),
+            'designations' => $this->getDistinctDesignations(),
+            'success' => $success,
+            'error' => $error,
+        ]);
+    }
+
+    /**
+     * @Route(path="/admin/question-banks", methods="GET", name="admin.question_banks.index")
+     */
+    public function questionBanksIndex(Request $request): Response
+    {
+        if ($authRedirect = $this->requireAdmin()) {
+            return $authRedirect;
+        }
+
+        $banks = $this->questionBankService->getAll();
+        $totalQuestions = array_sum(array_column($banks, 'question_count'));
+        $lockedCount = count(array_filter($banks, fn($b) => !empty($b['is_locked'])));
+
+        $success = Session::get('flash_success');
+        $error = Session::get('flash_error');
+        Session::delete('flash_success');
+        Session::delete('flash_error');
+
+        return $this->render('admin/question_banks/index.html.twig', [
+            'admin' => $this->getAdminUser(),
+            'current_route' => 'question_banks',
+            'question_banks' => $banks,
+            'total_banks' => count($banks),
+            'total_questions' => $totalQuestions,
+            'locked_banks' => $lockedCount,
+            'success' => $success,
+            'error' => $error,
+        ]);
+    }
+
+    /**
+     * @Route(path="/admin/question-banks/create", methods="GET,POST", name="admin.question_banks.create")
+     */
+    public function questionBankCreate(Request $request): Response
+    {
+        if ($authRedirect = $this->requireAdmin()) {
+            return $authRedirect;
+        }
+
+        $admin = $this->getAdminUser();
+        $adminId = (int) ($admin['id'] ?? 1);
+
+        if ($request->getMethod() === 'POST') {
+            $title = trim((string) ($request->input('title') ?? $request->get('title', '')));
+            $description = trim((string) ($request->input('description') ?? $request->get('description', '')));
+
+            try {
+                if ($title === '') {
+                    throw new InvalidArgumentException('Question bank title is required.');
+                }
+
+                $bankId = $this->questionBankService->create($title, $description, $adminId);
+                Session::set('flash_success', 'Question bank created successfully! You can now add questions.');
+                return $this->redirect("/admin/question-banks/{$bankId}/questions");
+            } catch (\Throwable $e) {
+                return $this->render('admin/question_banks/form.html.twig', [
+                    'admin' => $this->getAdminUser(),
+                    'current_route' => 'question_banks',
+                    'bank' => null,
+                    'error' => $e->getMessage(),
+                    'old' => $request->getPostData(),
+                ]);
+            }
+        }
+
+        return $this->render('admin/question_banks/form.html.twig', [
+            'admin' => $this->getAdminUser(),
+            'current_route' => 'question_banks',
+            'bank' => null,
+            'error' => null,
+            'old' => null,
+        ]);
+    }
+
+    /**
+     * @Route(path="/admin/question-banks/{id}/edit", methods="GET,POST", name="admin.question_banks.edit")
+     */
+    public function questionBankEdit(Request $request, string $id): Response
+    {
+        if ($authRedirect = $this->requireAdmin()) {
+            return $authRedirect;
+        }
+
+        $bankId = (int) $id;
+        $bank = $this->questionBankService->getById($bankId);
+        if (!$bank) {
+            Session::set('flash_error', 'Question bank not found.');
+            return $this->redirect('/admin/question-banks');
+        }
+
+        if ($request->getMethod() === 'POST') {
+            $title = trim((string) ($request->input('title') ?? $request->get('title', '')));
+            $description = trim((string) ($request->input('description') ?? $request->get('description', '')));
+
+            try {
+                if ($title === '') {
+                    throw new InvalidArgumentException('Question bank title is required.');
+                }
+
+                $this->questionBankService->update($bankId, $title, $description);
+                Session::set('flash_success', 'Question bank updated successfully.');
+                return $this->redirect('/admin/question-banks');
+            } catch (\Throwable $e) {
+                return $this->render('admin/question_banks/form.html.twig', [
+                    'admin' => $this->getAdminUser(),
+                    'current_route' => 'question_banks',
+                    'bank' => $bank,
+                    'error' => $e->getMessage(),
+                    'old' => $request->getPostData(),
+                ]);
+            }
+        }
+
+        return $this->render('admin/question_banks/form.html.twig', [
+            'admin' => $this->getAdminUser(),
+            'current_route' => 'question_banks',
+            'bank' => $bank,
+            'error' => null,
+            'old' => null,
+        ]);
+    }
+
+    /**
+     * @Route(path="/admin/question-banks/{id}/delete", methods="POST", name="admin.question_banks.delete")
+     */
+    public function questionBankDelete(Request $request, string $id): Response
+    {
+        if ($authRedirect = $this->requireAdmin()) {
+            return $authRedirect;
+        }
+
+        $bankId = (int) $id;
+        try {
+            $this->questionBankService->delete($bankId);
+            Session::set('flash_success', 'Question bank deleted successfully.');
+        } catch (\Throwable $e) {
+            Session::set('flash_error', 'Failed to delete question bank: ' . $e->getMessage());
+        }
+
+        return $this->redirect('/admin/question-banks');
+    }
+
+    /**
+     * @Route(path="/admin/question-banks/{id}/questions", methods="GET,POST", name="admin.question_banks.questions")
+     */
+    public function questionBankQuestions(Request $request, string $id): Response
+    {
+        if ($authRedirect = $this->requireAdmin()) {
+            return $authRedirect;
+        }
+
+        $bankId = (int) $id;
+        $bank = $this->questionBankService->getById($bankId);
+        if (!$bank) {
+            Session::set('flash_error', 'Question bank not found.');
+            return $this->redirect('/admin/question-banks');
+        }
+
+        $isLocked = $this->questionBankService->isBankLocked($bankId);
+        $linkedQuizzes = $this->questionBankService->getLinkedQuizzes($bankId);
+
         if ($request->getMethod() === 'POST') {
             try {
+                if ($isLocked) {
+                    throw new InvalidArgumentException('Editing is disallowed: This question bank is linked to one or more active or in-progress quizzes.');
+                }
+
                 $targetDir = dirname(__DIR__, 2) . '/public/uploads/questions';
                 if (!is_dir($targetDir)) {
                     mkdir($targetDir, 0755, true);
@@ -1030,7 +1294,7 @@ class AdminController extends Controller
                             $allowedExts = ['jpg', 'jpeg', 'png', 'webp', 'gif'];
                             $ext = strtolower(pathinfo((string) $file['name'], PATHINFO_EXTENSION));
                             if (in_array($ext, $allowedExts, true)) {
-                                $fileName = 'q_' . $quizId . '_' . time() . '_' . bin2hex(random_bytes(4)) . '.' . $ext;
+                                $fileName = 'q_b' . $bankId . '_' . time() . '_' . bin2hex(random_bytes(4)) . '.' . $ext;
                                 $dest = $targetDir . '/' . $fileName;
                                 if (move_uploaded_file($file['tmp_name'], $dest)) {
                                     $imagePath = '/uploads/questions/' . $fileName;
@@ -1038,7 +1302,7 @@ class AdminController extends Controller
                             }
                         }
 
-                        $this->questionService->addQuestion($quizId, $qText, $options, 0, $imagePath, $qType);
+                        $this->questionService->addQuestionToBank($bankId, $qText, $options, 0, $imagePath, $qType);
                         $addedCount++;
                     }
 
@@ -1048,23 +1312,27 @@ class AdminController extends Controller
 
                     $msg = $addedCount === 1 ? '1 question added successfully.' : "{$addedCount} questions added successfully.";
                     Session::set('flash_success', $msg);
-                    return $this->redirect("/admin/quizzes/{$quizId}/questions");
+                    return $this->redirect("/admin/question-banks/{$bankId}/questions");
                 }
 
                 // Fallback for single question submission format
                 $questionText = trim((string) ($request->input('question_text') ?? $request->get('question_text', '')));
                 if ($questionText !== '') {
+                    $rawType = strtolower(trim((string) ($request->input('question_type') ?? $request->get('question_type', 'mcq'))));
+                    $qType = in_array($rawType, ['written', 'text'], true) ? 'written' : 'mcq';
                     $correctIndex = (int) ($request->input('correct_option') ?? $request->get('correct_option', -1));
                     $rawOptions = (array) ($request->input('options') ?? $request->get('options', []));
 
                     $options = [];
-                    foreach ($rawOptions as $idx => $optText) {
-                        $optText = trim((string) $optText);
-                        if ($optText !== '') {
-                            $options[] = [
-                                'text' => $optText,
-                                'is_correct' => ($idx === $correctIndex),
-                            ];
+                    if ($qType === 'mcq') {
+                        foreach ($rawOptions as $idx => $optText) {
+                            $optText = trim((string) $optText);
+                            if ($optText !== '') {
+                                $options[] = [
+                                    'text' => $optText,
+                                    'is_correct' => ($idx === $correctIndex),
+                                ];
+                            }
                         }
                     }
 
@@ -1074,7 +1342,7 @@ class AdminController extends Controller
                         $allowedExts = ['jpg', 'jpeg', 'png', 'webp', 'gif'];
                         $ext = strtolower(pathinfo((string) $file['name'], PATHINFO_EXTENSION));
                         if (in_array($ext, $allowedExts, true)) {
-                            $fileName = 'q_' . $quizId . '_' . time() . '_' . bin2hex(random_bytes(4)) . '.' . $ext;
+                            $fileName = 'q_b' . $bankId . '_' . time() . '_' . bin2hex(random_bytes(4)) . '.' . $ext;
                             $dest = $targetDir . '/' . $fileName;
                             if (move_uploaded_file($file['tmp_name'], $dest)) {
                                 $imagePath = '/uploads/questions/' . $fileName;
@@ -1082,46 +1350,40 @@ class AdminController extends Controller
                         }
                     }
 
-                    $this->questionService->addQuestion($quizId, $questionText, $options, 0, $imagePath);
+                    $this->questionService->addQuestionToBank($bankId, $questionText, $options, 0, $imagePath, $qType);
                     Session::set('flash_success', 'Question added successfully.');
-                    return $this->redirect("/admin/quizzes/{$quizId}/questions");
+                    return $this->redirect("/admin/question-banks/{$bankId}/questions");
                 }
 
                 throw new InvalidArgumentException('Please provide question text and at least 2 options.');
             } catch (\Throwable $e) {
-                $questions = $this->questionService->getQuestionsByQuiz($quizId);
-                $groups = $this->db->query('SELECT id, name, description FROM `groups` ORDER BY name ASC')->fetchAll(PDO::FETCH_ASSOC);
-                return $this->render('admin/quizzes/questions.html.twig', [
+                $questions = $this->questionService->getQuestionsByBank($bankId);
+                return $this->render('admin/question_banks/questions.html.twig', [
                     'admin' => $this->getAdminUser(),
-                    'current_route' => 'quizzes',
-                    'quiz' => $quiz,
+                    'current_route' => 'question_banks',
+                    'bank' => $bank,
                     'questions' => $questions,
-                    'groups' => $groups,
-                    'departments' => $this->getDistinctDepartments(),
-                    'zones' => $this->getDistinctZones(),
-                    'designations' => $this->getDistinctDesignations(),
+                    'is_locked' => $isLocked,
+                    'linked_quizzes' => $linkedQuizzes,
                     'error' => $e->getMessage(),
                     'old' => $request->getPostData(),
                 ]);
             }
         }
 
-        $questions = $this->questionService->getQuestionsByQuiz($quizId);
-        $groups = $this->db->query('SELECT id, name, description FROM `groups` ORDER BY name ASC')->fetchAll(PDO::FETCH_ASSOC);
+        $questions = $this->questionService->getQuestionsByBank($bankId);
         $success = Session::get('flash_success');
         $error = Session::get('flash_error');
         Session::delete('flash_success');
         Session::delete('flash_error');
 
-        return $this->render('admin/quizzes/questions.html.twig', [
+        return $this->render('admin/question_banks/questions.html.twig', [
             'admin' => $this->getAdminUser(),
-            'current_route' => 'quizzes',
-            'quiz' => $quiz,
+            'current_route' => 'question_banks',
+            'bank' => $bank,
             'questions' => $questions,
-            'groups' => $groups,
-            'departments' => $this->getDistinctDepartments(),
-            'zones' => $this->getDistinctZones(),
-            'designations' => $this->getDistinctDesignations(),
+            'is_locked' => $isLocked,
+            'linked_quizzes' => $linkedQuizzes,
             'success' => $success,
             'error' => $error,
             'old' => null,
@@ -1129,64 +1391,15 @@ class AdminController extends Controller
     }
 
     /**
-     * @Route(path="/admin/quizzes/{id}/audience", methods="POST", name="admin.quizzes.audience")
+     * @Route(path="/admin/question-banks/{id}/questions/{qid}/delete", methods="POST", name="admin.question_banks.questions.delete")
      */
-    public function quizAudience(Request $request, string $id): Response
+    public function questionBankQuestionDelete(Request $request, string $id, string $qid): Response
     {
         if ($authRedirect = $this->requireAdmin()) {
             return $authRedirect;
         }
 
-        $admin = $this->getAdminUser();
-        $adminId = (int) ($admin['id'] ?? 1);
-        $quizId = (int) $id;
-
-        $targetAudience = (string) $request->get('target_audience', 'all');
-        $selectedGroups = (array) $request->get('target_groups', []);
-        $selectedDepts = (array) $request->get('target_departments', []);
-        $selectedZones = (array) $request->get('target_zones', []);
-        $selectedDesignations = (array) $request->get('target_designations', []);
-
-        $targetGroups = [];
-        $targetDepts = [];
-        $targetZones = [];
-        $targetDesignations = [];
-
-        if ($targetAudience !== 'all') {
-            $targetGroups = array_values(array_filter(array_map('intval', $selectedGroups), fn($g) => $g > 0));
-            $targetDepts = array_values(array_filter(array_map('trim', $selectedDepts), fn($d) => $d !== ''));
-            $targetZones = array_values(array_filter(array_map('trim', $selectedZones), fn($z) => $z !== ''));
-            $targetDesignations = array_values(array_filter(array_map('trim', $selectedDesignations), fn($des) => $des !== ''));
-        }
-
-        try {
-            $this->quizService->update($quizId, [
-                'settings' => [
-                    'target_audience' => $targetAudience,
-                    'target_groups' => $targetGroups,
-                    'target_departments' => $targetDepts,
-                    'target_zones' => $targetZones,
-                    'target_designations' => $targetDesignations,
-                ],
-            ], $adminId);
-            Session::set('flash_success', 'Target audience updated successfully.');
-        } catch (\Throwable $e) {
-            Session::set('flash_error', 'Failed to update audience: ' . $e->getMessage());
-        }
-
-        return $this->redirect("/admin/quizzes/{$quizId}/questions");
-    }
-
-    /**
-     * @Route(path="/admin/quizzes/{id}/questions/{qid}/delete", methods="POST", name="admin.quizzes.questions.delete")
-     */
-    public function quizQuestionDelete(Request $request, string $id, string $qid): Response
-    {
-        if ($authRedirect = $this->requireAdmin()) {
-            return $authRedirect;
-        }
-
-        $quizId = (int) $id;
+        $bankId = (int) $id;
         $questionId = (int) $qid;
 
         try {
@@ -1196,19 +1409,19 @@ class AdminController extends Controller
             Session::set('flash_error', 'Failed to delete question: ' . $e->getMessage());
         }
 
-        return $this->redirect("/admin/quizzes/{$quizId}/questions");
+        return $this->redirect("/admin/question-banks/{$bankId}/questions");
     }
 
     /**
-     * @Route(path="/admin/quizzes/{id}/questions/{qid}/edit", methods="POST", name="admin.quizzes.questions.edit")
+     * @Route(path="/admin/question-banks/{id}/questions/{qid}/edit", methods="POST", name="admin.question_banks.questions.edit")
      */
-    public function quizQuestionEdit(Request $request, string $id, string $qid): Response
+    public function questionBankQuestionEdit(Request $request, string $id, string $qid): Response
     {
         if ($authRedirect = $this->requireAdmin()) {
             return $authRedirect;
         }
 
-        $quizId = (int) $id;
+        $bankId = (int) $id;
         $questionId = (int) $qid;
 
         try {
@@ -1238,7 +1451,6 @@ class AdminController extends Controller
             }
 
             $imagePath = null;
-            $removeImage = (bool) $request->get('remove_image', false);
             if (!empty($_FILES['question_image']['tmp_name']) && is_uploaded_file($_FILES['question_image']['tmp_name'])) {
                 $targetDir = dirname(__DIR__, 2) . '/public/uploads/questions';
                 if (!is_dir($targetDir)) {
@@ -1248,7 +1460,7 @@ class AdminController extends Controller
                 $allowedExts = ['jpg', 'jpeg', 'png', 'webp', 'gif'];
                 $ext = strtolower(pathinfo((string) $file['name'], PATHINFO_EXTENSION));
                 if (in_array($ext, $allowedExts, true)) {
-                    $fileName = 'q_' . $quizId . '_' . time() . '_' . bin2hex(random_bytes(4)) . '.' . $ext;
+                    $fileName = 'q_b' . $bankId . '_' . time() . '_' . bin2hex(random_bytes(4)) . '.' . $ext;
                     $dest = $targetDir . '/' . $fileName;
                     if (move_uploaded_file($file['tmp_name'], $dest)) {
                         $imagePath = '/uploads/questions/' . $fileName;
@@ -1262,13 +1474,14 @@ class AdminController extends Controller
             Session::set('flash_error', 'Failed to update question: ' . $e->getMessage());
         }
 
-        return $this->redirect("/admin/quizzes/{$quizId}/questions");
+        return $this->redirect("/admin/question-banks/{$bankId}/questions");
     }
 
     /**
+     * @Route(path="/admin/question-banks/sample-template", methods="GET", name="admin.question_banks.sample_template")
      * @Route(path="/admin/quizzes/questions/sample-template", methods="GET", name="admin.quizzes.questions.sample_template")
      */
-    public function questionSampleTemplate(Request $request): Response
+    public function questionBankSampleTemplate(Request $request): Response
     {
         if ($authRedirect = $this->requireAdmin()) {
             return $authRedirect;
@@ -1278,42 +1491,42 @@ class AdminController extends Controller
 
         return new Response($csvContent, 200, [
             'Content-Type' => 'text/csv; charset=utf-8',
-            'Content-Disposition' => 'attachment; filename="quiz_questions_sample_template.csv"',
+            'Content-Disposition' => 'attachment; filename="question_bank_sample_template.csv"',
         ]);
     }
 
     /**
-     * @Route(path="/admin/quizzes/{id}/questions/import", methods="POST", name="admin.quizzes.questions.import")
+     * @Route(path="/admin/question-banks/{id}/questions/import", methods="POST", name="admin.question_banks.questions.import")
      */
-    public function quizQuestionsImport(Request $request, string $id): Response
+    public function questionBankQuestionsImport(Request $request, string $id): Response
     {
         if ($authRedirect = $this->requireAdmin()) {
             return $authRedirect;
         }
 
-        $quizId = (int) $id;
-        $quiz = $this->quizService->getById($quizId);
-        if (!$quiz) {
-            Session::set('flash_error', 'Quiz not found');
-            return $this->redirect('/admin/quizzes');
+        $bankId = (int) $id;
+        $bank = $this->questionBankService->getById($bankId);
+        if (!$bank) {
+            Session::set('flash_error', 'Question bank not found.');
+            return $this->redirect('/admin/question-banks');
         }
 
         if (empty($_FILES['questions_file']['tmp_name']) || !is_uploaded_file($_FILES['questions_file']['tmp_name'])) {
             Session::set('flash_error', 'Please choose a valid Excel (.xlsx) or CSV (.csv) file to upload.');
-            return $this->redirect("/admin/quizzes/{$quizId}/questions");
+            return $this->redirect("/admin/question-banks/{$bankId}/questions");
         }
 
         $file = $_FILES['questions_file'];
         $ext = strtolower(pathinfo((string) $file['name'], PATHINFO_EXTENSION));
         if (!in_array($ext, ['csv', 'xlsx', 'txt'], true)) {
             Session::set('flash_error', 'Invalid file format. Please upload an Excel (.xlsx) or CSV file.');
-            return $this->redirect("/admin/quizzes/{$quizId}/questions");
+            return $this->redirect("/admin/question-banks/{$bankId}/questions");
         }
 
         $tempPath = $file['tmp_name'];
 
         try {
-            $result = $this->questionImportService->import($quizId, $tempPath);
+            $result = $this->questionImportService->importToBank($bankId, $tempPath);
             if (!empty($result['errors'])) {
                 $errSummary = implode('<br>', array_slice($result['errors'], 0, 10));
                 if (count($result['errors']) > 10) {
@@ -1321,13 +1534,13 @@ class AdminController extends Controller
                 }
                 Session::set('flash_error', "Question upload failed due to formatting errors:<br>{$errSummary}");
             } else {
-                Session::set('flash_success', "Successfully imported {$result['imported_count']} questions into this quiz!");
+                Session::set('flash_success', "Successfully imported {$result['imported_count']} questions into this question bank!");
             }
         } catch (\Throwable $e) {
             Session::set('flash_error', 'Import error: ' . $e->getMessage());
         }
 
-        return $this->redirect("/admin/quizzes/{$quizId}/questions");
+        return $this->redirect("/admin/question-banks/{$bankId}/questions");
     }
 
     /**
