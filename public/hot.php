@@ -417,8 +417,9 @@ $router->post('/api/quiz/{code}/start', function (array $params, array $config, 
     $navSettings = $settings['navigation'] ?? [];
     $randomizeQuestions = (bool) ($navSettings['randomize_questions'] ?? true);
     $randomizeOptions = (bool) ($navSettings['randomize_options'] ?? true);
+    $randomQuestionCount = (int) ($quizMeta['random_question_count'] ?? ($settings['random_question_count'] ?? 0));
 
-    $layout = LayoutGenerator::generate($structure, $randomizeQuestions, $randomizeOptions);
+    $layout = LayoutGenerator::generate($structure, $randomizeQuestions, $randomizeOptions, $randomQuestionCount);
     $layoutJson = json_encode($layout, JSON_UNESCAPED_SLASHES);
 
     // Execute atomic START Lua script

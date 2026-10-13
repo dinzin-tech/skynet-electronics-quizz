@@ -55,9 +55,13 @@ class QuizService
         $total = (int) $countStmt->fetchColumn();
 
         // Fetch page
-        $sql = "SELECT id, public_id, code, title, description, week_number, duration_seconds, start_at, end_at, " .
-               "status, current_version, published_at, created_at, updated_at " .
-               "FROM quizzes {$whereClause} ORDER BY id DESC LIMIT :limit OFFSET :offset";
+        $sql = "SELECT q.id, q.public_id, q.code, q.title, q.description, q.week_number, q.duration_seconds, q.start_at, q.end_at, " .
+               "q.status, q.current_version, q.published_at, q.created_at, q.updated_at, q.question_bank_id, q.random_question_count, " .
+               "qb.title AS bank_title, " .
+               "COALESCE((SELECT COUNT(*) FROM questions qn WHERE qn.question_bank_id = q.question_bank_id), (SELECT COUNT(*) FROM questions qn2 WHERE qn2.quiz_id = q.id)) AS question_count " .
+               "FROM quizzes q " .
+               "LEFT JOIN question_banks qb ON qb.id = q.question_bank_id " .
+               "{$whereClause} ORDER BY q.id DESC LIMIT :limit OFFSET :offset";
         $stmt = $this->db->prepare($sql);
         foreach ($params as $key => $val) {
             $stmt->bindValue($key, $val);
@@ -88,7 +92,12 @@ class QuizService
      */
     public function getById(int $id): ?array
     {
-        $stmt = $this->db->prepare('SELECT * FROM quizzes WHERE id = :id');
+        $stmt = $this->db->prepare(
+            'SELECT q.*, qb.title AS bank_title ' .
+            'FROM quizzes q ' .
+            'LEFT JOIN question_banks qb ON qb.id = q.question_bank_id ' .
+            'WHERE q.id = :id'
+        );
         $stmt->execute(['id' => $id]);
         $row = $stmt->fetch(PDO::FETCH_ASSOC);
         if (!$row) {
@@ -97,10 +106,18 @@ class QuizService
 
         $row['settings'] = json_decode((string) $row['settings'], true) ?? [];
 
-        // Question count
-        $qCountStmt = $this->db->prepare('SELECT COUNT(*) FROM questions WHERE quiz_id = :id');
-        $qCountStmt->execute(['id' => $id]);
-        $row['question_count'] = (int) $qCountStmt->fetchColumn();
+        // Question count (from bank or direct questions)
+        if (!empty($row['question_bank_id'])) {
+            $qCountStmt = $this->db->prepare('SELECT COUNT(*) FROM questions WHERE question_bank_id = :bid');
+            $qCountStmt->execute(['bid' => $row['question_bank_id']]);
+            $row['bank_question_count'] = (int) $qCountStmt->fetchColumn();
+            $row['question_count'] = !empty($row['random_question_count']) ? (int) $row['random_question_count'] : $row['bank_question_count'];
+        } else {
+            $qCountStmt = $this->db->prepare('SELECT COUNT(*) FROM questions WHERE quiz_id = :id');
+            $qCountStmt->execute(['id' => $id]);
+            $row['question_count'] = (int) $qCountStmt->fetchColumn();
+            $row['bank_question_count'] = $row['question_count'];
+        }
 
         return $row;
     }
@@ -166,12 +183,15 @@ class QuizService
         $now = gmdate('Y-m-d H:i:s');
 
         $weekNumber = isset($data['week_number']) ? max(1, (int) $data['week_number']) : 1;
+        $questionBankId = !empty($data['question_bank_id']) ? (int) $data['question_bank_id'] : null;
+        $randomQuestionCount = !empty($data['random_question_count']) ? max(1, (int) $data['random_question_count']) : null;
 
         $stmt = $this->db->prepare(
             'INSERT INTO quizzes (public_id, code, title, description, instructions, feedback_question, ' .
+            'question_bank_id, random_question_count, ' .
             'week_number, duration_seconds, start_at, end_at, status, settings, current_version, ' .
             'created_by, created_at, updated_at) ' .
-            'VALUES (:pid, :code, :title, :desc, :inst, :fbq, :week_num, :dur, :start, :end, :status, ' .
+            'VALUES (:pid, :code, :title, :desc, :inst, :fbq, :qbid, :rand_cnt, :week_num, :dur, :start, :end, :status, ' .
             ':settings, 0, :uid, :cat, :uat)'
         );
 
@@ -187,6 +207,8 @@ class QuizService
             'desc' => $data['description'] ?? null,
             'inst' => $data['instructions'] ?? null,
             'fbq' => $fbQuestion,
+            'qbid' => $questionBankId,
+            'rand_cnt' => $randomQuestionCount,
             'week_num' => $weekNumber,
             'dur' => $durationSeconds,
             'start' => $startAt,
@@ -224,6 +246,24 @@ class QuizService
 
         $fields = [];
         $params = ['id' => $id];
+
+        if (array_key_exists('question_bank_id', $data)) {
+            if ($hasStartedAttempts) {
+                throw new RuntimeException('Cannot change question bank after attempts have started');
+            }
+            $bankId = !empty($data['question_bank_id']) ? (int) $data['question_bank_id'] : null;
+            $fields[] = 'question_bank_id = :qbid';
+            $params['qbid'] = $bankId;
+        }
+
+        if (array_key_exists('random_question_count', $data)) {
+            if ($hasStartedAttempts) {
+                throw new RuntimeException('Cannot change question count after attempts have started');
+            }
+            $rndCount = !empty($data['random_question_count']) ? max(1, (int) $data['random_question_count']) : null;
+            $fields[] = 'random_question_count = :rand_cnt';
+            $params['rand_cnt'] = $rndCount;
+        }
 
         if (isset($data['title'])) {
             $title = trim((string) $data['title']);

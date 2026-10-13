@@ -122,6 +122,7 @@ class QuizFinalizerService
             'UPDATE attempts SET ' .
             'status = "COMPLETED", ' .
             'submitted_at = IFNULL(submitted_at, :subat), ' .
+            'total_questions = :total_q, ' .
             'correct_count = :correct, ' .
             'score = :score, ' .
             'accuracy = :accuracy, ' .
@@ -204,19 +205,32 @@ class QuizFinalizerService
                 }
             }
 
-            // Grade answers
-            $totalQuestions = count($answerKey) > 0 ? count($answerKey) : (int) ($att['total_questions'] ?? 0);
+            // Extract assigned questions for this attempt from its layout
+            $assignedQids = [];
+            if ($redis) {
+                $attLayoutRaw = $redis->hGet("att:{$aid}", 'layout');
+                if ($attLayoutRaw) {
+                    $attLayout = is_string($attLayoutRaw) ? json_decode($attLayoutRaw, true) : $attLayoutRaw;
+                    if (!empty($attLayout['q'])) {
+                        $assignedQids = array_map('intval', $attLayout['q']);
+                    }
+                }
+            }
+
+            // If layout questions found, evaluate ONLY those questions; otherwise evaluate answerKey
+            $evaluationQids = !empty($assignedQids) ? $assignedQids : array_map('intval', array_keys($answerKey));
+            $totalQuestions = count($evaluationQids) > 0 ? count($evaluationQids) : (int) ($att['total_questions'] ?? 0);
             $correctCount = 0;
             $score = 0.0;
             $correctnessMap = [];
 
-            foreach ($answerKey as $qid => $correctOid) {
+            foreach ($evaluationQids as $qid) {
                 $qid = (int) $qid;
-                $correctOid = (int) $correctOid;
+                $correctOid = isset($answerKey[$qid]) ? (int) $answerKey[$qid] : (isset($answerKey[(string) $qid]) ? (int) $answerKey[(string) $qid] : 0);
                 $selectedOid = $selectedAnswers[$qid] ?? null;
 
                 if ($selectedOid !== null && $selectedOid > 0) {
-                    if ($selectedOid === $correctOid) {
+                    if ($correctOid > 0 && $selectedOid === $correctOid) {
                         $correctCount++;
                         $score += $marksPerCorrect;
                         $correctnessMap[$qid] = 1;
@@ -247,6 +261,7 @@ class QuizFinalizerService
             // Update MySQL attempts
             $updateAttStmt->execute([
                 'subat' => $submittedAt,
+                'total_q' => $totalQuestions,
                 'correct' => $correctCount,
                 'score' => $score,
                 'accuracy' => $accuracy,

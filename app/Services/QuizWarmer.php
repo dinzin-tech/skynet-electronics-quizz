@@ -114,6 +114,8 @@ class QuizWarmer
             'instructions' => (string) ($quiz['instructions'] ?? ''),
             'feedback_question' => (string) ($quiz['feedback_question'] ?? ''),
             'settings' => (string) $quiz['settings'],
+            'random_question_count' => (string) ($quiz['random_question_count'] ?? '0'),
+            'question_bank_id' => (string) ($quiz['question_bank_id'] ?? ''),
             'total_questions' => (string) $snapshot['question_count'],
             'bundle_sha256' => (string) $snapshot['bundle_sha256'],
             'bundle_path' => (string) $snapshot['bundle_path'],

@@ -52,6 +52,34 @@
         </div>
 
         <h3 style="font-size: 1.1rem; font-weight: 600; margin: 24px 0 16px 0; border-bottom: 1px solid var(--border-color); padding-bottom: 8px;">
+            Question Bank & Sampling
+        </h3>
+
+        <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 16px; margin-bottom: 16px;">
+            <div class="form-group">
+                <label class="form-label" for="question_bank_id">Question Bank *</label>
+                <select id="question_bank_id" name="question_bank_id" class="form-control" required>
+                    <option value="">-- Select Question Bank --</option>
+                    {% for bank in question_banks %}
+                        <option value="{{ bank.id }}" {% if old.question_bank_id|default(quiz.question_bank_id|default('')) == bank.id %}selected{% endif %}>
+                            {{ bank.title }} ({{ bank.question_count }} questions){% if bank.is_locked %} [Active Assessment Linked]{% endif %}
+                        </option>
+                    {% endfor %}
+                </select>
+                <small style="color: #64748b; font-size: 0.8125rem; display: block; margin-top: 4px;">
+                    📚 The quiz pulls its pool of questions from this question bank. Manage questions separately under <a href="/admin/question-banks" target="_blank" style="color:#2563eb;">Question Banks</a>.
+                </small>
+            </div>
+            <div class="form-group">
+                <label class="form-label" for="random_question_count">Questions per Participant</label>
+                <input type="number" id="random_question_count" name="random_question_count" min="0" class="form-control" placeholder="0 = All in bank" value="{{ old.random_question_count|default(quiz.random_question_count|default(0)) }}">
+                <small style="color: #64748b; font-size: 0.8125rem; display: block; margin-top: 4px;">
+                    🎲 0 or blank serves all questions in the bank. Set to e.g. 10 to give each participant 10 randomly sampled questions.
+                </small>
+            </div>
+        </div>
+
+        <h3 style="font-size: 1.1rem; font-weight: 600; margin: 24px 0 16px 0; border-bottom: 1px solid var(--border-color); padding-bottom: 8px;">
             Window & Timing ({{ company_tz }} Display, Stored in UTC)
         </h3>
 

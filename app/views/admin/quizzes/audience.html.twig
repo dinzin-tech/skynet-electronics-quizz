@@ -1,0 +1,204 @@
+{% extends "admin/layout.html.twig" %}
+
+{% block page_title %}Target Audience - {{ quiz.title }}{% endblock %}
+
+{% block content %}
+<div style="margin-bottom: 20px;">
+    <a href="/admin/quizzes" style="font-size: 0.875rem; color: #2563eb; text-decoration: none;">&larr; Back to Quizzes</a>
+</div>
+
+{% if success %}
+    <div class="alert alert-success">{{ success }}</div>
+{% endif %}
+{% if error %}
+    <div class="alert alert-error">{{ error }}</div>
+{% endif %}
+
+<!-- Quiz Header Summary Card -->
+<div class="card" style="margin-bottom: 24px;">
+    <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 12px;">
+        <div>
+            <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 6px;">
+                <h2 style="font-size: 1.25rem; font-weight: 700; margin: 0;">{{ quiz.title }}</h2>
+                <code>{{ quiz.code }}</code>
+                {% if quiz.status == 'published' %}
+                    <span class="badge badge-success">Published (v{{ quiz.current_version }})</span>
+                {% elseif quiz.status == 'draft' %}
+                    <span class="badge badge-warning">Draft</span>
+                {% else %}
+                    <span class="badge badge-info">{{ quiz.status }}</span>
+                {% endif %}
+            </div>
+            <p style="font-size: 0.875rem; color: #64748b; margin: 0;">
+                Window: {{ quiz.start_at|company_date('d M Y, h:i A') }} to {{ quiz.end_at|company_date('d M Y, h:i A') }} ({{ company_tz }}) &bull;
+                Question Bank: <strong>{{ quiz.bank_title|default('Not linked') }}</strong>
+                {% if quiz.random_question_count %}
+                    ({{ quiz.random_question_count }} random questions per participant)
+                {% endif %}
+            </p>
+        </div>
+    </div>
+</div>
+
+{% set is_custom = false %}
+{% if (quiz.settings.target_audience|default('') in ['custom', 'groups', 'departments', 'zones', 'designations']) or
+      quiz.settings.target_groups|default([]) is not empty or
+      quiz.settings.target_departments|default([]) is not empty or
+      quiz.settings.target_zones|default([]) is not empty or
+      quiz.settings.target_designations|default([]) is not empty %}
+    {% set is_custom = true %}
+{% endif %}
+
+<div class="card" style="border-left: 4px solid #2563eb;">
+    <h3 style="font-size: 1.15rem; font-weight: 600; margin: 0 0 8px 0; display: flex; align-items: center; gap: 8px;">
+        <span>👥 Target Audience Configuration</span>
+        <span class="badge badge-info" style="font-size: 0.75rem;">
+            {% if not is_custom %}All Active Employees{% else %}Targeted Criteria{% endif %}
+        </span>
+    </h3>
+    <p style="font-size: 0.85rem; color: #64748b; margin: 0 0 20px 0;">
+        Choose which employees, departments, or zones will be enrolled in this quiz when published.
+    </p>
+
+    {% if quiz.status != 'draft' %}
+        <div class="alert alert-warning" style="margin-bottom: 20px;">
+            ⚠️ This quiz is already <strong>{{ quiz.status }}</strong>. Audience targeting is frozen to preserve employee attempt roster integrity.
+        </div>
+    {% endif %}
+
+    <form action="/admin/quizzes/{{ quiz.id }}/audience" method="POST">
+        <div style="display: flex; gap: 24px; margin-bottom: 16px; flex-wrap: wrap;">
+            <label style="display: flex; align-items: center; gap: 8px; font-size: 0.95rem; cursor: pointer;">
+                <input type="radio" name="target_audience" value="all" {% if not is_custom %}checked{% endif %} {% if quiz.status != 'draft' %}disabled{% endif %} onchange="document.getElementById('edit-custom-audience-selector').style.display = 'none';">
+                <strong>All Active Employees</strong>
+            </label>
+            <label style="display: flex; align-items: center; gap: 8px; font-size: 0.95rem; cursor: pointer;">
+                <input type="radio" name="target_audience" value="custom" {% if is_custom %}checked{% endif %} {% if quiz.status != 'draft' %}disabled{% endif %} onchange="document.getElementById('edit-custom-audience-selector').style.display = 'block';">
+                <strong>Targeted Criteria (Combine Departments, Zones, Designations & Groups)</strong>
+            </label>
+        </div>
+
+        <div id="edit-custom-audience-selector" style="display: {% if is_custom %}block{% else %}none{% endif %}; background: #f8fafc; border: 1px solid var(--border-color); border-radius: 8px; padding: 20px; margin-bottom: 20px;">
+            <div style="font-size: 0.85rem; color: #334155; margin-bottom: 16px; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 6px; padding: 10px 14px;">
+                ℹ <strong>Combinable:</strong> Employees matching the selected department(s) AND zone(s) AND designation(s) AND group(s) will be enrolled. If an entire section is unselected, all are included.
+            </div>
+
+            <!-- 1. Departments -->
+            <div style="margin-bottom: 16px; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 6px; padding: 14px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                    <span style="font-weight: 600; font-size: 0.875rem; color: #1e293b;">🏢 Departments ({{ departments|default([])|length }}):</span>
+                    {% if quiz.status == 'draft' %}
+                    <div style="font-size: 0.775rem;">
+                        <a href="javascript:void(0)" onclick="setEditCheckboxes('target_departments[]', true)" style="color: #2563eb; text-decoration: none; margin-right: 8px;">Select All</a>
+                        <a href="javascript:void(0)" onclick="setEditCheckboxes('target_departments[]', false)" style="color: #64748b; text-decoration: none;">Clear</a>
+                    </div>
+                    {% endif %}
+                </div>
+                {% if departments|default([]) is not empty %}
+                <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px;">
+                    {% for dept in departments %}
+                        <label style="display: flex; align-items: center; gap: 6px; font-size: 0.85rem; cursor: pointer; padding: 6px 8px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 4px;">
+                            <input type="checkbox" name="target_departments[]" value="{{ dept }}" {% if dept in quiz.settings.target_departments|default([]) %}checked{% endif %} {% if quiz.status != 'draft' %}disabled{% endif %}>
+                            <span>{{ dept }}</span>
+                        </label>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <p style="font-size: 0.825rem; color: #94a3b8; margin: 0;">No departments found on active employees.</p>
+                {% endif %}
+            </div>
+
+            <!-- 2. Zones -->
+            <div style="margin-bottom: 16px; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 6px; padding: 14px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                    <span style="font-weight: 600; font-size: 0.875rem; color: #1e293b;">📍 Zones / Regions ({{ zones|default([])|length }}):</span>
+                    {% if quiz.status == 'draft' %}
+                    <div style="font-size: 0.775rem;">
+                        <a href="javascript:void(0)" onclick="setEditCheckboxes('target_zones[]', true)" style="color: #2563eb; text-decoration: none; margin-right: 8px;">Select All</a>
+                        <a href="javascript:void(0)" onclick="setEditCheckboxes('target_zones[]', false)" style="color: #64748b; text-decoration: none;">Clear</a>
+                    </div>
+                    {% endif %}
+                </div>
+                {% if zones|default([]) is not empty %}
+                <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px;">
+                    {% for zone in zones %}
+                        <label style="display: flex; align-items: center; gap: 6px; font-size: 0.85rem; cursor: pointer; padding: 6px 8px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 4px;">
+                            <input type="checkbox" name="target_zones[]" value="{{ zone }}" {% if zone in quiz.settings.target_zones|default([]) %}checked{% endif %} {% if quiz.status != 'draft' %}disabled{% endif %}>
+                            <span>{{ zone }}</span>
+                        </label>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <p style="font-size: 0.825rem; color: #94a3b8; margin: 0;">No zones/regions found on active employees.</p>
+                {% endif %}
+            </div>
+
+            <!-- 3. Designations -->
+            <div style="margin-bottom: 16px; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 6px; padding: 14px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                    <span style="font-weight: 600; font-size: 0.875rem; color: #1e293b;">💼 Designations ({{ designations|default([])|length }}):</span>
+                    {% if quiz.status == 'draft' %}
+                    <div style="font-size: 0.775rem;">
+                        <a href="javascript:void(0)" onclick="setEditCheckboxes('target_designations[]', true)" style="color: #2563eb; text-decoration: none; margin-right: 8px;">Select All</a>
+                        <a href="javascript:void(0)" onclick="setEditCheckboxes('target_designations[]', false)" style="color: #64748b; text-decoration: none;">Clear</a>
+                    </div>
+                    {% endif %}
+                </div>
+                {% if designations|default([]) is not empty %}
+                <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px;">
+                    {% for desig in designations %}
+                        <label style="display: flex; align-items: center; gap: 6px; font-size: 0.85rem; cursor: pointer; padding: 6px 8px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 4px;">
+                            <input type="checkbox" name="target_designations[]" value="{{ desig }}" {% if desig in quiz.settings.target_designations|default([]) %}checked{% endif %} {% if quiz.status != 'draft' %}disabled{% endif %}>
+                            <span>{{ desig }}</span>
+                        </label>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <p style="font-size: 0.825rem; color: #94a3b8; margin: 0;">No designations found on active employees.</p>
+                {% endif %}
+            </div>
+
+            <!-- 4. Groups -->
+            <div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 6px; padding: 14px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                    <span style="font-weight: 600; font-size: 0.875rem; color: #1e293b;">👥 Employee Groups ({{ groups|default([])|length }}):</span>
+                    {% if quiz.status == 'draft' %}
+                    <div style="font-size: 0.775rem;">
+                        <a href="javascript:void(0)" onclick="setEditCheckboxes('target_groups[]', true)" style="color: #2563eb; text-decoration: none; margin-right: 8px;">Select All</a>
+                        <a href="javascript:void(0)" onclick="setEditCheckboxes('target_groups[]', false)" style="color: #64748b; text-decoration: none;">Clear</a>
+                    </div>
+                    {% endif %}
+                </div>
+                {% if groups|default([]) is not empty %}
+                <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px;">
+                    {% for group in groups %}
+                        <label style="display: flex; align-items: center; gap: 6px; font-size: 0.85rem; cursor: pointer; padding: 6px 8px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 4px;">
+                            <input type="checkbox" name="target_groups[]" value="{{ group.id }}" {% if group.id in quiz.settings.target_groups|default([]) %}checked{% endif %} {% if quiz.status != 'draft' %}disabled{% endif %}>
+                            <span>{{ group.name }}</span>
+                        </label>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <p style="font-size: 0.825rem; color: #94a3b8; margin: 0;">No employee groups defined.</p>
+                {% endif %}
+            </div>
+        </div>
+
+        {% if quiz.status == 'draft' %}
+            <div style="display: flex; gap: 12px;">
+                <button type="submit" class="btn btn-primary" style="padding: 9px 24px;">
+                    Save Target Audience
+                </button>
+                <a href="/admin/quizzes" class="btn btn-secondary">Cancel</a>
+            </div>
+        {% endif %}
+    </form>
+</div>
+
+<script>
+function setEditCheckboxes(name, checked) {
+    var boxes = document.querySelectorAll('input[name="' + name + '"]');
+    boxes.forEach(function(b) { b.checked = checked; });
+}
+</script>
+{% endblock %}
