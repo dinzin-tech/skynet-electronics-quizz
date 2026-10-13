@@ -42,6 +42,12 @@ class ConfigCacheCommand
             'grace_ms' => (int) ($_ENV['GRACE_MS'] ?? 3000),
             'overtime_buffer_s' => (int) ($_ENV['OVERTIME_BUFFER_S'] ?? 600),
             'company_tz' => $_ENV['COMPANY_TZ'] ?? 'Asia/Kolkata',
+            'database' => [
+                'host' => $_ENV['DEFAULT_DB_HOST'] ?? '127.0.0.1',
+                'database' => $_ENV['DEFAULT_DB_DATABASE'] ?? 'corp_quizz',
+                'user' => $_ENV['DEFAULT_DB_USER'] ?? 'root',
+                'password' => $_ENV['DEFAULT_DB_PASSWORD'] ?? '',
+            ],
             'limits' => [
                 'answers_rate_max' => 20,
                 'answers_rate_window_s' => 10,

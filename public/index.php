@@ -4,6 +4,13 @@ declare(strict_types=1);
 
 date_default_timezone_set('UTC');
 
+require_once __DIR__ . '/../vendor/autoload.php';
+
+// Ensure environment variables are loaded if available
+if (!isset($_ENV['DEFAULT_DB_HOST']) && file_exists(__DIR__ . '/../.env')) {
+    \Dotenv\Dotenv::createImmutable(__DIR__ . '/../')->safeLoad();
+}
+
 $uri = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?? '/';
 
 // 1. Hot path endpoints bypass framework bootstrap
