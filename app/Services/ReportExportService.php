@@ -99,7 +99,8 @@ class ReportExportService
 
         $reportType = (string) $job['report_type'];
         $filters = json_decode((string) ($job['filters'] ?? '{}'), true) ?? [];
-        $fileName = "export_{$jobId}_{$reportType}_" . gmdate('Ymd_His') . '.csv';
+        $quizSuffix = !empty($filters['quiz_id']) ? "quiz{$filters['quiz_id']}_" : '';
+        $fileName = "export_{$jobId}_{$reportType}_{$quizSuffix}" . gmdate('Ymd_His') . '.csv';
         $outputPath = "{$this->storageDir}/{$fileName}";
 
         try {
@@ -389,15 +390,20 @@ class ReportExportService
 
         $quizId = isset($filters['quiz_id']) && (int) $filters['quiz_id'] > 0 ? (int) $filters['quiz_id'] : null;
 
-        // Fetch quiz pass mark
-        $passMark = null;
+        // Fetch quiz pass marks
+        $quizPassMarks = [];
         if ($quizId !== null) {
-            $stmt = $this->db->prepare('SELECT settings FROM quizzes WHERE id = :id');
+            $stmt = $this->db->prepare('SELECT id, settings FROM quizzes WHERE id = :id');
             $stmt->execute(['id' => $quizId]);
-            $settingsJson = (string) $stmt->fetchColumn();
-            $settings = json_decode($settingsJson, true) ?? [];
+            $quizzes = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        } else {
+            $stmt = $this->db->query('SELECT id, settings FROM quizzes');
+            $quizzes = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        }
+        foreach ($quizzes as $qz) {
+            $settings = json_decode((string) ($qz['settings'] ?? '{}'), true) ?? [];
             if (isset($settings['scoring']['pass_mark'])) {
-                $passMark = (float) $settings['scoring']['pass_mark'];
+                $quizPassMarks[(int) $qz['id']] = (float) $settings['scoring']['pass_mark'];
             }
         }
 
@@ -435,7 +441,7 @@ class ReportExportService
         $totalExported = 0;
 
         while (true) {
-            $sql = 'SELECT a.id, a.status, a.score, a.accuracy, a.completion_time_s, '
+            $sql = 'SELECT a.id, a.quiz_id, a.status, a.score, a.accuracy, a.completion_time_s, '
                 . 'e.employee_code, e.name AS employee_name, e.email, '
                 . 'q.title AS quiz_title, '
                 . 'r.`rank` '
@@ -461,6 +467,9 @@ class ReportExportService
 
             foreach ($rows as $row) {
                 $resultText = 'N/A';
+                $rowQuizId = (int) ($row['quiz_id'] ?? 0);
+                $passMark = $quizPassMarks[$rowQuizId] ?? null;
+
                 if ($row['status'] === 'COMPLETED') {
                     if ($passMark !== null) {
                         $resultText = ((float) $row['score']) >= $passMark ? 'PASS' : 'FAIL';

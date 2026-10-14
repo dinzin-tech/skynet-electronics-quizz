@@ -13,6 +13,9 @@
 {% if success %}
     <div class="alert alert-success">{{ success }}</div>
 {% endif %}
+{% if error %}
+    <div class="alert alert-danger">{{ error }}</div>
+{% endif %}
 
 <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 24px; margin-bottom: 32px;">
     <div class="card">
@@ -47,6 +50,7 @@
             <div class="form-group">
                 <label class="form-label" for="res_quiz_id">Target Quiz</label>
                 <select id="res_quiz_id" name="quiz_id" class="form-control">
+                    <option value="">-- All Quizzes --</option>
                     {% for q in quizzes %}
                         <option value="{{ q.id }}">[{{ q.code }}] {{ q.title }}</option>
                     {% endfor %}
@@ -97,7 +101,22 @@
                 {% for job in jobs %}
                 <tr>
                     <td><code>#{{ job.id }}</code></td>
-                    <td><strong>{{ job.report_type|upper }}</strong> ({{ job.format|upper }})</td>
+                    <td>
+                        <div>
+                            <strong>
+                                {% if job.report_type == 'question_summary' %}
+                                    QUESTION-WISE SUMMARY
+                                {% elseif job.report_type == 'results' %}
+                                    RESULTS SUMMARY
+                                {% else %}
+                                    {{ job.report_type|upper }}
+                                {% endif %}
+                            </strong> ({{ job.format|upper }})
+                        </div>
+                        <div style="font-size: 0.775rem; color: #64748b; margin-top: 2px;">
+                            <span style="color: #94a3b8;">Quiz:</span> {{ job.target_quiz_label|default('All Quizzes') }}
+                        </div>
+                    </td>
                     <td>
                         {% if job.status == 'completed' %}
                             <span class="badge badge-success">Completed</span>
