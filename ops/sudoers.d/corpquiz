@@ -34,8 +34,10 @@ www-data ALL=(ALL) NOPASSWD: /usr/bin/systemctl restart quiz-flusher, \
                                      /usr/bin/systemctl reload prometheus, \
                                      /usr/bin/systemctl restart quiz-flusher quiz-scheduler quiz-finalizer quiz-jobs, \
                                      /usr/bin/systemctl status quiz-flusher quiz-scheduler quiz-finalizer quiz-jobs, \
+                                     /usr/bin/cp * /etc/nginx/sites-available/corpquiz.conf, \
                                      /usr/bin/cp /var/www/corpquiz/ops/nginx/corpquiz.conf /etc/nginx/sites-available/corpquiz.conf, \
                                      /usr/bin/cp /var/www/corpquiz/ops/observability/prometheus/alert.rules.yml /etc/prometheus/alert.rules.yml, \
+                                     /usr/bin/certbot, \
                                      /usr/bin/chown -R www-data\:www-data /var/www/corpquiz/storage /var/www/corpquiz/public, \
                                      /usr/bin/chmod -R 775 /var/www/corpquiz/storage
 
@@ -47,7 +49,9 @@ runner ALL=(ALL) NOPASSWD: /var/www/corpquiz/ops/deploy.sh, \
                            /usr/sbin/nginx -t, \
                            /usr/bin/systemctl reload prometheus, \
                            /usr/bin/systemctl restart quiz-flusher quiz-scheduler quiz-finalizer quiz-jobs, \
+                           /usr/bin/cp * /etc/nginx/sites-available/corpquiz.conf, \
                            /usr/bin/cp /var/www/corpquiz/ops/nginx/corpquiz.conf /etc/nginx/sites-available/corpquiz.conf, \
                            /usr/bin/cp /var/www/corpquiz/ops/observability/prometheus/alert.rules.yml /etc/prometheus/alert.rules.yml, \
+                           /usr/bin/certbot, \
                            /usr/bin/chown -R www-data\:www-data /var/www/corpquiz/storage /var/www/corpquiz/public, \
                            /usr/bin/chmod -R 775 /var/www/corpquiz/storage

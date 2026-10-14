@@ -64,18 +64,74 @@ fi
 echo ">>> Reloading $PHP_FPM..."
 $SUDO systemctl reload "$PHP_FPM"
 
-# Sync & validate Nginx configuration changes if modified
-if [ -f "$APP_DIR/ops/nginx/corpquiz.conf" ] && [ -d /etc/nginx/sites-available ]; then
-    if ! cmp -s "$APP_DIR/ops/nginx/corpquiz.conf" /etc/nginx/sites-available/corpquiz.conf 2>/dev/null; then
-        echo ">>> Nginx config change detected, syncing and reloading..."
-        $SUDO cp "$APP_DIR/ops/nginx/corpquiz.conf" /etc/nginx/sites-available/corpquiz.conf
-        if $SUDO nginx -t >/dev/null 2>&1; then
-            $SUDO systemctl reload nginx
-            echo ">>> Nginx reloaded successfully."
-        else
-            echo "WARNING: Nginx configuration test failed, skipping Nginx reload."
+# Sync & configure Nginx with SSL and domain automation
+if [ -f "$APP_DIR/ops/nginx/render-config.py" ] && [ -d /etc/nginx/sites-available ]; then
+    echo ">>> Configuring Nginx with domain and SSL automation..."
+
+    # Read APP_DOMAIN and SSL_EMAIL from .env if present
+    APP_DOMAIN=""
+    SSL_EMAIL=""
+    if [ -f "$APP_DIR/.env" ]; then
+        APP_DOMAIN=$(grep -E '^\s*APP_DOMAIN=' "$APP_DIR/.env" | cut -d '=' -f2- | tr -d ' "\r\47' || true)
+        SSL_EMAIL=$(grep -E '^\s*SSL_EMAIL=' "$APP_DIR/.env" | cut -d '=' -f2- | tr -d ' "\r\47' || true)
+        if [ -z "$APP_DOMAIN" ]; then
+            BASE_URL_VAL=$(grep -E '^\s*BASE_URL=' "$APP_DIR/.env" | cut -d '=' -f2- | tr -d ' "\r\47' || true)
+            if [[ "$BASE_URL_VAL" =~ ^https?:// ]]; then
+                APP_DOMAIN=$(echo "$BASE_URL_VAL" | sed -E -e 's|^https?://||' -e 's|/.*$||' -e 's|:.*$||')
+            fi
         fi
     fi
+
+    TARGET_CONF="/etc/nginx/sites-available/corpquiz.conf"
+    TMP_CONF=$(mktemp)
+
+    # Check if a non-local domain is configured
+    is_real_domain=false
+    if [ -n "$APP_DOMAIN" ] && [ "$APP_DOMAIN" != "localhost" ] && [ "$APP_DOMAIN" != "127.0.0.1" ] && [ "$APP_DOMAIN" != "quiz.corp.local" ]; then
+        is_real_domain=true
+    fi
+
+    ssl_cert="/etc/letsencrypt/live/$APP_DOMAIN/fullchain.pem"
+    if [ "$is_real_domain" = true ] && [ ! -f "$ssl_cert" ]; then
+        # Step A: Deploy HTTP config first so ACME challenge can complete
+        echo ">>> Initial setup: configuring HTTP virtual host for $APP_DOMAIN..."
+        python3 "$APP_DIR/ops/nginx/render-config.py" --template "$APP_DIR/ops/nginx/corpquiz.conf" --domain "$APP_DOMAIN" --ssl-mode off --output "$TMP_CONF"
+        $SUDO cp "$TMP_CONF" "$TARGET_CONF"
+        if $SUDO nginx -t >/dev/null 2>&1; then
+            $SUDO systemctl reload nginx
+        fi
+
+        # Step B: Request initial Let's Encrypt certificate via Certbot webroot
+        if command -v certbot >/dev/null 2>&1; then
+            echo ">>> Requesting Let's Encrypt certificate for $APP_DOMAIN..."
+            EMAIL_FLAG="--register-unsafely-without-email"
+            if [ -n "$SSL_EMAIL" ]; then
+                EMAIL_FLAG="--email $SSL_EMAIL"
+            fi
+            $SUDO certbot certonly --webroot -w "$APP_DIR/public" -d "$APP_DOMAIN" --non-interactive --agree-tos $EMAIL_FLAG || {
+                echo "WARNING: Certbot certificate issuance failed. Serving via HTTP."
+            }
+        else
+            echo "NOTICE: Certbot is not installed. To enable HTTPS, install certbot with: sudo apt install -y certbot"
+        fi
+    fi
+
+    # Step C: Render final configuration (auto-detects if SSL cert exists now)
+    python3 "$APP_DIR/ops/nginx/render-config.py" --template "$APP_DIR/ops/nginx/corpquiz.conf" --app-dir "$APP_DIR" ${APP_DOMAIN:+--domain "$APP_DOMAIN"} --ssl-mode auto --output "$TMP_CONF"
+
+    # Only replace if different
+    if ! cmp -s "$TMP_CONF" "$TARGET_CONF" 2>/dev/null; then
+        $SUDO cp "$TMP_CONF" "$TARGET_CONF"
+        if $SUDO nginx -t >/dev/null 2>&1; then
+            $SUDO systemctl reload nginx
+            echo ">>> Nginx configuration updated & reloaded successfully."
+        else
+            echo "WARNING: Nginx configuration test failed! Please check $TARGET_CONF"
+        fi
+    else
+        echo ">>> Nginx configuration is already up-to-date."
+    fi
+    rm -f "$TMP_CONF"
 fi
 
 # Sync Prometheus alert rules if Prometheus is running locally
@@ -98,7 +154,8 @@ $SUDO chmod -R 775 "$APP_DIR/public" 2>/dev/null || true
 
 echo ">>> [7/7] Verifying application health endpoint..."
 # Try health check with Host header first, then fallback to direct IP
-HEALTH_STATUS=$(curl -s -o /dev/null -w "%{http_code}" -H "Host: quiz.corp.local" http://127.0.0.1/healthz || echo "failed")
+HEALTH_HOST="${APP_DOMAIN:-quiz.corp.local}"
+HEALTH_STATUS=$(curl -s -o /dev/null -w "%{http_code}" -H "Host: $HEALTH_HOST" http://127.0.0.1/healthz || echo "failed")
 if [ "$HEALTH_STATUS" != "200" ]; then
     HEALTH_STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1/healthz || echo "failed")
 fi

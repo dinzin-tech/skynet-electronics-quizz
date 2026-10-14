@@ -9,7 +9,7 @@ echo ">>> [1/7] Updating package index..."
 export DEBIAN_FRONTEND=noninteractive
 apt-get update && apt-get install -y --no-install-recommends \
     curl git unzip nginx redis-server mysql-server \
-    software-properties-common ca-certificates ufw fail2ban
+    software-properties-common ca-certificates ufw fail2ban certbot python3-certbot-nginx
 
 echo ">>> [2/7] Installing PHP 8.2 and required extensions..."
 add-apt-repository -y ppa:ondrej/php
