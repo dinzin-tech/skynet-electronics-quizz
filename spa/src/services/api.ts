@@ -84,13 +84,22 @@ async function request<T>(
       return request<T>(path, options, retries - 1);
     }
 
-    const data = await res.json();
+    let data: any = {};
+    const text = await res.text();
+    if (text) {
+      try {
+        data = JSON.parse(text);
+      } catch {
+        data = { error: { message: text.trim() } };
+      }
+    }
+
     if (data.server_now_ms) {
       updateClockOffset(data.server_now_ms);
     }
 
     if (!res.ok) {
-      const errorMsg = data?.error?.message || data?.message || `Request failed with status ${res.status}`;
+      const errorMsg = data?.error?.message || data?.message || text || `Request failed with status ${res.status}`;
       const err = new Error(errorMsg);
       (err as any).status = res.status;
       (err as any).code = data?.error?.code || data?.code;
