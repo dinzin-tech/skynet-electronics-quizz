@@ -88,7 +88,8 @@ server {{
     }}
 
     # Let's Encrypt ACME challenge verification path
-    location /.well-known/acme-challenge/ {{
+    location ^~ /.well-known/acme-challenge/ {{
+        allow all;
         root {args.app_dir}/public;
     }}
 

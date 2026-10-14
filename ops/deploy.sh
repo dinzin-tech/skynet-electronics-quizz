@@ -92,7 +92,12 @@ if [ -f "$APP_DIR/ops/nginx/render-config.py" ] && [ -d /etc/nginx/sites-availab
     fi
 
     ssl_cert="/etc/letsencrypt/live/$APP_DOMAIN/fullchain.pem"
-    if [ "$is_real_domain" = true ] && [ ! -f "$ssl_cert" ]; then
+    cert_exists=false
+    if [ "$is_real_domain" = true ] && $SUDO test -f "$ssl_cert" 2>/dev/null; then
+        cert_exists=true
+    fi
+
+    if [ "$is_real_domain" = true ] && [ "$cert_exists" = false ]; then
         # Step A: Deploy HTTP config first so ACME challenge can complete
         echo ">>> Initial setup: configuring HTTP virtual host for $APP_DOMAIN..."
         python3 "$APP_DIR/ops/nginx/render-config.py" --template "$APP_DIR/ops/nginx/corpquiz.conf" --domain "$APP_DOMAIN" --ssl-mode off --output "$TMP_CONF"
@@ -101,23 +106,33 @@ if [ -f "$APP_DIR/ops/nginx/render-config.py" ] && [ -d /etc/nginx/sites-availab
             $SUDO systemctl reload nginx
         fi
 
-        # Step B: Request initial Let's Encrypt certificate via Certbot webroot
+        # Step B: Request initial Let's Encrypt certificate via Certbot webroot (with nginx plugin fallback)
         if command -v certbot >/dev/null 2>&1; then
             echo ">>> Requesting Let's Encrypt certificate for $APP_DOMAIN..."
             EMAIL_FLAG="--register-unsafely-without-email"
             if [ -n "$SSL_EMAIL" ]; then
                 EMAIL_FLAG="--email $SSL_EMAIL"
             fi
-            $SUDO certbot certonly --webroot -w "$APP_DIR/public" -d "$APP_DOMAIN" --non-interactive --agree-tos $EMAIL_FLAG || {
-                echo "WARNING: Certbot certificate issuance failed. Serving via HTTP."
+            $SUDO certbot certonly --webroot -w "$APP_DIR/public" -d "$APP_DOMAIN" --non-interactive --agree-tos $EMAIL_FLAG || \
+            $SUDO certbot --nginx -d "$APP_DOMAIN" --non-interactive --agree-tos $EMAIL_FLAG --redirect || {
+                echo "WARNING: Certbot certificate issuance failed. Serving via HTTP for now."
             }
+
+            if $SUDO test -f "$ssl_cert" 2>/dev/null; then
+                cert_exists=true
+            fi
         else
             echo "NOTICE: Certbot is not installed. To enable HTTPS, install certbot with: sudo apt install -y certbot"
         fi
     fi
 
-    # Step C: Render final configuration (auto-detects if SSL cert exists now)
-    python3 "$APP_DIR/ops/nginx/render-config.py" --template "$APP_DIR/ops/nginx/corpquiz.conf" --app-dir "$APP_DIR" ${APP_DOMAIN:+--domain "$APP_DOMAIN"} --ssl-mode auto --output "$TMP_CONF"
+    # Step C: Render final configuration with explicit SSL mode
+    SSL_MODE="off"
+    if [ "$is_real_domain" = true ] && [ "$cert_exists" = true ]; then
+        SSL_MODE="force"
+    fi
+
+    python3 "$APP_DIR/ops/nginx/render-config.py" --template "$APP_DIR/ops/nginx/corpquiz.conf" --app-dir "$APP_DIR" ${APP_DOMAIN:+--domain "$APP_DOMAIN"} --ssl-mode "$SSL_MODE" --output "$TMP_CONF"
 
     # Only replace if different
     if ! cmp -s "$TMP_CONF" "$TARGET_CONF" 2>/dev/null; then
