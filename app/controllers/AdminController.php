@@ -1798,6 +1798,11 @@ class AdminController extends Controller
             return $authRedirect;
         }
 
+        $success = Session::get('flash_success');
+        $error = Session::get('flash_error');
+        Session::delete('flash_success');
+        Session::delete('flash_error');
+
         $quizzes = $this->db->query(
             'SELECT id, code, title FROM quizzes ORDER BY id DESC'
         )->fetchAll(PDO::FETCH_ASSOC);
@@ -1807,11 +1812,31 @@ class AdminController extends Controller
         );
         $jobs = $jobsStmt->fetchAll(PDO::FETCH_ASSOC);
 
+        $quizMap = [];
+        foreach ($quizzes as $q) {
+            $quizMap[(int) $q['id']] = '[' . $q['code'] . '] ' . $q['title'];
+        }
+
+        foreach ($jobs as &$job) {
+            $filters = json_decode((string) ($job['filters'] ?? '{}'), true) ?? [];
+            $qId = isset($filters['quiz_id']) ? (int) $filters['quiz_id'] : 0;
+            if ($qId > 0 && isset($quizMap[$qId])) {
+                $job['target_quiz_label'] = $quizMap[$qId];
+            } elseif ($qId > 0) {
+                $job['target_quiz_label'] = "Quiz #{$qId}";
+            } else {
+                $job['target_quiz_label'] = 'All Quizzes';
+            }
+        }
+        unset($job);
+
         return $this->render('admin/reports/index.html.twig', [
             'admin' => $this->getAdminUser(),
             'current_route' => 'reports',
             'quizzes' => $quizzes,
             'jobs' => $jobs,
+            'success' => $success,
+            'error' => $error,
         ]);
     }
 
@@ -1824,8 +1849,14 @@ class AdminController extends Controller
             return $authRedirect;
         }
 
-        $type = (string) $request->get('report_type', 'submissions');
-        $quizId = (int) $request->get('quiz_id', 0);
+        $type = trim((string) ($request->input('report_type') ?? $_POST['report_type'] ?? $request->get('report_type', 'submissions')));
+        if (!in_array($type, ['submissions', 'results', 'question_summary'], true)) {
+            $type = 'submissions';
+        }
+
+        $rawQuizId = $request->input('quiz_id') ?? $_POST['quiz_id'] ?? $request->get('quiz_id', 0);
+        $quizId = (is_numeric($rawQuizId) && (int) $rawQuizId > 0) ? (int) $rawQuizId : 0;
+
         $admin = $this->getAdminUser();
         $adminId = (int) ($admin['id'] ?? 1);
 
@@ -1835,8 +1866,10 @@ class AdminController extends Controller
         // Process immediately for small datasets or CLI worker can pick it up
         try {
             $this->exportService->processExportJob($jobId);
+            Session::set('flash_success', "Export job #{$jobId} generated successfully.");
         } catch (\Throwable $e) {
-            // Ignore error here; worker can retry
+            // Worker can retry if background daemon is active
+            Session::set('flash_success', "Export job #{$jobId} created and queued.");
         }
 
         return $this->redirect('/admin/reports');

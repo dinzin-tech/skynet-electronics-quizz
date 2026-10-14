@@ -56,20 +56,22 @@ export const BrandBanner: React.FC<BrandBannerProps> = ({
           {/* Dynamic Week & Status Badges */}
           {!hideBadges && (
             <div className="brand-badge-row">
-              {displayWeekLabel && (
-                <span className="pill-badge pill-week">
-                  <span className="pill-dot"></span>
-                  {displayWeekLabel}
-                </span>
-              )}
+              <div className="brand-badge-main-group">
+                {displayWeekLabel && (
+                  <span className="pill-badge pill-week">
+                    <span className="pill-dot"></span>
+                    {displayWeekLabel}
+                  </span>
+                )}
 
-              {statusBadge && (
-                <span className="pill-badge pill-status">
-                  {statusBadge}
-                </span>
-              )}
+                {statusBadge && (
+                  <span className="pill-badge pill-status">
+                    {statusBadge}
+                  </span>
+                )}
+              </div>
 
-              <span className="pill-badge pill-challenge hidden-xs">
+              <span className="pill-badge pill-challenge">
                 {challengeBadgeText}
               </span>
             </div>

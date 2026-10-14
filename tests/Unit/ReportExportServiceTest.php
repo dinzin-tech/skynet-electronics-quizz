@@ -324,4 +324,114 @@ class ReportExportServiceTest extends TestCase
             $this->db->exec("DELETE FROM employees WHERE id = {$empId}");
         }
     }
+
+    public function test_export_results_summary_csv_with_quiz_filtering_and_pass_mark(): void
+    {
+        $now = gmdate('Y-m-d H:i:s');
+        $codeA = 'RESA_' . substr(Ulid::generate(), 0, 6);
+        $codeB = 'RESB_' . substr(Ulid::generate(), 0, 6);
+
+        // Quiz A with pass_mark 10
+        $settingsA = json_encode(['scoring' => ['pass_mark' => 10.0]]);
+        $qStmt = $this->db->prepare(
+            'INSERT INTO quizzes (public_id, code, title, duration_seconds, start_at, end_at, status, settings, current_version, created_by, created_at, updated_at) ' .
+            'VALUES (:pid, :code, :title, 600, :start, :end, "published", :settings, 1, 1, :cat, :uat)'
+        );
+        $qStmt->execute([
+            'pid' => Ulid::generate(),
+            'code' => $codeA,
+            'title' => 'Quiz A Pass 10',
+            'start' => $now,
+            'end' => gmdate('Y-m-d H:i:s', time() + 3600),
+            'settings' => $settingsA,
+            'cat' => $now,
+            'uat' => $now,
+        ]);
+        $quizAId = (int) $this->db->lastInsertId();
+
+        // Quiz B with pass_mark 20
+        $settingsB = json_encode(['scoring' => ['pass_mark' => 20.0]]);
+        $qStmt->execute([
+            'pid' => Ulid::generate(),
+            'code' => $codeB,
+            'title' => 'Quiz B Pass 20',
+            'start' => $now,
+            'end' => gmdate('Y-m-d H:i:s', time() + 3600),
+            'settings' => $settingsB,
+            'cat' => $now,
+            'uat' => $now,
+        ]);
+        $quizBId = (int) $this->db->lastInsertId();
+
+        // Create Employees
+        $empCodeA = 'EMPA_' . substr(Ulid::generate(), 0, 6);
+        $empCodeB = 'EMPB_' . substr(Ulid::generate(), 0, 6);
+        $eStmt = $this->db->prepare(
+            'INSERT INTO employees (public_id, employee_code, name, email, created_at, updated_at) VALUES (:pid, :code, :name, :email, :cat, :uat)'
+        );
+        $eStmt->execute(['pid' => Ulid::generate(), 'code' => $empCodeA, 'name' => 'Emp A', 'email' => "{$empCodeA}@test.com", 'cat' => $now, 'uat' => $now]);
+        $empAId = (int) $this->db->lastInsertId();
+
+        $eStmt->execute(['pid' => Ulid::generate(), 'code' => $empCodeB, 'name' => 'Emp B', 'email' => "{$empCodeB}@test.com", 'cat' => $now, 'uat' => $now]);
+        $empBId = (int) $this->db->lastInsertId();
+
+        // Attempts:
+        // Emp A on Quiz A: score 15 (>= 10, PASS)
+        // Emp B on Quiz B: score 15 (< 20, FAIL)
+        $attStmt = $this->db->prepare(
+            'INSERT INTO attempts (public_id, quiz_id, quiz_version, employee_id, status, started_at, submitted_at, score, accuracy, completion_time_s) ' .
+            'VALUES (:pid, :qid, 1, :eid, "COMPLETED", :start, :sub, :score, 75, 100)'
+        );
+        $attStmt->execute([
+            'pid' => Ulid::generate(),
+            'qid' => $quizAId,
+            'eid' => $empAId,
+            'start' => $now,
+            'sub' => $now,
+            'score' => 15.0,
+        ]);
+        $attAId = (int) $this->db->lastInsertId();
+
+        $attStmt->execute([
+            'pid' => Ulid::generate(),
+            'qid' => $quizBId,
+            'eid' => $empBId,
+            'start' => $now,
+            'sub' => $now,
+            'score' => 15.0,
+        ]);
+        $attBId = (int) $this->db->lastInsertId();
+
+        try {
+            // Test 1: Filtered by Quiz A only
+            $countA = $this->service->exportResultsSummaryCsv(['quiz_id' => $quizAId], $this->tempCsv);
+            $this->assertSame(1, $countA);
+
+            $linesA = file($this->tempCsv, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+            $this->assertCount(2, $linesA); // header + 1 data row
+            $rowA = str_getcsv($linesA[1]);
+            $this->assertSame($empCodeA, $rowA[1]); // Employee Code
+            $this->assertSame('Quiz A Pass 10', $rowA[4]); // Quiz Title
+            $this->assertSame('PASS', $rowA[9]); // Result (15 >= 10)
+
+            // Test 2: Filtered by Quiz B only
+            $countB = $this->service->exportResultsSummaryCsv(['quiz_id' => $quizBId], $this->tempCsv);
+            $this->assertSame(1, $countB);
+
+            $linesB = file($this->tempCsv, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+            $this->assertCount(2, $linesB);
+            $rowB = str_getcsv($linesB[1]);
+            $this->assertSame($empCodeB, $rowB[1]);
+            $this->assertSame('Quiz B Pass 20', $rowB[4]);
+            $this->assertSame('FAIL', $rowB[9]); // Result (15 < 20)
+        } finally {
+            $this->db->prepare('DELETE FROM attempts WHERE id IN (?, ?)')
+                ->execute([$attAId, $attBId]);
+            $this->db->prepare('DELETE FROM employees WHERE id IN (?, ?)')
+                ->execute([$empAId, $empBId]);
+            $this->db->prepare('DELETE FROM quizzes WHERE id IN (?, ?)')
+                ->execute([$quizAId, $quizBId]);
+        }
+    }
 }
+
