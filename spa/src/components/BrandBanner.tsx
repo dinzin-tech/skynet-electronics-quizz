@@ -49,14 +49,6 @@ export const BrandBanner: React.FC<BrandBannerProps> = ({
               }}
             />
           </div>
-          <div className="brand-divider" />
-          <div className="brand-subtext-block">
-            <div className="brand-oppo-label">
-              <span className="oppo-text">oppo</span>
-              <span className="oppo-region">KARNATAKA</span>
-            </div>
-            <div className="brand-portal-tag">PORTAL</div>
-          </div>
         </div>
 
         {/* Center / Right Status & Navigation */}
