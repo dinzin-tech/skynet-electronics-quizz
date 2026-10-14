@@ -433,4 +433,108 @@ class ReportExportServiceTest extends TestCase
                 ->execute([$quizAId, $quizBId]);
         }
     }
+
+    public function test_question_wise_export_with_question_bank_exports_candidate_question_rows(): void
+    {
+        $now = gmdate('Y-m-d H:i:s');
+        $code = 'QWB_' . substr(Ulid::generate(), 0, 5);
+
+        // 1. Create Question Bank
+        $bankStmt = $this->db->prepare(
+            'INSERT INTO question_banks (title, description, created_by, created_at, updated_at) VALUES ("Bank QW", "Desc", 1, :cat, :uat)'
+        );
+        $bankStmt->execute(['cat' => $now, 'uat' => $now]);
+        $bankId = (int) $this->db->lastInsertId();
+
+        // 2. Create Question in Bank (quiz_id is NULL)
+        $qStmt = $this->db->prepare(
+            'INSERT INTO questions (question_bank_id, quiz_id, question_text, display_order) VALUES (:bid, NULL, "Bank Question 1", 1)'
+        );
+        $qStmt->execute(['bid' => $bankId]);
+        $qId = (int) $this->db->lastInsertId();
+
+        // 3. Option
+        $optStmt = $this->db->prepare(
+            'INSERT INTO answer_options (question_id, option_text, is_correct, display_order) VALUES (:qid, "Option A", 1, 1)'
+        );
+        $optStmt->execute(['qid' => $qId]);
+        $optId = (int) $this->db->lastInsertId();
+
+        // 4. Create Quiz linked to Bank
+        $quizStmt = $this->db->prepare(
+            'INSERT INTO quizzes (public_id, code, title, duration_seconds, start_at, end_at, status, settings, question_bank_id, current_version, created_by, created_at, updated_at) ' .
+            'VALUES (:pid, :code, "Bank Quiz", 600, :start, :end, "published", "{}", :bid, 1, 1, :cat, :uat)'
+        );
+        $quizStmt->execute([
+            'pid' => Ulid::generate(),
+            'code' => $code,
+            'start' => $now,
+            'end' => gmdate('Y-m-d H:i:s', time() + 3600),
+            'bid' => $bankId,
+            'cat' => $now,
+            'uat' => $now,
+        ]);
+        $quizId = (int) $this->db->lastInsertId();
+
+        // 5. Create Employee & Completed Attempt with recorded answer
+        $empCode = 'EMPQW_' . substr(Ulid::generate(), 0, 5);
+        $empStmt = $this->db->prepare(
+            'INSERT INTO employees (public_id, employee_code, name, email, created_at, updated_at) VALUES (:pid, :code, "QW Candidate", :email, :cat, :uat)'
+        );
+        $empStmt->execute(['pid' => Ulid::generate(), 'code' => $empCode, 'email' => "{$empCode}@test.com", 'cat' => $now, 'uat' => $now]);
+        $empId = (int) $this->db->lastInsertId();
+
+        $attStmt = $this->db->prepare(
+            'INSERT INTO attempts (public_id, quiz_id, quiz_version, employee_id, status, started_at, submitted_at, score, accuracy, completion_time_s) ' .
+            'VALUES (:pid, :qid, 1, :eid, "COMPLETED", :start, :sub, 10, 100, 60)'
+        );
+        $attStmt->execute(['pid' => Ulid::generate(), 'qid' => $quizId, 'eid' => $empId, 'start' => $now, 'sub' => $now]);
+        $attId = (int) $this->db->lastInsertId();
+
+        $ansStmt = $this->db->prepare(
+            'INSERT INTO attempt_answers (attempt_id, question_id, selected_option_id, is_correct, answered_at) VALUES (:aid, :qid, :oid, 1, :at)'
+        );
+        $ansStmt->execute(['aid' => $attId, 'qid' => $qId, 'oid' => $optId, 'at' => $now]);
+
+        try {
+            // Process export job for question_summary
+            $jobId = $this->service->createExportJob('question_summary', ['quiz_id' => $quizId]);
+            $res = $this->service->processExportJob($jobId);
+
+            $this->assertGreaterThan(0, $res['row_count']);
+            $this->assertFileExists($res['file_path']);
+
+            $lines = file($res['file_path'], FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+            $this->assertGreaterThanOrEqual(2, count($lines));
+
+            // Verify header has Rank, Employee ID, Quiz Question, Employee Answer, etc.
+            $header = str_getcsv($lines[0]);
+            $this->assertSame('Rank', $header[0]);
+            $this->assertSame('Employee ID', $header[1]);
+            $this->assertSame('Employee Name', $header[2]);
+            $this->assertSame('Quiz Name', $header[3]);
+            $this->assertSame('Quiz Question', $header[4]);
+            $this->assertSame('Employee Answer', $header[5]);
+            $this->assertSame('Result', $header[6]);
+
+            // Verify row 1 has question details
+            $row1 = str_getcsv($lines[1]);
+            $this->assertSame($empCode, $row1[1]);
+            $this->assertSame('QW Candidate', $row1[2]);
+            $this->assertSame('Bank Quiz', $row1[3]);
+            $this->assertSame('Bank Question 1', $row1[4]);
+            $this->assertSame('Option A', $row1[5]);
+            $this->assertSame('Correct', $row1[6]);
+
+            @unlink($res['file_path']);
+        } finally {
+            $this->db->exec("DELETE FROM attempt_answers WHERE attempt_id = {$attId}");
+            $this->db->exec("DELETE FROM attempts WHERE id = {$attId}");
+            $this->db->exec("DELETE FROM employees WHERE id = {$empId}");
+            $this->db->exec("DELETE FROM quizzes WHERE id = {$quizId}");
+            $this->db->exec("DELETE FROM answer_options WHERE question_id = {$qId}");
+            $this->db->exec("DELETE FROM questions WHERE id = {$qId}");
+            $this->db->exec("DELETE FROM question_banks WHERE id = {$bankId}");
+        }
+    }
 }

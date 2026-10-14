@@ -105,9 +105,8 @@ class ReportExportService
 
         try {
             $rowCount = match ($reportType) {
-                'submissions' => $this->exportSubmissionsCsv($filters, $outputPath),
+                'submissions', 'question_summary', 'question_wise' => $this->exportSubmissionsCsv($filters, $outputPath),
                 'results' => $this->exportResultsSummaryCsv($filters, $outputPath),
-                'question_summary' => $this->exportQuestionSummaryCsv($filters, $outputPath),
                 default => throw new InvalidArgumentException("Unsupported report type: {$reportType}"),
             };
 
@@ -246,10 +245,14 @@ class ReportExportService
             foreach ($chunkQuizIds as $qid) {
                 if (!isset($quizQuestionsCache[$qid])) {
                     $qStmt = $this->db->prepare(
-                        'SELECT id, quiz_id, question_text, display_order FROM questions ' .
-                        'WHERE quiz_id = :qid ORDER BY display_order ASC, id ASC'
+                        'SELECT DISTINCT q.id, q.quiz_id, q.question_text, q.display_order '
+                        . 'FROM questions q '
+                        . 'WHERE q.quiz_id = :qid '
+                        . '   OR (q.question_bank_id IS NOT NULL AND q.question_bank_id = (SELECT question_bank_id FROM quizzes WHERE id = :qid2)) '
+                        . '   OR q.id IN (SELECT aa.question_id FROM attempt_answers aa JOIN attempts a ON a.id = aa.attempt_id WHERE a.quiz_id = :qid3) '
+                        . 'ORDER BY q.display_order ASC, q.id ASC'
                     );
-                    $qStmt->execute(['qid' => $qid]);
+                    $qStmt->execute(['qid' => $qid, 'qid2' => $qid, 'qid3' => $qid]);
                     $quizQuestionsCache[$qid] = $qStmt->fetchAll(PDO::FETCH_ASSOC);
                 }
             }
@@ -282,6 +285,20 @@ class ReportExportService
                 $attId = (int) $attempt['id'];
                 $quizIdVal = (int) $attempt['quiz_id'];
                 $questions = $quizQuestionsCache[$quizIdVal] ?? [];
+
+                // Safeguard: include any questions answered in this attempt that were not in cache
+                $attemptQids = array_keys($attemptAnswersMap[$attId] ?? []);
+                $cachedQids = array_map('intval', array_column($questions, 'id'));
+                $missingQids = array_diff($attemptQids, $cachedQids);
+                if (!empty($missingQids)) {
+                    $mPlaceholders = implode(',', array_fill(0, count($missingQids), '?'));
+                    $mStmt = $this->db->prepare(
+                        "SELECT id, quiz_id, question_text, display_order FROM questions WHERE id IN ({$mPlaceholders}) ORDER BY display_order ASC, id ASC"
+                    );
+                    $mStmt->execute(array_values($missingQids));
+                    $extraQuestions = $mStmt->fetchAll(PDO::FETCH_ASSOC);
+                    $questions = array_merge($questions, $extraQuestions);
+                }
 
                 $rankVal = $attempt['rank'] !== null ? (string) $attempt['rank'] : '—';
                 $empCode = (string) $attempt['employee_code'];

@@ -302,11 +302,16 @@ class DashboardService
         $compStmt->execute(['qid' => $quizId]);
         $totalCompleted = (int) $compStmt->fetchColumn();
 
-        // 2. Fetch all questions for this quiz
+        // 2. Fetch all questions for this quiz (direct or via question bank)
         $qStmt = $this->db->prepare(
-            'SELECT id, display_order, question_text FROM questions WHERE quiz_id = :qid ORDER BY display_order ASC, id ASC'
+            'SELECT DISTINCT q.id, q.display_order, q.question_text '
+            . 'FROM questions q '
+            . 'WHERE q.quiz_id = :qid '
+            . '   OR (q.question_bank_id IS NOT NULL AND q.question_bank_id = (SELECT question_bank_id FROM quizzes WHERE id = :qid2)) '
+            . '   OR q.id IN (SELECT aa.question_id FROM attempt_answers aa JOIN attempts a ON a.id = aa.attempt_id WHERE a.quiz_id = :qid3) '
+            . 'ORDER BY q.display_order ASC, q.id ASC'
         );
-        $qStmt->execute(['qid' => $quizId]);
+        $qStmt->execute(['qid' => $quizId, 'qid2' => $quizId, 'qid3' => $quizId]);
         $questions = $qStmt->fetchAll(PDO::FETCH_ASSOC);
 
         if (empty($questions)) {

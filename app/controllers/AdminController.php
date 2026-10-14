@@ -1850,7 +1850,7 @@ class AdminController extends Controller
         }
 
         $type = trim((string) ($request->input('report_type') ?? $_POST['report_type'] ?? $request->get('report_type', 'submissions')));
-        if (!in_array($type, ['submissions', 'results', 'question_summary'], true)) {
+        if (!in_array($type, ['submissions', 'results', 'question_summary', 'question_wise'], true)) {
             $type = 'submissions';
         }
 
