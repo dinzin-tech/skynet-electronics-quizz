@@ -61,22 +61,22 @@
     </div>
 
     <div class="card">
-        <h3 style="font-size: 1.05rem; font-weight: 600; margin-bottom: 8px;">Question-Wise Summary Report</h3>
+        <h3 style="font-size: 1.05rem; font-weight: 600; margin-bottom: 8px;">Question-Wise Report</h3>
         <p style="font-size: 0.85rem; color: #64748b; margin-bottom: 20px;">
-            Aggregated question performance: Correct, Incorrect, and Unanswered counts &amp; percentages per question.
+            Question-level candidate breakdown for the selected quiz: Employee ID, employee name, quiz questions, answers, correct/wrong results, score, and timing.
         </p>
 
         <form action="/admin/reports/export" method="POST">
             <input type="hidden" name="report_type" value="question_summary">
             <div class="form-group">
                 <label class="form-label" for="qsum_quiz_id">Target Quiz</label>
-                <select id="qsum_quiz_id" name="quiz_id" class="form-control">
+                <select id="qsum_quiz_id" name="quiz_id" class="form-control" required>
                     {% for q in quizzes %}
                         <option value="{{ q.id }}">[{{ q.code }}] {{ q.title }}</option>
                     {% endfor %}
                 </select>
             </div>
-            <button type="submit" class="btn btn-primary">Generate Question Summary CSV</button>
+            <button type="submit" class="btn btn-primary">Generate Question-Wise CSV</button>
         </form>
     </div>
 </div>
@@ -104,14 +104,14 @@
                     <td>
                         <div>
                             <strong>
-                                {% if job.report_type == 'question_summary' %}
-                                    QUESTION-WISE SUMMARY
+                                {% if job.report_type in ['question_summary', 'question_wise'] %}
+                                    QUESTION-WISE (CSV)
                                 {% elseif job.report_type == 'results' %}
-                                    RESULTS SUMMARY
+                                    RESULTS SUMMARY (CSV)
                                 {% else %}
-                                    {{ job.report_type|upper }}
+                                    SUBMISSIONS (CSV)
                                 {% endif %}
-                            </strong> ({{ job.format|upper }})
+                            </strong>
                         </div>
                         <div style="font-size: 0.775rem; color: #64748b; margin-top: 2px;">
                             <span style="color: #94a3b8;">Quiz:</span> {{ job.target_quiz_label|default('All Quizzes') }}
