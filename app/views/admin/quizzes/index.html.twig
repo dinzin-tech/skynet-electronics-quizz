@@ -45,9 +45,9 @@
                         </div>
                         <div style="font-size: 0.8rem; color: #64748b; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 4px;">
                             <span>v{{ q.version|default(q.current_version|default(1)) }}</span>
-                            {% if q.bank_title %}
+                            {% if q.question_bank_id %}
                                 <a href="/admin/question-banks/{{ q.question_bank_id }}/questions" style="color: #2563eb; text-decoration: none; background: #eff6ff; border: 1px solid #bfdbfe; padding: 2px 7px; border-radius: 4px; font-weight: 500; font-size: 0.75rem;">
-                                    📚 {{ q.bank_title }}
+                                    📚 {{ q.bank_title|default('Question Bank #' ~ q.question_bank_id) }}
                                     {% if q.random_question_count > 0 %}
                                         ({{ q.random_question_count }} sampled / {{ q.question_count|default(0) }})
                                     {% else %}

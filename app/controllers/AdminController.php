@@ -648,8 +648,14 @@ class AdminController extends Controller
         }
 
         $stmt = $this->db->query(
-            'SELECT q.*, (SELECT COUNT(*) FROM questions WHERE quiz_id = q.id) AS question_count ' .
-            'FROM quizzes q ORDER BY q.id DESC'
+            'SELECT q.*, qb.title AS bank_title, ' .
+            'CASE ' .
+            '    WHEN q.question_bank_id IS NOT NULL THEN (SELECT COUNT(*) FROM questions qn WHERE qn.question_bank_id = q.question_bank_id) ' .
+            '    ELSE (SELECT COUNT(*) FROM questions qn2 WHERE qn2.quiz_id = q.id) ' .
+            'END AS question_count ' .
+            'FROM quizzes q ' .
+            'LEFT JOIN question_banks qb ON qb.id = q.question_bank_id ' .
+            'ORDER BY q.id DESC'
         );
         $quizzes = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
