@@ -537,4 +537,109 @@ class ReportExportServiceTest extends TestCase
             $this->db->exec("DELETE FROM question_banks WHERE id = {$bankId}");
         }
     }
+
+    public function testWrittenQuestionExportPreservesTextAndLineBreaks(): void
+    {
+        $now = gmdate('Y-m-d H:i:s');
+        $quizCode = 'WQ_' . substr(Ulid::generate(), 0, 8);
+
+        // 1. Create Quiz
+        $qStmt = $this->db->prepare(
+            'INSERT INTO quizzes (public_id, code, title, duration_seconds, start_at, end_at, status, settings, created_by, created_at, updated_at) ' .
+            'VALUES (:pid, :code, :title, 900, :start, :end, "published", "{}", 1, :cat, :uat)'
+        );
+        $qStmt->execute([
+            'pid' => Ulid::generate(),
+            'code' => $quizCode,
+            'title' => 'Written Quiz',
+            'start' => $now,
+            'end' => gmdate('Y-m-d H:i:s', time() + 3600),
+            'cat' => $now,
+            'uat' => $now,
+        ]);
+        $quizId = (int) $this->db->lastInsertId();
+
+        // 2. Create Written Question
+        $quesStmt = $this->db->prepare(
+            'INSERT INTO questions (quiz_id, question_text, type, display_order) VALUES (:qid, :text, "written", 1)'
+        );
+        $quesStmt->execute([
+            'qid' => $quizId,
+            'text' => 'Describe your monthly store visits by sales team.',
+        ]);
+        $questionId = (int) $this->db->lastInsertId();
+
+        // 3. Create Employee
+        $empCode = 'EMP_WQ_' . substr(Ulid::generate(), 0, 6);
+        $eStmt = $this->db->prepare(
+            'INSERT INTO employees (public_id, employee_code, name, email, created_at, updated_at) VALUES (:pid, :code, :name, :email, :cat, :uat)'
+        );
+        $eStmt->execute([
+            'pid' => Ulid::generate(),
+            'code' => $empCode,
+            'name' => 'Written Candidate',
+            'email' => "{$empCode}@test.com",
+            'cat' => $now,
+            'uat' => $now,
+        ]);
+        $empId = (int) $this->db->lastInsertId();
+
+        // 4. Create Attempt
+        $attStmt = $this->db->prepare(
+            'INSERT INTO attempts (public_id, quiz_id, quiz_version, employee_id, status, started_at, submitted_at, score, accuracy, completion_time_s) ' .
+            'VALUES (:pid, :qid, 1, :eid, "COMPLETED", :start, :sub, 10.0, 100.0, 60)'
+        );
+        $attStmt->execute([
+            'pid' => Ulid::generate(),
+            'qid' => $quizId,
+            'eid' => $empId,
+            'start' => $now,
+            'sub' => $now,
+        ]);
+        $attId = (int) $this->db->lastInsertId();
+
+        // 5. Create written answer with line breaks
+        $writtenAnswerText = "Week 1: Visited 12 stores in Region A.\nWeek 2: Visited 15 stores in Region B.\nIdentified inventory bottlenecks.";
+        $ansStmt = $this->db->prepare(
+            'INSERT INTO attempt_answers (attempt_id, question_id, selected_option_id, text_answer, is_correct, answered_at) VALUES (:aid, :qid, NULL, :text, NULL, :at)'
+        );
+        $ansStmt->execute([
+            'aid' => $attId,
+            'qid' => $questionId,
+            'text' => $writtenAnswerText,
+            'at' => $now,
+        ]);
+
+        try {
+            $count = $this->service->exportSubmissionsCsv(['quiz_id' => $quizId], $this->tempCsv);
+            $this->assertGreaterThanOrEqual(1, $count);
+
+            $fileContent = file_get_contents($this->tempCsv);
+            $this->assertStringContainsString('Describe your monthly store visits', $fileContent);
+            $this->assertStringContainsString('Visited 12 stores in Region A.', $fileContent);
+            $this->assertStringContainsString('Identified inventory bottlenecks.', $fileContent);
+
+            // Read CSV and verify columns
+            $handle = fopen($this->tempCsv, 'r');
+            $header = fgetcsv($handle);
+            $this->assertSame('Employee ID', $header[1]);
+            $this->assertSame('Quiz Question', $header[4]);
+            $this->assertSame('Employee Answer', $header[5]);
+            $this->assertSame('Result', $header[6]);
+
+            $row1 = fgetcsv($handle);
+            fclose($handle);
+
+            $this->assertSame($empCode, $row1[1]);
+            $this->assertSame('Describe your monthly store visits by sales team.', $row1[4]);
+            $this->assertSame($writtenAnswerText, $row1[5]);
+            $this->assertSame('Submitted', $row1[6]);
+        } finally {
+            $this->db->exec("DELETE FROM attempt_answers WHERE attempt_id = {$attId}");
+            $this->db->exec("DELETE FROM attempts WHERE id = {$attId}");
+            $this->db->exec("DELETE FROM employees WHERE id = {$empId}");
+            $this->db->exec("DELETE FROM questions WHERE id = {$questionId}");
+            $this->db->exec("DELETE FROM quizzes WHERE id = {$quizId}");
+        }
+    }
 }

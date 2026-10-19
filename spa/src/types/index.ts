@@ -101,6 +101,10 @@ export interface StartAttemptResponse {
 
 export interface AttemptStateResponse {
   attempt_id: string;
+  quiz_code?: string;
+  quiz_title?: string;
+  week_number?: number;
+  week_label?: string;
   status: string;
   started_ms: number;
   deadline_ms: number;
