@@ -593,14 +593,26 @@ $router->get('/api/attempts/{aid}', function (array $params, array $config, mixe
     $feedback = !empty($att['feedback']) ? (string) $att['feedback'] : null;
 
     $portalClosingMs = (int) ($att['portal_closing_ms'] ?? 0);
-    if ($portalClosingMs === 0 && !empty($att['code'])) {
-        $qMeta = $redis->hGetAll("quiz:" . $att['code']);
-        $portalClosingMs = (int) ($qMeta['end_ms'] ?? 0);
+    $qMeta = [];
+    if (!empty($att['code'])) {
+        $qMeta = $redis->hGetAll("quiz:" . $att['code']) ?: [];
+        if ($portalClosingMs === 0) {
+            $portalClosingMs = (int) ($qMeta['end_ms'] ?? 0);
+        }
     }
+
+    $weekNum = isset($qMeta['week_number']) && $qMeta['week_number'] !== '' ? max(1, (int) $qMeta['week_number']) : null;
+    $weekLabel = !empty($qMeta['week_label']) ? (string) $qMeta['week_label'] : ($weekNum !== null ? "WEEK - {$weekNum}" : null);
+    $quizTitle = !empty($qMeta['title']) ? (string) $qMeta['title'] : null;
+    $quizCode = !empty($att['code']) ? (string) $att['code'] : (!empty($qMeta['code']) ? (string) $qMeta['code'] : null);
 
     $status = $att['status'] ?? 'NOT_STARTED';
     $data = [
         'attempt_id' => $aid,
+        'quiz_code' => $quizCode,
+        'quiz_title' => $quizTitle,
+        'week_number' => $weekNum,
+        'week_label' => $weekLabel,
         'status' => $status,
         'started_ms' => (int) ($att['started_ms'] ?? 0),
         'deadline_ms' => (int) ($att['deadline_ms'] ?? 0),

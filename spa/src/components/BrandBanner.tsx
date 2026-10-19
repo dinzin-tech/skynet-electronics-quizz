@@ -32,7 +32,7 @@ export const BrandBanner: React.FC<BrandBannerProps> = ({
   };
 
   const challengeBadgeText = totalWeeks ? `${totalWeeks}-WEEK CHALLENGE` : 'WEEKLY CHALLENGE';
-  const displayWeekLabel = currentWeekLabel || 'WEEK - 1';
+  const displayWeekLabel = currentWeekLabel;
 
   return (
     <header className={`brand-header-banner ${compact ? 'is-compact' : ''}`}>

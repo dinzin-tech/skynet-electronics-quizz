@@ -94,6 +94,7 @@ async function request<T>(
       const err = new Error(errorMsg);
       (err as any).status = res.status;
       (err as any).code = data?.error?.code || data?.code;
+      (err as any).state = data?.state;
       throw err;
     }
 

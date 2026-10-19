@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { api, getServerTime } from '../services/api';
+import { api, getServerTime, clearStoredAuth } from '../services/api';
 import { QuizStateResponse, StartAttemptResponse } from '../types';
 import { Navbar } from '../components/Navbar';
 
@@ -21,6 +21,7 @@ export const QuizEntryView: React.FC<QuizEntryViewProps> = ({
   const [loading, setLoading] = useState(true);
   const [starting, setStarting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isNotEligible, setIsNotEligible] = useState(false);
   const [timeUntilOpenMs, setTimeUntilOpenMs] = useState<number | null>(null);
 
   const fetchState = async () => {
@@ -31,17 +32,33 @@ export const QuizEntryView: React.FC<QuizEntryViewProps> = ({
     try {
       setLoading(true);
       setError(null);
+      setIsNotEligible(false);
       const res = await api.getQuizMeta(quizCode);
+      if (res.state === 'ineligible') {
+        setIsNotEligible(true);
+      }
       setData(res);
 
-      if (res.state === 'not_open' && res.meta.opens_at_ms) {
+      if (res.state === 'not_open' && res.meta?.opens_at_ms) {
         const diff = res.meta.opens_at_ms - getServerTime();
         setTimeUntilOpenMs(Math.max(0, diff));
       } else {
         setTimeUntilOpenMs(null);
       }
     } catch (err: any) {
-      setError(err?.message || 'Failed to load assessment details');
+      if (
+        err?.status === 403 ||
+        err?.state === 'ineligible' ||
+        (err?.message && (
+          err.message.toLowerCase().includes('not enrolled') ||
+          err.message.toLowerCase().includes('not eligible') ||
+          err.message.toLowerCase().includes('ineligible')
+        ))
+      ) {
+        setIsNotEligible(true);
+      } else {
+        setError(err?.message || 'Failed to load assessment details');
+      }
     } finally {
       setLoading(false);
     }
@@ -126,12 +143,83 @@ export const QuizEntryView: React.FC<QuizEntryViewProps> = ({
   if (loading && !data) {
     return (
       <div className="peak-app-bg" style={{ minHeight: '100dvh' }}>
-        <Navbar />
+        <Navbar hideBadges={true} />
         <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '60vh' }}>
           <div style={{ fontSize: '1.125rem', color: 'rgba(255, 255, 255, 0.7)', fontWeight: 600 }}>
             Loading assessment details...
           </div>
         </div>
+      </div>
+    );
+  }
+
+  if (isNotEligible || data?.state === 'ineligible') {
+    return (
+      <div className="peak-app-bg" style={{ minHeight: '100dvh', display: 'flex', flexDirection: 'column' }}>
+        <Navbar hideBadges={true} />
+        <main style={{ maxWidth: '560px', width: '100%', margin: '4rem auto', padding: '0 1.25rem', flex: 1 }}>
+          <div className="glass-card-dark" style={{ padding: '3rem 2rem', textAlign: 'center' }}>
+            <div style={{
+              width: '64px',
+              height: '64px',
+              borderRadius: '50%',
+              background: 'rgba(239, 68, 68, 0.15)',
+              color: '#f87171',
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: '1.75rem',
+              marginBottom: '1.5rem',
+              border: '2px solid rgba(239, 68, 68, 0.4)',
+            }}>
+              🔒
+            </div>
+
+            <h2 style={{ fontSize: '1.5rem', fontWeight: 800, color: '#ffffff', marginBottom: '1rem', lineHeight: 1.4 }}>
+              You are not eligible to take this quiz.
+            </h2>
+
+            <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', marginTop: '2.5rem', flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                onClick={() => {
+                  if (window.history.length > 1) {
+                    window.history.back();
+                  } else {
+                    window.location.href = '/';
+                  }
+                }}
+                className="peak-submit-btn"
+                style={{
+                  padding: '0.85rem 2rem',
+                  fontSize: '0.95rem',
+                  maxWidth: '180px',
+                  background: 'rgba(255, 255, 255, 0.08)',
+                  border: '1px solid rgba(255, 255, 255, 0.2)',
+                  color: '#ffffff',
+                }}
+              >
+                Go Back
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  clearStoredAuth();
+                  window.location.reload();
+                }}
+                className="peak-submit-btn"
+                style={{
+                  padding: '0.85rem 2rem',
+                  fontSize: '0.95rem',
+                  maxWidth: '180px',
+                }}
+              >
+                Sign Out
+              </button>
+            </div>
+          </div>
+        </main>
       </div>
     );
   }
@@ -376,20 +464,6 @@ export const QuizEntryView: React.FC<QuizEntryViewProps> = ({
                 )}
                 <p style={{ fontSize: '0.8125rem', color: 'rgba(255, 255, 255, 0.65)', marginTop: '0.5rem' }}>
                   The portal will automatically activate when the window opens.
-                </p>
-              </div>
-            ) : data?.state === 'ineligible' ? (
-              <div style={{
-                padding: '1.75rem',
-                background: 'rgba(239, 68, 68, 0.15)',
-                borderRadius: '16px',
-                border: '1.5px solid rgba(239, 68, 68, 0.4)',
-              }}>
-                <div style={{ fontSize: '1.125rem', fontWeight: 800, color: '#f87171' }}>
-                  Enrollment Required
-                </div>
-                <p style={{ fontSize: '0.875rem', color: 'rgba(255, 255, 255, 0.8)', marginTop: '0.375rem' }}>
-                  Your employee code is not currently enrolled in this assessment group.
                 </p>
               </div>
             ) : data?.state === 'resumable' ? (

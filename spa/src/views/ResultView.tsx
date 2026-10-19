@@ -32,10 +32,12 @@ export const ResultView: React.FC<ResultViewProps> = ({ attemptId, onDone }) => 
   }, [attemptId]);
 
   const result = attempt?.result;
+  const currentWeekLabel = attempt?.week_label || (attempt?.week_number ? `WEEK - ${attempt.week_number}` : undefined);
+  const quizTitle = attempt?.quiz_title;
 
   return (
     <div className="peak-app-bg" style={{ minHeight: '100dvh', display: 'flex', flexDirection: 'column' }}>
-      <Navbar onLogout={onDone} statusBadge="COMPLETED" />
+      <Navbar onLogout={onDone} statusBadge="COMPLETED" currentWeekLabel={currentWeekLabel} />
 
       <main style={{ maxWidth: '720px', width: '100%', margin: '2.5rem auto', padding: '0 1.25rem', flex: 1 }}>
         <div className="glass-card-dark" style={{ padding: '2.5rem 2rem', textAlign: 'center' }}>
@@ -60,8 +62,12 @@ export const ResultView: React.FC<ResultViewProps> = ({ attemptId, onDone }) => 
           <h2 style={{ fontSize: '1.875rem', fontWeight: 800, color: '#ffffff', marginBottom: '0.5rem' }}>
             Assessment Completed
           </h2>
-          <p style={{ fontSize: '0.95rem', color: 'rgba(255, 255, 255, 0.75)', marginBottom: '2rem' }}>
-            Your assessment and feedback have been securely recorded under OPPO PEAK PURSUIT 4.0.
+          <p style={{ fontSize: '1rem', color: 'rgba(255, 255, 255, 0.85)', marginBottom: '2rem' }}>
+            Thank you for submitting your responses for {quizTitle ? (
+              <strong style={{ color: 'var(--peak-gold-main)' }}>{quizTitle}</strong>
+            ) : (
+              'this assessment'
+            )}.
           </p>
 
           {loading || !result ? (

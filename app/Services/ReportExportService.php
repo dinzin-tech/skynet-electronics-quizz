@@ -245,7 +245,7 @@ class ReportExportService
             foreach ($chunkQuizIds as $qid) {
                 if (!isset($quizQuestionsCache[$qid])) {
                     $qStmt = $this->db->prepare(
-                        'SELECT DISTINCT q.id, q.quiz_id, q.question_text, q.display_order '
+                        'SELECT DISTINCT q.id, q.quiz_id, q.question_text, q.display_order, q.type AS question_type '
                         . 'FROM questions q '
                         . 'WHERE q.quiz_id = :qid '
                         . '   OR (q.question_bank_id IS NOT NULL AND q.question_bank_id = (SELECT question_bank_id FROM quizzes WHERE id = :qid2)) '
@@ -263,7 +263,7 @@ class ReportExportService
 
             if (!empty($attemptIds)) {
                 $inPlaceholders = implode(',', array_fill(0, count($attemptIds), '?'));
-                $ansSql = 'SELECT aa.attempt_id, aa.question_id, aa.selected_option_id, aa.is_correct, '
+                $ansSql = 'SELECT aa.attempt_id, aa.question_id, aa.selected_option_id, aa.text_answer, aa.answered_at, aa.is_correct, '
                     . 'ao.option_text '
                     . 'FROM attempt_answers aa '
                     . 'LEFT JOIN answer_options ao ON ao.id = aa.selected_option_id '
@@ -293,7 +293,7 @@ class ReportExportService
                 if (!empty($missingQids)) {
                     $mPlaceholders = implode(',', array_fill(0, count($missingQids), '?'));
                     $mStmt = $this->db->prepare(
-                        "SELECT id, quiz_id, question_text, display_order FROM questions WHERE id IN ({$mPlaceholders}) ORDER BY display_order ASC, id ASC"
+                        "SELECT id, quiz_id, question_text, display_order, type AS question_type FROM questions WHERE id IN ({$mPlaceholders}) ORDER BY display_order ASC, id ASC"
                     );
                     $mStmt->execute(array_values($missingQids));
                     $extraQuestions = $mStmt->fetchAll(PDO::FETCH_ASSOC);
@@ -321,7 +321,18 @@ class ReportExportService
 
                     $ansRecord = $attemptAnswersMap[$attId][$qid] ?? null;
 
-                    if ($ansRecord !== null && $ansRecord['selected_option_id'] !== null) {
+                    $isWritten = ($q['question_type'] ?? '') === 'written'
+                        || (!empty($ansRecord['text_answer']) && empty($ansRecord['selected_option_id']));
+
+                    if ($isWritten) {
+                        if ($ansRecord !== null && $ansRecord['text_answer'] !== null && trim((string) $ansRecord['text_answer']) !== '') {
+                            $empAnswer = (string) $ansRecord['text_answer'];
+                            $result = 'Submitted';
+                        } else {
+                            $empAnswer = 'Unanswered';
+                            $result = ($attempt['status'] === 'ABSENT') ? 'Absent' : 'Unanswered';
+                        }
+                    } elseif ($ansRecord !== null && $ansRecord['selected_option_id'] !== null) {
                         $empAnswer = !empty($ansRecord['option_text'])
                             ? (string) $ansRecord['option_text']
                             : ('Option #' . $ansRecord['selected_option_id']);
@@ -330,6 +341,10 @@ class ReportExportService
                         $empAnswer = 'Unanswered';
                         $result = ($attempt['status'] === 'ABSENT') ? 'Absent' : 'Unanswered';
                     }
+
+                    $rowTimestamp = (!empty($ansRecord['answered_at']))
+                        ? TimeHelper::toCompanyTz($ansRecord['answered_at'], 'd M Y, h:i A')
+                        : $endedAtVal;
 
                     fputcsv($handle, [
                         self::sanitizeCell($rankVal),
@@ -343,7 +358,7 @@ class ReportExportService
                         self::sanitizeCell($accuracyVal),
                         self::sanitizeCell($timeTakenVal),
                         self::sanitizeCell($startedAtVal),
-                        self::sanitizeCell($endedAtVal),
+                        self::sanitizeCell($rowTimestamp),
                     ]);
                     $totalExported++;
                 }
