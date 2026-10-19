@@ -16,7 +16,7 @@ add-apt-repository -y ppa:ondrej/php
 apt-get update
 apt-get install -y \
     php8.2-fpm php8.2-cli php8.2-mysql php8.2-redis \
-    php8.2-apcu php8.2-opcache php8.2-mbstring php8.2-xml php8.2-zip php8.2-curl
+    php8.2-apcu php8.2-opcache php8.2-mbstring php8.2-xml php8.2-zip php8.2-curl php8.2-gd
 
 echo ">>> [3/7] Installing Node.js & Composer..."
 if ! command -v composer &> /dev/null; then

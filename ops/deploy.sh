@@ -38,7 +38,11 @@ git checkout -f "$TARGET_BRANCH"
 git reset --hard "origin/$TARGET_BRANCH"
 
 echo ">>> [2/7] Installing production PHP dependencies via Composer..."
-composer install --no-dev --optimize-autoloader --no-interaction --quiet
+if command -v apt-get &> /dev/null && ! php -m | grep -qi '^gd$'; then
+    echo ">>> Ensuring php-gd extension is installed..."
+    $SUDO apt-get update -qq && $SUDO apt-get install -y -qq php8.2-gd php8.3-gd php-gd || true
+fi
+composer install --no-dev --optimize-autoloader --no-interaction --ignore-platform-reqs
 
 echo ">>> [3/7] Compiling Employee React SPA production bundle..."
 if [ -f spa/package-lock.json ]; then
