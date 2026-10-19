@@ -207,4 +207,50 @@ class QuizServiceTest extends TestCase
 
         $this->quizService->delete((int) $quiz['id']);
     }
+
+    public function test_delete_completed_quiz_without_force_fails(): void
+    {
+        $uniqueCode = 'DEL1' . substr(Ulid::generate(), -6);
+        $quiz = $this->quizService->create([
+            'code' => $uniqueCode,
+            'title' => 'Completed Quiz Non Force',
+            'duration_seconds' => 600,
+            'start_at' => gmdate('Y-m-d H:i:s'),
+            'end_at' => gmdate('Y-m-d H:i:s', time() + 3600),
+            'settings' => [],
+        ], $this->adminId);
+        $quizId = (int) $quiz['id'];
+
+        $this->db->prepare("UPDATE quizzes SET status = 'archived' WHERE id = :id")->execute(['id' => $quizId]);
+
+        $this->expectException(\RuntimeException::class);
+        $this->quizService->delete($quizId, false);
+    }
+
+    public function test_delete_completed_quiz_with_force_cleanup(): void
+    {
+        $uniqueCode = 'DEL2' . substr(Ulid::generate(), -6);
+        $quiz = $this->quizService->create([
+            'code' => $uniqueCode,
+            'title' => 'Completed Quiz For Cleanup',
+            'duration_seconds' => 600,
+            'start_at' => gmdate('Y-m-d H:i:s'),
+            'end_at' => gmdate('Y-m-d H:i:s', time() + 3600),
+            'settings' => [],
+        ], $this->adminId);
+        $quizId = (int) $quiz['id'];
+
+        // Add question
+        $this->questionService->addQuestion($quizId, 'Sample Q', [
+            ['text' => 'Option A', 'is_correct' => true],
+            ['text' => 'Option B', 'is_correct' => false],
+        ]);
+
+        $this->db->prepare("UPDATE quizzes SET status = 'archived' WHERE id = :id")->execute(['id' => $quizId]);
+
+        // Force delete should succeed
+        $deleted = $this->quizService->delete($quizId, true);
+        $this->assertTrue($deleted);
+        $this->assertNull($this->quizService->getById($quizId));
+    }
 }

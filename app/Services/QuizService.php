@@ -503,41 +503,72 @@ class QuizService
     }
 
     /**
-     * Delete a draft quiz with 0 attempts.
+     * Delete a quiz. If force=true, allows deleting published/completed quizzes and cascades attempt data.
      */
-    public function delete(int $id): bool
+    public function delete(int $id, bool $force = false): bool
     {
         $existing = $this->getById($id);
         if (!$existing) {
             return false;
         }
 
-        if ($existing['status'] !== 'draft') {
-            throw new RuntimeException('Only draft quizzes can be deleted. Use archive instead.');
+        if (!$force && $existing['status'] !== 'draft') {
+            throw new RuntimeException('Only draft quizzes can be deleted directly. Use force delete for cleanup.');
         }
 
-        $attemptCountStmt = $this->db->prepare('SELECT COUNT(*) FROM attempts WHERE quiz_id = :id');
-        $attemptCountStmt->execute(['id' => $id]);
-        if ((int) $attemptCountStmt->fetchColumn() > 0) {
-            throw new RuntimeException('Cannot delete quiz with existing attempts');
+        if (!$force) {
+            $attemptCountStmt = $this->db->prepare('SELECT COUNT(*) FROM attempts WHERE quiz_id = :id');
+            $attemptCountStmt->execute(['id' => $id]);
+            if ((int) $attemptCountStmt->fetchColumn() > 0) {
+                throw new RuntimeException('Cannot delete quiz with existing attempts without force cleanup');
+            }
         }
 
         $this->db->beginTransaction();
         try {
-            // Delete answer options
+            // Delete attempt answers
+            $this->db->prepare(
+                'DELETE aa FROM attempt_answers aa ' .
+                'INNER JOIN attempts a ON aa.attempt_id = a.id ' .
+                'WHERE a.quiz_id = :id'
+            )->execute(['id' => $id]);
+
+            // Delete attempts
+            $this->db->prepare('DELETE FROM attempts WHERE quiz_id = :id')->execute(['id' => $id]);
+
+            // Delete quiz snapshots
+            $this->db->prepare('DELETE FROM quiz_snapshots WHERE quiz_id = :id')->execute(['id' => $id]);
+
+            // Delete answer options for direct questions
             $this->db->prepare(
                 'DELETE ao FROM answer_options ao ' .
                 'INNER JOIN questions q ON ao.question_id = q.id ' .
                 'WHERE q.quiz_id = :qid'
             )->execute(['qid' => $id]);
 
-            // Delete questions
+            // Delete direct questions
             $this->db->prepare('DELETE FROM questions WHERE quiz_id = :qid')->execute(['qid' => $id]);
 
             // Delete quiz
             $this->db->prepare('DELETE FROM quizzes WHERE id = :id')->execute(['id' => $id]);
 
             $this->db->commit();
+
+            // Clean up Redis if available
+            try {
+                $redis = Database::getInstance()->getRedis();
+                if ($redis) {
+                    $code = $existing['code'] ?? '';
+                    if ($code !== '') {
+                        $redis->del("quiz:{$code}");
+                    }
+                    $redis->del("qstat:{$id}");
+                    $redis->del("qa:{$id}");
+                }
+            } catch (\Throwable $re) {
+                // Ignore Redis errors on cleanup
+            }
+
             return true;
         } catch (\Throwable $e) {
             $this->db->rollBack();

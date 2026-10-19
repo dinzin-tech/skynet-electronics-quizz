@@ -223,28 +223,36 @@ class QuizFinalizerService
             $correctCount = 0;
             $score = 0.0;
             $correctnessMap = [];
+            $mcqCount = 0;
 
             foreach ($evaluationQids as $qid) {
                 $qid = (int) $qid;
                 $correctOid = isset($answerKey[$qid]) ? (int) $answerKey[$qid] : (isset($answerKey[(string) $qid]) ? (int) $answerKey[(string) $qid] : 0);
                 $selectedOid = $selectedAnswers[$qid] ?? null;
 
-                if ($selectedOid !== null && $selectedOid > 0) {
-                    if ($correctOid > 0 && $selectedOid === $correctOid) {
-                        $correctCount++;
-                        $score += $marksPerCorrect;
-                        $correctnessMap[$qid] = 1;
+                // Only auto-grade MCQs (where a correct option exists in the answer key)
+                if ($correctOid > 0) {
+                    $mcqCount++;
+                    if ($selectedOid !== null && $selectedOid > 0) {
+                        if ($selectedOid === $correctOid) {
+                            $correctCount++;
+                            $score += $marksPerCorrect;
+                            $correctnessMap[$qid] = 1;
+                        } else {
+                            $score -= $negativeMarks;
+                            $correctnessMap[$qid] = 0;
+                        }
                     } else {
-                        $score -= $negativeMarks;
-                        $correctnessMap[$qid] = 0;
+                        $score -= $unansweredPenalty;
+                        $correctnessMap[$qid] = null;
                     }
                 } else {
-                    $score -= $unansweredPenalty;
+                    // Written / Survey questions: leave for HR manual grading, no penalty applied
                     $correctnessMap[$qid] = null;
                 }
             }
 
-            $accuracy = $totalQuestions > 0 ? round(($correctCount / $totalQuestions) * 100, 2) : 0.0;
+            $accuracy = $mcqCount > 0 ? round(($correctCount / $mcqCount) * 100, 2) : 0.0;
 
             // Compute completion time
             $submittedAt = $att['submitted_at'] ?? ($att['deadline_at'] ?? $now);

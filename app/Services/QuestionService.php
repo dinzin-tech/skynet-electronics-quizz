@@ -387,10 +387,17 @@ class QuestionService
                 $errors[] = "Quiz requires {$randomCount} random questions, but the linked Question Bank only contains {$bankQCount} questions.";
             }
 
+            // Count direct written questions attached to this quiz (Section B)
+            $writtenStmt = $this->db->prepare("SELECT COUNT(*) FROM questions WHERE quiz_id = :qid AND type = 'written'");
+            $writtenStmt->execute(['qid' => $quizId]);
+            $writtenCount = (int) $writtenStmt->fetchColumn();
+
+            $effectiveMcq = $randomCount > 0 ? $randomCount : $bankQCount;
+
             return [
                 'valid' => empty($errors),
                 'errors' => $errors,
-                'question_count' => $randomCount > 0 ? $randomCount : $bankQCount,
+                'question_count' => $effectiveMcq + $writtenCount,
             ];
         }
 
@@ -533,6 +540,69 @@ class QuestionService
         unset($q);
 
         return $questions;
+    }
+
+    /**
+     * Get all direct written questions for a given quiz (Section B).
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    public function getWrittenQuestionsByQuiz(int $quizId): array
+    {
+        $stmt = $this->db->prepare(
+            'SELECT id, quiz_id, question_text, type, image_path, display_order ' .
+            'FROM questions WHERE quiz_id = :qid AND type = \'written\' ORDER BY display_order ASC, id ASC'
+        );
+        $stmt->execute(['qid' => $quizId]);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    /**
+     * Add a fixed written survey question directly to a quiz (Section B).
+     *
+     * @return array<string, mixed>
+     */
+    public function addWrittenQuestionToQuiz(
+        int $quizId,
+        string $questionText,
+        int $displayOrder = 0,
+        ?string $imagePath = null
+    ): array {
+        $questionText = trim($questionText);
+        if ($questionText === '') {
+            throw new InvalidArgumentException('Question text cannot be empty');
+        }
+
+        $this->assertQuizNotStarted($quizId);
+
+        if ($displayOrder <= 0) {
+            $stmt = $this->db->prepare(
+                'SELECT COALESCE(MAX(display_order), 0) + 1 FROM questions WHERE quiz_id = :qid'
+            );
+            $stmt->execute(['qid' => $quizId]);
+            $displayOrder = (int) $stmt->fetchColumn();
+        }
+
+        $this->db->beginTransaction();
+        try {
+            $qStmt = $this->db->prepare(
+                'INSERT INTO questions (quiz_id, question_bank_id, question_text, type, image_path, display_order) ' .
+                'VALUES (:qid, NULL, :text, \'written\', :img, :ord)'
+            );
+            $qStmt->execute([
+                'qid' => $quizId,
+                'text' => $questionText,
+                'img' => $imagePath,
+                'ord' => $displayOrder,
+            ]);
+            $questionId = (int) $this->db->lastInsertId();
+            $this->db->commit();
+
+            return $this->getQuestion($questionId);
+        } catch (\Throwable $e) {
+            $this->db->rollBack();
+            throw $e;
+        }
     }
 
     private function validateOptions(array $options): void

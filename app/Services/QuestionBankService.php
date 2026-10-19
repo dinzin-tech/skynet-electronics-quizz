@@ -226,14 +226,28 @@ SQL
             // Unlink draft quizzes
             $this->db->prepare('UPDATE quizzes SET question_bank_id = NULL WHERE question_bank_id = :id')->execute(['id' => $id]);
 
-            // Delete answer options of questions in this bank
+            // Detach questions that have attempt answers to preserve historical submissions and reports
+            $answeredStmt = $this->db->prepare(
+                'SELECT DISTINCT question_id FROM attempt_answers WHERE question_id IN (
+                    SELECT id FROM questions WHERE question_bank_id = :id
+                )'
+            );
+            $answeredStmt->execute(['id' => $id]);
+            $answeredQids = $answeredStmt->fetchAll(PDO::FETCH_COLUMN);
+
+            if (!empty($answeredQids)) {
+                $inClause = implode(',', array_map('intval', $answeredQids));
+                $this->db->exec("UPDATE questions SET question_bank_id = NULL WHERE id IN ({$inClause})");
+            }
+
+            // Delete answer options of remaining unreferenced questions in this bank
             $this->db->prepare(
                 'DELETE ao FROM answer_options ao ' .
                 'JOIN questions q ON q.id = ao.question_id ' .
                 'WHERE q.question_bank_id = :id'
             )->execute(['id' => $id]);
 
-            // Delete questions in this bank
+            // Delete remaining unreferenced questions in this bank
             $this->db->prepare('DELETE FROM questions WHERE question_bank_id = :id')->execute(['id' => $id]);
 
             // Delete question bank
