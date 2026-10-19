@@ -80,21 +80,53 @@ class QuizPublisher
         $settings = json_decode((string) $quiz['settings'], true) ?? [];
         $randomQuestionCount = !empty($quiz['random_question_count']) ? (int) $quiz['random_question_count'] : 0;
 
-        // 3. Fetch Questions and Options (from Question Bank if linked, or direct quiz questions)
+        // 3. Fetch Questions and Options (Section A: MCQs; Section B: Fixed Written Survey)
+        $mcqQuestions = [];
+        $writtenQuestions = [];
+
         if (!empty($quiz['question_bank_id'])) {
-            $questionsStmt = $this->db->prepare(
+            $bankStmt = $this->db->prepare(
                 'SELECT id, question_text, type, image_path, display_order FROM questions ' .
-                'WHERE question_bank_id = :bid ORDER BY display_order ASC, id ASC'
+                'WHERE question_bank_id = :bid AND (type IS NULL OR type != "written") ' .
+                'ORDER BY display_order ASC, id ASC'
             );
-            $questionsStmt->execute(['bid' => (int) $quiz['question_bank_id']]);
+            $bankStmt->execute(['bid' => (int) $quiz['question_bank_id']]);
+            $mcqQuestions = $bankStmt->fetchAll(PDO::FETCH_ASSOC);
+
+            // Fetch Section B fixed written questions assigned directly to this quiz
+            $writtenStmt = $this->db->prepare(
+                'SELECT id, question_text, type, image_path, display_order FROM questions ' .
+                'WHERE quiz_id = :qid AND type = "written" ' .
+                'ORDER BY display_order ASC, id ASC'
+            );
+            $writtenStmt->execute(['qid' => $quizId]);
+            $writtenQuestions = $writtenStmt->fetchAll(PDO::FETCH_ASSOC);
+
+            // If no direct written questions on quiz, check if bank had written questions
+            if (empty($writtenQuestions)) {
+                $bankWrittenStmt = $this->db->prepare(
+                    'SELECT id, question_text, type, image_path, display_order FROM questions ' .
+                    'WHERE question_bank_id = :bid AND type = "written" ' .
+                    'ORDER BY display_order ASC, id ASC'
+                );
+                $bankWrittenStmt->execute(['bid' => (int) $quiz['question_bank_id']]);
+                $writtenQuestions = $bankWrittenStmt->fetchAll(PDO::FETCH_ASSOC);
+            }
         } else {
             $questionsStmt = $this->db->prepare(
                 'SELECT id, question_text, type, image_path, display_order FROM questions ' .
                 'WHERE quiz_id = :qid ORDER BY display_order ASC, id ASC'
             );
             $questionsStmt->execute(['qid' => $quizId]);
+            $allQ = $questionsStmt->fetchAll(PDO::FETCH_ASSOC);
+            foreach ($allQ as $q) {
+                if (($q['type'] ?? '') === 'written') {
+                    $writtenQuestions[] = $q;
+                } else {
+                    $mcqQuestions[] = $q;
+                }
+            }
         }
-        $questions = $questionsStmt->fetchAll(PDO::FETCH_ASSOC);
 
         $optionsStmt = $this->db->prepare(
             'SELECT id, option_text, is_correct, display_order FROM answer_options ' .
@@ -104,25 +136,13 @@ class QuizPublisher
         $bundleQuestions = [];
         $answerKey = [];
         $structure = [];
+        $mcqQids = [];
+        $writtenQids = [];
 
-        foreach ($questions as $q) {
+        // Process Section A: MCQs
+        foreach ($mcqQuestions as $q) {
             $qid = (int) $q['id'];
-            $qType = $q['type'] ?? 'mcq';
-
-            if ($qType === 'written') {
-                $bundleQuestions[] = [
-                    'id' => $qid,
-                    'text' => $q['question_text'],
-                    'image_url' => $q['image_path'] ?? null,
-                    'image_path' => $q['image_path'] ?? null,
-                    'display_order' => (int) $q['display_order'],
-                    'type' => 'written',
-                    'options' => [],
-                ];
-                $structure[(string) $qid] = [];
-                // Written questions do not have an option-based answer key
-                continue;
-            }
+            $mcqQids[] = $qid;
 
             $optionsStmt->execute(['qid' => $qid]);
             $options = $optionsStmt->fetchAll(PDO::FETCH_ASSOC);
@@ -158,12 +178,43 @@ class QuizPublisher
                 'image_path' => $q['image_path'] ?? null,
                 'display_order' => (int) $q['display_order'],
                 'type' => 'mcq',
+                'section' => 'A',
+                'section_title' => 'Section A – Multiple Choice Questions',
                 'options' => $cleanOptions,
             ];
 
             $answerKey[(string) $qid] = $correctOptId;
             $structure[(string) $qid] = $optIds;
         }
+
+        // Process Section B: Fixed Written Survey Questions
+        foreach ($writtenQuestions as $q) {
+            $qid = (int) $q['id'];
+            $writtenQids[] = $qid;
+
+            $bundleQuestions[] = [
+                'id' => $qid,
+                'text' => $q['question_text'],
+                'image_url' => $q['image_path'] ?? null,
+                'image_path' => $q['image_path'] ?? null,
+                'display_order' => (int) $q['display_order'],
+                'type' => 'written',
+                'section' => 'B',
+                'section_title' => 'Section B – Written Survey',
+                'options' => [],
+            ];
+
+            $structure[(string) $qid] = [];
+        }
+
+        // Store explicit section structure metadata
+        $structure['sections'] = [
+            'mcq' => $mcqQids,
+            'written' => $writtenQids,
+        ];
+
+        $effectiveMcqCount = $randomQuestionCount > 0 ? min($randomQuestionCount, count($mcqQids)) : count($mcqQids);
+        $totalDisplayQuestions = $effectiveMcqCount + count($writtenQids);
 
         // 4. Build Client Bundle
         $clientBundle = [
@@ -180,7 +231,11 @@ class QuizPublisher
             'start_at' => $quiz['start_at'],
             'end_at' => $quiz['end_at'],
             'version' => $newVersion,
-            'total_questions' => $randomQuestionCount > 0 ? $randomQuestionCount : count($bundleQuestions),
+            'total_questions' => $totalDisplayQuestions,
+            'sections' => [
+                'mcq_count' => $effectiveMcqCount,
+                'written_count' => count($writtenQids),
+            ],
             'settings' => [
                 'navigation' => $settings['navigation'] ?? [],
                 'random_question_count' => $randomQuestionCount,

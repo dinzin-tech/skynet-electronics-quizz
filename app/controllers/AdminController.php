@@ -982,7 +982,8 @@ class AdminController extends Controller
 
         $quizId = (int) $id;
         try {
-            $this->quizService->delete($quizId);
+            $force = (bool) ($request->input('force') ?? $request->get('force', false));
+            $this->quizService->delete($quizId, $force);
             Session::set('flash_success', 'Quiz deleted successfully.');
         } catch (\Throwable $e) {
             Session::set('flash_error', 'Failed to delete quiz: ' . $e->getMessage());
@@ -1007,26 +1008,151 @@ class AdminController extends Controller
             return $this->redirect('/admin/quizzes');
         }
 
+        $bank = null;
+        $bankQuestions = [];
         if (!empty($quiz['question_bank_id'])) {
-            return $this->redirect("/admin/question-banks/{$quiz['question_bank_id']}/questions");
+            $bank = $this->questionBankService->getById((int) $quiz['question_bank_id']);
+            if ($bank) {
+                $bankQuestions = $this->questionService->getQuestionsByBank((int) $quiz['question_bank_id']);
+            }
         }
 
-        // Auto-support old quiz questions or link a dedicated question bank
-        $bankId = $this->questionBankService->syncQuizLegacyQuestions($quizId);
-        if ($bankId) {
-            Session::set('flash_success', 'Questions for this quiz are now managed via Question Bank: ' . htmlspecialchars($quiz['title']) . ' (Bank)');
-            return $this->redirect("/admin/question-banks/{$bankId}/questions");
+        $writtenQuestions = $this->questionService->getWrittenQuestionsByQuiz($quizId);
+
+        $flashSuccess = Session::get('flash_success');
+        Session::remove('flash_success');
+        $flashError = Session::get('flash_error');
+        Session::remove('flash_error');
+
+        return $this->render('admin/quizzes/questions.html.twig', [
+            'admin' => $this->getAdminUser(),
+            'current_route' => 'quizzes',
+            'quiz' => $quiz,
+            'bank' => $bank,
+            'bank_questions' => $bankQuestions,
+            'written_questions' => $writtenQuestions,
+            'success' => $flashSuccess,
+            'error' => $flashError,
+            'company_tz' => 'UTC',
+        ]);
+    }
+
+    /**
+     * @Route(path="/admin/quizzes/{id}/questions/written/add", methods="POST", name="admin.quizzes.questions.written.add")
+     */
+    public function quizWrittenQuestionAdd(Request $request, string $id): Response
+    {
+        if ($authRedirect = $this->requireAdmin()) {
+            return $authRedirect;
         }
 
-        // If no questions exist, create a draft question bank for this quiz
-        $newBankId = $this->questionBankService->create(
-            trim($quiz['title']) . ' (Bank)',
-            $quiz['description'] ?? 'Question bank for ' . $quiz['title'],
-            (int) ($quiz['created_by'] ?? 1)
-        );
-        $this->quizService->update($quizId, ['question_bank_id' => $newBankId]);
+        $quizId = (int) $id;
+        $quiz = $this->quizService->getById($quizId);
+        if (!$quiz) {
+            Session::set('flash_error', 'Quiz not found');
+            return $this->redirect('/admin/quizzes');
+        }
 
-        return $this->redirect("/admin/question-banks/{$newBankId}/questions");
+        $questionText = trim((string) ($request->input('question_text') ?? $request->get('question_text', '')));
+        if ($questionText === '') {
+            Session::set('flash_error', 'Question text is required.');
+            return $this->redirect("/admin/quizzes/{$quizId}/questions");
+        }
+
+        $imagePath = null;
+        if (!empty($_FILES['question_image']['tmp_name']) && is_uploaded_file($_FILES['question_image']['tmp_name'])) {
+            $targetDir = dirname(__DIR__, 2) . '/public/uploads/questions';
+            if (!is_dir($targetDir)) {
+                mkdir($targetDir, 0755, true);
+            }
+            $file = $_FILES['question_image'];
+            $allowedExts = ['jpg', 'jpeg', 'png', 'webp', 'gif'];
+            $ext = strtolower(pathinfo((string) $file['name'], PATHINFO_EXTENSION));
+            if (in_array($ext, $allowedExts, true)) {
+                $fileName = 'q_w' . $quizId . '_' . time() . '_' . bin2hex(random_bytes(4)) . '.' . $ext;
+                $dest = $targetDir . '/' . $fileName;
+                if (move_uploaded_file($file['tmp_name'], $dest)) {
+                    $imagePath = '/uploads/questions/' . $fileName;
+                }
+            }
+        }
+
+        try {
+            $this->questionService->addWrittenQuestionToQuiz($quizId, $questionText, 0, $imagePath);
+            Session::set('flash_success', 'Section B written survey question added successfully.');
+        } catch (\Throwable $e) {
+            Session::set('flash_error', 'Failed to add written question: ' . $e->getMessage());
+        }
+
+        return $this->redirect("/admin/quizzes/{$quizId}/questions");
+    }
+
+    /**
+     * @Route(path="/admin/quizzes/{id}/questions/written/{qid}/edit", methods="POST", name="admin.quizzes.questions.written.edit")
+     */
+    public function quizWrittenQuestionEdit(Request $request, string $id, string $qid): Response
+    {
+        if ($authRedirect = $this->requireAdmin()) {
+            return $authRedirect;
+        }
+
+        $quizId = (int) $id;
+        $questionId = (int) $qid;
+        $questionText = trim((string) ($request->input('question_text') ?? $request->get('question_text', '')));
+        if ($questionText === '') {
+            Session::set('flash_error', 'Question text is required.');
+            return $this->redirect("/admin/quizzes/{$quizId}/questions");
+        }
+
+        $removeImage = (bool) ($request->input('remove_image') ?? $request->get('remove_image', false));
+        $imagePath = null;
+        if (!empty($_FILES['question_image']['tmp_name']) && is_uploaded_file($_FILES['question_image']['tmp_name'])) {
+            $targetDir = dirname(__DIR__, 2) . '/public/uploads/questions';
+            if (!is_dir($targetDir)) {
+                mkdir($targetDir, 0755, true);
+            }
+            $file = $_FILES['question_image'];
+            $allowedExts = ['jpg', 'jpeg', 'png', 'webp', 'gif'];
+            $ext = strtolower(pathinfo((string) $file['name'], PATHINFO_EXTENSION));
+            if (in_array($ext, $allowedExts, true)) {
+                $fileName = 'q_w' . $quizId . '_' . time() . '_' . bin2hex(random_bytes(4)) . '.' . $ext;
+                $dest = $targetDir . '/' . $fileName;
+                if (move_uploaded_file($file['tmp_name'], $dest)) {
+                    $imagePath = '/uploads/questions/' . $fileName;
+                }
+            }
+        }
+
+        try {
+            $this->questionService->updateQuestion($questionId, $questionText, [], $imagePath, $removeImage, 'written');
+            Session::set('flash_success', 'Section B written question updated successfully.');
+        } catch (\Throwable $e) {
+            Session::set('flash_error', 'Failed to update written question: ' . $e->getMessage());
+        }
+
+        return $this->redirect("/admin/quizzes/{$quizId}/questions");
+    }
+
+    /**
+     * @Route(path="/admin/quizzes/{id}/questions/written/{qid}/delete", methods="POST", name="admin.quizzes.questions.written.delete")
+     */
+    public function quizWrittenQuestionDelete(Request $request, string $id, string $qid): Response
+    {
+        if ($authRedirect = $this->requireAdmin()) {
+            return $authRedirect;
+        }
+
+        $quizId = (int) $id;
+        $questionId = (int) $qid;
+
+        try {
+            $this->questionService->deleteQuestion($questionId);
+            Session::set('flash_success', 'Section B written question deleted successfully.');
+        } catch (\Throwable $e) {
+            Session::set('flash_error', 'Failed to delete written question: ' . $e->getMessage());
+        }
+
+        return $this->redirect("/admin/quizzes/{$quizId}/questions");
     }
 
     /**

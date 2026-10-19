@@ -189,4 +189,80 @@ class QuizFinalizerServiceTest extends TestCase
         $this->assertNotContains('ATT_REDIS_01', $redisMock->dirty);
         $this->assertNotContains('ATT_REDIS_01', $redisMock->fq);
     }
+
+    public function test_written_questions_not_penalized_in_auto_grading(): void
+    {
+        $quizId = 99903;
+        $attemptId = 77703;
+        $empId = 88803;
+
+        $quizSettings = json_encode([
+            'scoring' => [
+                'marks_per_correct' => 2.0,
+                'negative_marks_per_wrong' => 0.5,
+                'unanswered_penalty' => 0.25,
+            ],
+            'target_groups' => ['all'],
+        ]);
+
+        $this->db->prepare(
+            'INSERT INTO quizzes (id, public_id, code, title, duration_seconds, start_at, end_at, status, settings, current_version, created_by, created_at, updated_at) ' .
+            'VALUES (:qid, "QZ_WRT_TEST", "QUIZ_WRT", "Quiz With Written", 600, NOW() - INTERVAL 1 HOUR, NOW() + INTERVAL 1 HOUR, "published", :settings, 1, 1, NOW(), NOW())'
+        )->execute(['qid' => $quizId, 'settings' => $quizSettings]);
+
+        // MCQ Q1001 with correct option 2001; Written Q1004 has NO answer in answerKey
+        $answerKey = ['1001' => '2001'];
+        $this->db->prepare(
+            'INSERT INTO quiz_snapshots (quiz_id, version, question_count, bundle_path, bundle_sha256, structure, answer_key, created_at) ' .
+            'VALUES (:qid, 1, 2, "/tmp/bundle", "sha256mock", "{}", :key, NOW())'
+        )->execute(['qid' => $quizId, 'key' => json_encode($answerKey)]);
+
+        $this->db->prepare(
+            'INSERT IGNORE INTO employees (id, public_id, employee_code, name, email, status, created_at, updated_at) ' .
+            'VALUES (:eid, "EMP_WRT_01", "EMPWRT01", "Test Written Employee", "wrt@corp.test", "active", NOW(), NOW())'
+        )->execute(['eid' => $empId]);
+
+        // Attempt layout contains both Q1001 (MCQ) and Q1004 (Written)
+        $layoutJson = json_encode(['q' => [1001, 1004], 'o' => ['1001' => [2001, 2002]]]);
+        $this->db->prepare(
+            'INSERT INTO attempts (id, public_id, quiz_id, quiz_version, employee_id, attempt_no, status, started_at, submitted_at, total_questions, layout) ' .
+            'VALUES (:aid, "ATT_WRT_01", :qid, 1, :eid, 1, "COMPLETED", NOW() - INTERVAL 5 MINUTE, NOW() - INTERVAL 2 MINUTE, 2, :layout)'
+        )->execute(['aid' => $attemptId, 'qid' => $quizId, 'eid' => $empId, 'layout' => $layoutJson]);
+
+        // Answers: Q1001 correct, Q1004 has text answer
+        $ansStmt = $this->db->prepare(
+            'INSERT INTO attempt_answers (attempt_id, question_id, selected_option_id, text_answer, seq, answered_at) VALUES (?, ?, ?, ?, ?, NOW() - INTERVAL 4 MINUTE)'
+        );
+        $ansStmt->execute([$attemptId, 1001, 2001, null, 1]);
+        $ansStmt->execute([$attemptId, 1004, null, 'My written survey response', 2]);
+
+        $service = new QuizFinalizerService($this->db, null);
+        $result = $service->finalizeBatch($quizId, 10);
+
+        $this->assertTrue($result['success']);
+        $this->assertSame(1, $result['batch_graded']);
+
+        // Check scores
+        $stmt = $this->db->prepare('SELECT status, correct_count, score, accuracy FROM attempts WHERE id = :aid');
+        $stmt->execute(['aid' => $attemptId]);
+        $att = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        $this->assertSame(1, (int) $att['correct_count']);
+        // Score: +2.0 for correct MCQ, 0 penalty for written question = 2.0
+        $this->assertEquals(2.0, (float) $att['score']);
+        // Accuracy: 1 correct / 1 MCQ = 100.00%
+        $this->assertEquals(100.00, (float) $att['accuracy']);
+
+        // Check attempt_answers: Q1004 is_correct should remain NULL
+        $ansStmt = $this->db->prepare('SELECT is_correct FROM attempt_answers WHERE attempt_id = :aid AND question_id = 1004');
+        $ansStmt->execute(['aid' => $attemptId]);
+        $isCorrect = $ansStmt->fetchColumn();
+        $this->assertNull($isCorrect);
+
+        // Cleanup
+        $this->db->exec("DELETE FROM attempt_answers WHERE attempt_id = {$attemptId}");
+        $this->db->exec("DELETE FROM attempts WHERE id = {$attemptId}");
+        $this->db->exec("DELETE FROM quiz_snapshots WHERE quiz_id = {$quizId}");
+        $this->db->exec("DELETE FROM quizzes WHERE id = {$quizId}");
+    }
 }

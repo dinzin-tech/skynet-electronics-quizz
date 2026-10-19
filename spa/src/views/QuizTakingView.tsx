@@ -137,6 +137,15 @@ export const QuizTakingView: React.FC<QuizTakingViewProps> = ({ attemptId, onSub
   const isFeedbackActive = currentIndex === totalQuestions;
   const currentQuestion = !isFeedbackActive ? orderedQuestions[currentIndex] : null;
 
+  // Separate Section A (MCQs) and Section B (Fixed Written Survey)
+  const sectionAMcqs = useMemo(() => {
+    return orderedQuestions.filter((q) => q.type !== 'written');
+  }, [orderedQuestions]);
+
+  const sectionBWritten = useMemo(() => {
+    return orderedQuestions.filter((q) => q.type === 'written');
+  }, [orderedQuestions]);
+
   // Answer status calculation (handles both MCQ and Written questions)
   const questionAnsweredCount = useMemo(() => {
     let count = 0;
@@ -161,22 +170,21 @@ export const QuizTakingView: React.FC<QuizTakingViewProps> = ({ attemptId, onSub
   // Compute list of missing items for incomplete warning
   const missingItems = useMemo(() => {
     const list: string[] = [];
-    orderedQuestions.forEach((q, idx) => {
-      if (q.type === 'written') {
-        if ((writtenAnswers[q.id.toString()] || '').trim().length === 0) {
-          list.push(`Question ${idx + 1} (Written)`);
-        }
-      } else {
-        if (answers[q.id.toString()] === undefined) {
-          list.push(`Question ${idx + 1}`);
-        }
+    sectionAMcqs.forEach((q, idx) => {
+      if (answers[q.id.toString()] === undefined) {
+        list.push(`Section A: Q${idx + 1} (MCQ)`);
+      }
+    });
+    sectionBWritten.forEach((q, idx) => {
+      if ((writtenAnswers[q.id.toString()] || '').trim().length === 0) {
+        list.push(`Section B: Q${idx + 1} (Written Survey)`);
       }
     });
     if (!isFeedbackAnswered) {
-      list.push('Feedback Question');
+      list.push('Section C: Common Feedback');
     }
     return list;
-  }, [orderedQuestions, answers, writtenAnswers, isFeedbackAnswered]);
+  }, [sectionAMcqs, sectionBWritten, answers, writtenAnswers, isFeedbackAnswered]);
 
   // 3. Option Selection (for MCQ)
   const handleSelectOption = useCallback(
@@ -398,18 +406,51 @@ export const QuizTakingView: React.FC<QuizTakingViewProps> = ({ attemptId, onSub
           {/* Question or Feedback Card */}
           <div className="glass-card-dark exam-question-card">
             {/* Header: Item Counter & Answered Badge */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
-              <span style={{
-                fontSize: '0.8125rem',
-                fontWeight: 800,
-                color: 'var(--peak-gold-main)',
-                textTransform: 'uppercase',
-                letterSpacing: '0.06em',
-              }}>
-                {isFeedbackActive
-                  ? `Item ${totalItems} of ${totalItems} • Assessment Feedback`
-                  : `Question ${currentIndex + 1} of ${totalQuestions}${currentQuestion?.type === 'written' ? ' • Written Response' : ''}`}
-              </span>
+            {/* Header: Section Badge, Item Counter & Answered Badge */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <span style={{
+                  fontSize: '0.75rem',
+                  fontWeight: 800,
+                  padding: '0.2rem 0.55rem',
+                  borderRadius: '6px',
+                  letterSpacing: '0.05em',
+                  background: isFeedbackActive
+                    ? 'rgba(16, 185, 129, 0.25)'
+                    : currentQuestion?.type === 'written'
+                    ? 'rgba(168, 85, 247, 0.25)'
+                    : 'rgba(59, 130, 246, 0.25)',
+                  color: isFeedbackActive
+                    ? '#34d399'
+                    : currentQuestion?.type === 'written'
+                    ? '#c084fc'
+                    : '#93c5fd',
+                  border: isFeedbackActive
+                    ? '1px solid rgba(16, 185, 129, 0.4)'
+                    : currentQuestion?.type === 'written'
+                    ? '1px solid rgba(168, 85, 247, 0.4)'
+                    : '1px solid rgba(59, 130, 246, 0.4)',
+                }}>
+                  {isFeedbackActive
+                    ? 'SECTION C'
+                    : currentQuestion?.type === 'written'
+                    ? 'SECTION B'
+                    : 'SECTION A'}
+                </span>
+                <span style={{
+                  fontSize: '0.8125rem',
+                  fontWeight: 800,
+                  color: 'var(--peak-gold-main)',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.06em',
+                }}>
+                  {isFeedbackActive
+                    ? 'Common Feedback'
+                    : currentQuestion?.type === 'written'
+                    ? `Written Survey • Q${sectionBWritten.findIndex((q) => q.id === currentQuestion?.id) + 1} of ${sectionBWritten.length}`
+                    : `MCQ • Q${sectionAMcqs.findIndex((q) => q.id === currentQuestion?.id) + 1} of ${sectionAMcqs.length}`}
+                </span>
+              </div>
 
               <span style={{
                 fontSize: '0.75rem',
@@ -668,33 +709,101 @@ export const QuizTakingView: React.FC<QuizTakingViewProps> = ({ attemptId, onSub
             </div>
           </div>
 
-          {/* Palette Grid (1..N + Feedback) */}
-          <div className="palette-grid">
-            {orderedQuestions.map((q, idx) => {
-              const isAnswered = q.type === 'written'
-                ? (writtenAnswers[q.id.toString()] || '').trim().length > 0
-                : answers[q.id.toString()] !== undefined;
-              const isActive = currentIndex === idx;
+          {/* Section A: MCQs */}
+          {sectionAMcqs.length > 0 && (
+            <div style={{ marginBottom: '1.25rem' }}>
+              <div style={{
+                fontSize: '0.75rem',
+                fontWeight: 700,
+                color: 'rgba(255, 255, 255, 0.75)',
+                textTransform: 'uppercase',
+                letterSpacing: '0.05em',
+                marginBottom: '0.5rem',
+                display: 'flex',
+                justifyContent: 'space-between',
+              }}>
+                <span>Section A: MCQs ({sectionAMcqs.length})</span>
+              </div>
+              <div className="palette-grid">
+                {sectionAMcqs.map((q) => {
+                  const globalIdx = orderedQuestions.findIndex((item) => item.id === q.id);
+                  const isAnswered = answers[q.id.toString()] !== undefined;
+                  const isActive = currentIndex === globalIdx;
 
-              return (
-                <button
-                  key={q.id}
-                  onClick={() => setCurrentIndex(idx)}
-                  className={`palette-btn ${isAnswered ? 'is-answered' : ''} ${isActive ? 'is-active' : ''}`}
-                  title={`Question ${idx + 1} (${q.type === 'written' ? 'Written' : 'MCQ'}): ${isAnswered ? 'Answered' : 'Unanswered'}`}
-                >
-                  {idx + 1}
-                </button>
-              );
-            })}
+                  return (
+                    <button
+                      key={q.id}
+                      onClick={() => setCurrentIndex(globalIdx)}
+                      className={`palette-btn ${isAnswered ? 'is-answered' : ''} ${isActive ? 'is-active' : ''}`}
+                      title={`Section A - Question ${globalIdx + 1}: ${isAnswered ? 'Answered' : 'Unanswered'}`}
+                    >
+                      {globalIdx + 1}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
-            {/* Feedback Navigation Button */}
+          {/* Section B: Written Survey */}
+          {sectionBWritten.length > 0 && (
+            <div style={{ marginBottom: '1.25rem' }}>
+              <div style={{
+                fontSize: '0.75rem',
+                fontWeight: 700,
+                color: '#c084fc',
+                textTransform: 'uppercase',
+                letterSpacing: '0.05em',
+                marginBottom: '0.5rem',
+                display: 'flex',
+                justifyContent: 'space-between',
+              }}>
+                <span>Section B: Written Survey ({sectionBWritten.length})</span>
+              </div>
+              <div className="palette-grid">
+                {sectionBWritten.map((q, bIdx) => {
+                  const globalIdx = orderedQuestions.findIndex((item) => item.id === q.id);
+                  const isAnswered = (writtenAnswers[q.id.toString()] || '').trim().length > 0;
+                  const isActive = currentIndex === globalIdx;
+
+                  return (
+                    <button
+                      key={q.id}
+                      onClick={() => setCurrentIndex(globalIdx)}
+                      className={`palette-btn ${isAnswered ? 'is-answered' : ''} ${isActive ? 'is-active' : ''}`}
+                      style={{
+                        borderColor: isAnswered ? '#10b981' : (isActive ? '#c084fc' : 'rgba(192, 132, 252, 0.4)'),
+                        background: isActive ? 'rgba(192, 132, 252, 0.25)' : undefined,
+                      }}
+                      title={`Section B - Written Q${bIdx + 1}: ${isAnswered ? 'Answered' : 'Unanswered'}`}
+                    >
+                      {globalIdx + 1}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Section C: Common Feedback */}
+          <div>
+            <div style={{
+              fontSize: '0.75rem',
+              fontWeight: 700,
+              color: '#34d399',
+              textTransform: 'uppercase',
+              letterSpacing: '0.05em',
+              marginBottom: '0.5rem',
+            }}>
+              Section C: Common Feedback
+            </div>
             <button
               onClick={() => setCurrentIndex(totalQuestions)}
               className={`palette-btn is-feedback ${isFeedbackAnswered ? 'is-answered' : ''} ${isFeedbackActive ? 'is-active' : ''}`}
+              style={{ width: '100%', borderRadius: '8px', padding: '0.5rem', height: 'auto', textAlign: 'center' }}
               title="Assessment Feedback"
             >
-              {totalQuestions + 1} • Feedback
+              Feedback ({isFeedbackAnswered ? '✓ Completed' : 'Pending'})
             </button>
           </div>
 
@@ -878,37 +987,106 @@ export const QuizTakingView: React.FC<QuizTakingViewProps> = ({ attemptId, onSub
               </div>
             </div>
 
-            <div className="palette-grid">
-              {orderedQuestions.map((q, idx) => {
-                const isAnswered = q.type === 'written'
-                  ? (writtenAnswers[q.id.toString()] || '').trim().length > 0
-                  : answers[q.id.toString()] !== undefined;
-                const isActive = currentIndex === idx;
+            {/* Section A: MCQs */}
+            {sectionAMcqs.length > 0 && (
+              <div style={{ marginBottom: '1rem' }}>
+                <div style={{
+                  fontSize: '0.75rem',
+                  fontWeight: 700,
+                  color: 'rgba(255, 255, 255, 0.75)',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.05em',
+                  marginBottom: '0.4rem',
+                }}>
+                  Section A: MCQs ({sectionAMcqs.length})
+                </div>
+                <div className="palette-grid">
+                  {sectionAMcqs.map((q) => {
+                    const globalIdx = orderedQuestions.findIndex((item) => item.id === q.id);
+                    const isAnswered = answers[q.id.toString()] !== undefined;
+                    const isActive = currentIndex === globalIdx;
 
-                return (
-                  <button
-                    key={q.id}
-                    onClick={() => {
-                      setCurrentIndex(idx);
-                      setShowMobilePalette(false);
-                    }}
-                    className={`palette-btn ${isAnswered ? 'is-answered' : ''} ${isActive ? 'is-active' : ''}`}
-                    title={`Question ${idx + 1}`}
-                  >
-                    {idx + 1}
-                  </button>
-                );
-              })}
+                    return (
+                      <button
+                        key={q.id}
+                        onClick={() => {
+                          setCurrentIndex(globalIdx);
+                          setShowMobilePalette(false);
+                        }}
+                        className={`palette-btn ${isAnswered ? 'is-answered' : ''} ${isActive ? 'is-active' : ''}`}
+                        title={`Section A - Q${globalIdx + 1}`}
+                      >
+                        {globalIdx + 1}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
 
+            {/* Section B: Written Survey */}
+            {sectionBWritten.length > 0 && (
+              <div style={{ marginBottom: '1rem' }}>
+                <div style={{
+                  fontSize: '0.75rem',
+                  fontWeight: 700,
+                  color: '#c084fc',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.05em',
+                  marginBottom: '0.4rem',
+                }}>
+                  Section B: Written Survey ({sectionBWritten.length})
+                </div>
+                <div className="palette-grid">
+                  {sectionBWritten.map((q, bIdx) => {
+                    const globalIdx = orderedQuestions.findIndex((item) => item.id === q.id);
+                    const isAnswered = (writtenAnswers[q.id.toString()] || '').trim().length > 0;
+                    const isActive = currentIndex === globalIdx;
+
+                    return (
+                      <button
+                        key={q.id}
+                        onClick={() => {
+                          setCurrentIndex(globalIdx);
+                          setShowMobilePalette(false);
+                        }}
+                        className={`palette-btn ${isAnswered ? 'is-answered' : ''} ${isActive ? 'is-active' : ''}`}
+                        style={{
+                          borderColor: isAnswered ? '#10b981' : (isActive ? '#c084fc' : 'rgba(192, 132, 252, 0.4)'),
+                          background: isActive ? 'rgba(192, 132, 252, 0.25)' : undefined,
+                        }}
+                        title={`Section B - Written Q${bIdx + 1}`}
+                      >
+                        {globalIdx + 1}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Section C: Common Feedback */}
+            <div style={{ marginBottom: '0.5rem' }}>
+              <div style={{
+                fontSize: '0.75rem',
+                fontWeight: 700,
+                color: '#34d399',
+                textTransform: 'uppercase',
+                letterSpacing: '0.05em',
+                marginBottom: '0.4rem',
+              }}>
+                Section C: Common Feedback
+              </div>
               <button
                 onClick={() => {
                   setCurrentIndex(totalQuestions);
                   setShowMobilePalette(false);
                 }}
                 className={`palette-btn is-feedback ${isFeedbackAnswered ? 'is-answered' : ''} ${isFeedbackActive ? 'is-active' : ''}`}
+                style={{ width: '100%', borderRadius: '8px', padding: '0.5rem', height: 'auto', textAlign: 'center' }}
                 title="Assessment Feedback"
               >
-                {totalQuestions + 1} • Feedback
+                Feedback ({isFeedbackAnswered ? '✓ Completed' : 'Pending'})
               </button>
             </div>
 

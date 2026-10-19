@@ -25,21 +25,51 @@ class LayoutGenerator
         bool $randomizeOptions = true,
         int $randomQuestionCount = 0
     ): array {
-        $questionIds = array_map('intval', array_keys($structure));
+        $mcqQids = [];
+        $writtenQids = [];
 
-        // Always shuffle if random question sampling is requested or question randomization is enabled
-        if (($randomizeQuestions || $randomQuestionCount > 0) && count($questionIds) > 1) {
-            $questionIds = self::fisherYatesShuffle($questionIds);
+        // 1. Detect section structure if explicitly defined or partition by options
+        if (!empty($structure['sections']) && is_array($structure['sections'])) {
+            $mcqQids = array_map('intval', $structure['sections']['mcq'] ?? []);
+            $writtenQids = array_map('intval', $structure['sections']['written'] ?? []);
+        } elseif (isset($structure['mcq']) || isset($structure['written'])) {
+            $mcqQids = array_map('intval', array_keys($structure['mcq'] ?? []));
+            $writtenQids = array_map('intval', array_keys($structure['written'] ?? []));
+        } else {
+            // Flat structure: non-empty options array = MCQ (Section A); empty options = Written (Section B)
+            foreach ($structure as $qidStr => $optList) {
+                if ($qidStr === 'sections') {
+                    continue;
+                }
+                $qid = (int) $qidStr;
+                if (!empty($optList) && is_array($optList)) {
+                    $mcqQids[] = $qid;
+                } else {
+                    $writtenQids[] = $qid;
+                }
+            }
         }
 
-        // Sample subset of random questions if requested
-        if ($randomQuestionCount > 0 && $randomQuestionCount < count($questionIds)) {
-            $questionIds = array_slice($questionIds, 0, $randomQuestionCount);
+        // 2. Section A - MCQs: Always shuffle if random question sampling is requested or question randomization is enabled
+        if (($randomizeQuestions || $randomQuestionCount > 0) && count($mcqQids) > 1) {
+            $mcqQids = self::fisherYatesShuffle($mcqQids);
         }
 
+        // Sample subset of random MCQs if requested (e.g., 10 out of 40)
+        if ($randomQuestionCount > 0 && $randomQuestionCount < count($mcqQids)) {
+            $mcqQids = array_slice($mcqQids, 0, $randomQuestionCount);
+        }
+
+        // 3. Section B - Fixed Written Survey: Always included 100% in fixed order (never randomly dropped)
+        $questionIds = array_merge($mcqQids, $writtenQids);
+
+        // 4. Build options map
         $optionsMap = [];
         foreach ($questionIds as $qid) {
             $optionIds = $structure[(string) $qid] ?? $structure[$qid] ?? [];
+            if (!is_array($optionIds)) {
+                $optionIds = [];
+            }
             $optList = array_map('intval', $optionIds);
             if ($randomizeOptions && count($optList) > 1) {
                 $optList = self::fisherYatesShuffle($optList);
@@ -50,6 +80,10 @@ class LayoutGenerator
         return [
             'q' => array_values($questionIds),
             'o' => $optionsMap,
+            'sections' => [
+                'mcq_count' => count($mcqQids),
+                'written_count' => count($writtenQids),
+            ],
         ];
     }
 

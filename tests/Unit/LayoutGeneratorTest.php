@@ -67,4 +67,56 @@ class LayoutGeneratorTest extends TestCase
 
         $this->assertGreaterThan(0, $differentCount, 'Fisher-Yates should shuffle order of 25 elements');
     }
+
+    public function test_separates_random_mcqs_from_fixed_written_questions(): void
+    {
+        // 40 MCQs (each with options)
+        $mcqs = [];
+        for ($i = 1; $i <= 40; $i++) {
+            $mcqs[(string) $i] = [$i * 10, $i * 10 + 1, $i * 10 + 2, $i * 10 + 3];
+        }
+
+        // 5 Fixed Written Questions (no options)
+        $written = [
+            '201' => [],
+            '202' => [],
+            '203' => [],
+            '204' => [],
+            '205' => [],
+        ];
+
+        $structure = [
+            'sections' => [
+                'mcq' => array_keys($mcqs),
+                'written' => array_keys($written),
+            ],
+        ];
+        foreach ($mcqs as $qid => $opts) {
+            $structure[$qid] = $opts;
+        }
+        foreach ($written as $qid => $opts) {
+            $structure[$qid] = $opts;
+        }
+
+        // Generate layout sampling 10 MCQs
+        $layout = LayoutGenerator::generate($structure, true, true, 10);
+
+        // Result must have exactly 10 MCQs + 5 Written = 15 questions
+        $this->assertCount(15, $layout['q']);
+
+        // First 10 must be from MCQs (1..40)
+        $first10 = array_slice($layout['q'], 0, 10);
+        foreach ($first10 as $qid) {
+            $this->assertGreaterThanOrEqual(1, $qid);
+            $this->assertLessThanOrEqual(40, $qid);
+        }
+
+        // Next 5 must be exactly the fixed written questions in order
+        $last5 = array_slice($layout['q'], 10, 5);
+        $this->assertSame([201, 202, 203, 204, 205], $last5);
+
+        // Sections metadata is present
+        $this->assertSame(10, $layout['sections']['mcq_count']);
+        $this->assertSame(5, $layout['sections']['written_count']);
+    }
 }

@@ -10,6 +10,7 @@ use App\Services\QuestionService;
 use App\Services\QuizService;
 use App\Services\QuizFinalizerService;
 use Core\Database;
+use App\Hot\Ulid;
 use InvalidArgumentException;
 use PDO;
 use Tests\TestCase;
@@ -350,6 +351,60 @@ class QuestionBankServiceTest extends TestCase
                 $this->db->exec("DELETE FROM question_banks WHERE id = {$bankId}");
             }
             $this->db->exec("DELETE FROM quizzes WHERE id = {$quizId}");
+        }
+    }
+
+    public function test_delete_bank_preserves_historical_answered_questions(): void
+    {
+        $bankId = $this->bankService->create('Bank With Historical Answers', 'Test preservation', $this->adminId);
+
+        $q1 = $this->questionService->addQuestionToBank($bankId, 'Answered Historical Q', [
+            ['text' => 'Ans A', 'is_correct' => true],
+            ['text' => 'Ans B', 'is_correct' => false],
+        ]);
+        $qId1 = (int) $q1['id'];
+
+        $q2 = $this->questionService->addQuestionToBank($bankId, 'Unanswered Q', [
+            ['text' => 'Ans C', 'is_correct' => true],
+            ['text' => 'Ans D', 'is_correct' => false],
+        ]);
+        $qId2 = (int) $q2['id'];
+
+        // Simulate an attempt answering qId1
+        $attInsert = $this->db->prepare(
+            "INSERT INTO attempts (public_id, quiz_id, quiz_version, employee_id, status) VALUES (?, 999999, 1, 1, 'COMPLETED')"
+        );
+        $publicId = 'ATT' . substr(Ulid::generate(), -6);
+        $attInsert->execute([$publicId]);
+        $attId = (int) $this->db->lastInsertId();
+
+        $ansInsert = $this->db->prepare(
+            "INSERT INTO attempt_answers (attempt_id, question_id, answered_at) VALUES (?, ?, NOW())"
+        );
+        $ansInsert->execute([$attId, $qId1]);
+
+        try {
+            // Delete bank
+            $deleted = $this->bankService->delete($bankId);
+            $this->assertTrue($deleted);
+
+            // Bank should be gone
+            $this->assertNull($this->bankService->getById($bankId));
+
+            // Answered question qId1 should still exist in database, detached (question_bank_id = NULL)
+            $q1Check = $this->db->query("SELECT id, question_bank_id, question_text FROM questions WHERE id = {$qId1}")->fetch(\PDO::FETCH_ASSOC);
+            $this->assertNotEmpty($q1Check);
+            $this->assertNull($q1Check['question_bank_id']);
+            $this->assertSame('Answered Historical Q', $q1Check['question_text']);
+
+            // Unanswered question qId2 should have been deleted
+            $q2Check = $this->db->query("SELECT id FROM questions WHERE id = {$qId2}")->fetch();
+            $this->assertFalse($q2Check);
+        } finally {
+            $this->db->exec("DELETE FROM attempt_answers WHERE attempt_id = {$attId}");
+            $this->db->exec("DELETE FROM attempts WHERE id = {$attId}");
+            $this->db->exec("DELETE FROM questions WHERE id IN ({$qId1}, {$qId2})");
+            $this->db->exec("DELETE FROM question_banks WHERE id = {$bankId}");
         }
     }
 }
