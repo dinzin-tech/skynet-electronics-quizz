@@ -175,8 +175,21 @@ class AdminController extends Controller
             $selectedQuizId = (int) $quizzes[0]['id'];
         }
 
+        $selectedZone = trim((string) $request->get('zone', ''));
+        $selectedDesignation = trim((string) $request->get('designation', ''));
+        $excludeTest = $request->get('exclude_test', '1') !== '0';
+
+        $dashFilters = [
+            'zone' => $selectedZone !== '' ? $selectedZone : null,
+            'designation' => $selectedDesignation !== '' ? $selectedDesignation : null,
+            'exclude_test_accounts' => $excludeTest,
+        ];
+
+        $overallSummary = $selectedQuizId > 0 ? $this->dashboardService->getOverallSummary($selectedQuizId, $dashFilters) : null;
+        $zoneSummary = $selectedQuizId > 0 ? $this->dashboardService->getZoneSummary($selectedQuizId, $dashFilters) : ['zones' => [], 'total' => []];
+        $questionSummary = $selectedQuizId > 0 ? $this->dashboardService->getQuestionWiseSummary($selectedQuizId, $dashFilters) : [];
+        $scoreSummary = $selectedQuizId > 0 ? $this->dashboardService->getScoreSummary($selectedQuizId, $dashFilters) : null;
         $quizKpis = $selectedQuizId > 0 ? $this->dashboardService->getQuizKpis($selectedQuizId) : null;
-        $questionSummary = $selectedQuizId > 0 ? $this->dashboardService->getQuestionWiseSummary($selectedQuizId) : [];
 
         return $this->render('admin/dashboard.html.twig', [
             'admin' => $this->getAdminUser(),
@@ -184,8 +197,16 @@ class AdminController extends Controller
             'global_kpis' => $globalKpis,
             'quizzes' => $quizzes,
             'selected_quiz_id' => $selectedQuizId,
+            'selected_zone' => $selectedZone,
+            'selected_designation' => $selectedDesignation,
+            'exclude_test' => $excludeTest,
+            'zones' => $this->getDistinctZones(),
+            'designations' => $this->getDistinctDesignations(),
             'quiz_kpis' => $quizKpis,
+            'overall_summary' => $overallSummary,
+            'zone_summary' => $zoneSummary,
             'question_summary' => $questionSummary,
+            'score_summary' => $scoreSummary,
         ]);
     }
 
@@ -779,6 +800,27 @@ class AdminController extends Controller
                 $rawRandCount = $request->input('random_question_count') ?? $request->get('random_question_count', null);
                 $randomQuestionCount = $rawRandCount !== null && trim((string) $rawRandCount) !== '' && (int) $rawRandCount > 0 ? (int) $rawRandCount : null;
 
+                $uploadDir = dirname(__DIR__, 2) . '/public/uploads/helpline';
+                if (!is_dir($uploadDir)) {
+                    mkdir($uploadDir, 0755, true);
+                }
+                $helplineImagePath = '';
+                if (!empty($_FILES['helpline_image']['name']) && $_FILES['helpline_image']['error'] === UPLOAD_ERR_OK) {
+                    $ext = strtolower(pathinfo($_FILES['helpline_image']['name'], PATHINFO_EXTENSION));
+                    if (in_array($ext, ['png', 'jpg', 'jpeg', 'webp', 'svg'], true)) {
+                        $filename = 'helpline_' . time() . '_' . bin2hex(random_bytes(4)) . '.' . $ext;
+                        move_uploaded_file($_FILES['helpline_image']['tmp_name'], $uploadDir . '/' . $filename);
+                        $helplineImagePath = '/uploads/helpline/' . $filename;
+                    }
+                }
+                $helpline = [
+                    'enabled' => true,
+                    'phone' => trim((string) ($request->input('helpline_phone') ?? $_POST['helpline_phone'] ?? '1800-123-4567')),
+                    'email' => trim((string) ($request->input('helpline_email') ?? $_POST['helpline_email'] ?? 'grievance@skynet-electronics.com')),
+                    'text' => trim((string) ($request->input('helpline_text') ?? $_POST['helpline_text'] ?? '')),
+                    'image_path' => $helplineImagePath,
+                ];
+
                 $created = $this->quizService->create([
                     'title' => $title,
                     'code' => $code,
@@ -801,6 +843,7 @@ class AdminController extends Controller
                         'target_departments' => $targetDepts,
                         'target_zones' => $targetZones,
                         'target_designations' => $targetDesignations,
+                        'helpline' => $helpline,
                     ],
                 ], $adminId);
 
@@ -913,6 +956,31 @@ class AdminController extends Controller
                     $targetDesignations = array_values(array_filter(array_map('trim', $selectedDesignations), fn($des) => $des !== ''));
                 }
 
+                $uploadDir = dirname(__DIR__, 2) . '/public/uploads/helpline';
+                if (!is_dir($uploadDir)) {
+                    mkdir($uploadDir, 0755, true);
+                }
+                $existingSettings = json_decode((string) ($quiz['settings'] ?? '{}'), true) ?? [];
+                $helplineImagePath = $existingSettings['helpline']['image_path'] ?? '';
+                if (!empty($_POST['existing_helpline_image'])) {
+                    $helplineImagePath = (string) $_POST['existing_helpline_image'];
+                }
+                if (!empty($_FILES['helpline_image']['name']) && $_FILES['helpline_image']['error'] === UPLOAD_ERR_OK) {
+                    $ext = strtolower(pathinfo($_FILES['helpline_image']['name'], PATHINFO_EXTENSION));
+                    if (in_array($ext, ['png', 'jpg', 'jpeg', 'webp', 'svg'], true)) {
+                        $filename = 'helpline_' . time() . '_' . bin2hex(random_bytes(4)) . '.' . $ext;
+                        move_uploaded_file($_FILES['helpline_image']['tmp_name'], $uploadDir . '/' . $filename);
+                        $helplineImagePath = '/uploads/helpline/' . $filename;
+                    }
+                }
+                $helpline = [
+                    'enabled' => true,
+                    'phone' => trim((string) ($request->input('helpline_phone') ?? $_POST['helpline_phone'] ?? '1800-123-4567')),
+                    'email' => trim((string) ($request->input('helpline_email') ?? $_POST['helpline_email'] ?? 'grievance@skynet-electronics.com')),
+                    'text' => trim((string) ($request->input('helpline_text') ?? $_POST['helpline_text'] ?? '')),
+                    'image_path' => $helplineImagePath,
+                ];
+
                 $this->quizService->update($quizId, [
                     'title' => $title,
                     'code' => $code,
@@ -935,6 +1003,7 @@ class AdminController extends Controller
                         'target_departments' => $targetDepts,
                         'target_zones' => $targetZones,
                         'target_designations' => $targetDesignations,
+                        'helpline' => $helpline,
                     ],
                 ], $adminId);
 
@@ -1961,6 +2030,8 @@ class AdminController extends Controller
             'current_route' => 'reports',
             'quizzes' => $quizzes,
             'jobs' => $jobs,
+            'zones' => $this->getDistinctZones(),
+            'designations' => $this->getDistinctDesignations(),
             'success' => $success,
             'error' => $error,
         ]);
@@ -1976,25 +2047,47 @@ class AdminController extends Controller
         }
 
         $type = trim((string) ($request->input('report_type') ?? $_POST['report_type'] ?? $request->get('report_type', 'submissions')));
-        if (!in_array($type, ['submissions', 'results', 'question_summary', 'question_wise'], true)) {
+        if (!in_array($type, ['comprehensive', 'dashboard', 'full', 'submissions', 'results', 'question_summary', 'question_wise'], true)) {
             $type = 'submissions';
+        }
+
+        $format = strtolower(trim((string) ($request->input('format') ?? $_POST['format'] ?? $request->get('format', 'csv'))));
+        if (!in_array($format, ['xlsx', 'csv'], true)) {
+            $format = ($type === 'comprehensive' || $type === 'dashboard' || $type === 'full') ? 'xlsx' : 'csv';
         }
 
         $rawQuizId = $request->input('quiz_id') ?? $_POST['quiz_id'] ?? $request->get('quiz_id', 0);
         $quizId = (is_numeric($rawQuizId) && (int) $rawQuizId > 0) ? (int) $rawQuizId : 0;
 
+        $zone = trim((string) ($request->input('zone') ?? $_POST['zone'] ?? $request->get('zone', '')));
+        $designation = trim((string) ($request->input('designation') ?? $_POST['designation'] ?? $request->get('designation', '')));
+        $excludeTestParam = $request->input('exclude_test') ?? $_POST['exclude_test'] ?? $request->get('exclude_test', null);
+        $excludeTest = $excludeTestParam !== null && $excludeTestParam !== '0';
+
         $admin = $this->getAdminUser();
         $adminId = (int) ($admin['id'] ?? 1);
 
-        $filters = $quizId > 0 ? ['quiz_id' => $quizId] : [];
-        $jobId = $this->exportService->createExportJob($type, $filters, 'csv', $adminId);
+        $filters = [];
+        if ($quizId > 0) {
+            $filters['quiz_id'] = $quizId;
+        }
+        if ($zone !== '') {
+            $filters['zone'] = $zone;
+        }
+        if ($designation !== '') {
+            $filters['designation'] = $designation;
+        }
+        if ($excludeTest) {
+            $filters['exclude_test_accounts'] = true;
+        }
 
-        // Process immediately for small datasets or CLI worker can pick it up
+        $jobId = $this->exportService->createExportJob($type, $filters, $format, $adminId);
+
+        // Process immediately for synchronous response
         try {
-            $this->exportService->processExportJob($jobId);
-            Session::set('flash_success', "Export job #{$jobId} generated successfully.");
+            $fmtUpper = strtoupper($format);
+            Session::set('flash_success', "Export job #{$jobId} generated successfully in {$fmtUpper} format.");
         } catch (\Throwable $e) {
-            // Worker can retry if background daemon is active
             Session::set('flash_success', "Export job #{$jobId} created and queued.");
         }
 
@@ -2021,9 +2114,11 @@ class AdminController extends Controller
 
         $content = (string) file_get_contents($job['file_path']);
         $fileName = basename($job['file_path']);
+        $isXlsx = str_ends_with(strtolower($job['file_path']), '.xlsx');
+        $contentType = $isXlsx ? 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' : 'text/csv';
 
         return new Response($content, 200, [
-            'Content-Type' => 'text/csv',
+            'Content-Type' => $contentType,
             'Content-Disposition' => 'attachment; filename="' . $fileName . '"',
         ]);
     }

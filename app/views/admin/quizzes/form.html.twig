@@ -12,7 +12,7 @@
 {% endif %}
 
 <div class="card" style="max-width: 800px;">
-    <form action="{% if quiz %}/admin/quizzes/{{ quiz.id }}/edit{% else %}/admin/quizzes/create{% endif %}" method="POST">
+    <form action="{% if quiz %}/admin/quizzes/{{ quiz.id }}/edit{% else %}/admin/quizzes/create{% endif %}" method="POST" enctype="multipart/form-data">
         <h3 style="font-size: 1.1rem; font-weight: 600; margin-bottom: 16px; border-bottom: 1px solid var(--border-color); padding-bottom: 8px;">
             Basic Details
         </h3>
@@ -319,6 +319,57 @@
                 boxes.forEach(function(b) { b.checked = checked; });
             }
         </script>
+
+        <h3 style="font-size: 1.1rem; font-weight: 600; margin: 24px 0 16px 0; border-bottom: 1px solid var(--border-color); padding-bottom: 8px;">
+            Completion Page & Grievance Helpline (Thank-You Screen)
+        </h3>
+
+        <div style="background: #f8fafc; border: 1px solid var(--border-color); border-radius: 8px; padding: 18px; margin-bottom: 24px;">
+            <p style="font-size: 0.85rem; color: #64748b; margin-bottom: 14px;">
+                HR can configure a support contact card and grievance poster image displayed to employees upon quiz completion.
+            </p>
+
+            <div style="margin-bottom: 16px;">
+                <label style="display: flex; align-items: center; gap: 8px; font-size: 0.95rem; cursor: pointer;">
+                    <input type="checkbox" name="helpline_enabled" value="1" {% if old is not null %}{% if old.helpline_enabled is defined %}checked{% endif %}{% elseif quiz is not null %}{% if quiz.settings.helpline.enabled|default(false) %}checked{% endif %}{% else %}checked{% endif %}>
+                    <strong>Enable Grievance Helpline & Support Card on Thank-You Screen</strong>
+                </label>
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px;">
+                <div class="form-group">
+                    <label class="form-label" for="helpline_phone">Helpline Phone Number</label>
+                    <input type="text" id="helpline_phone" name="helpline_phone" class="form-control" placeholder="e.g. +91 98765 43210 or 1800-XXX-XXXX" value="{{ old.helpline_phone|default(quiz ? quiz.settings.helpline.phone|default('') : '') }}">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="helpline_email">Helpline Email Address</label>
+                    <input type="email" id="helpline_email" name="helpline_email" class="form-control" placeholder="e.g. grievance@company.com" value="{{ old.helpline_email|default(quiz ? quiz.settings.helpline.email|default('') : '') }}">
+                </div>
+            </div>
+
+            <div class="form-group" style="margin-bottom: 16px;">
+                <label class="form-label" for="helpline_text">Helpline Message / Notice</label>
+                <textarea id="helpline_text" name="helpline_text" rows="3" class="form-control" placeholder="e.g. For any queries, ethics concerns or technical support regarding this quiz, reach out to our grievance committee.">{{ old.helpline_text|default(quiz ? quiz.settings.helpline.text|default('') : '') }}</textarea>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label" for="helpline_image">Grievance Poster Image (Optional)</label>
+                <input type="file" id="helpline_image" name="helpline_image" accept="image/*" class="form-control">
+                <small style="color: #64748b; font-size: 0.8125rem; display: block; margin-top: 4px;">
+                    Upload a poster image (PNG, JPG, WEBP, max 5MB). It will be showcased prominently on the completion thank-you screen.
+                </small>
+                {% if quiz and quiz.settings.helpline.image_path %}
+                    <div style="margin-top: 10px; display: flex; align-items: center; gap: 12px; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 6px; padding: 8px 12px;">
+                        <img src="{{ quiz.settings.helpline.image_path }}" alt="Current Poster" style="max-height: 80px; max-width: 120px; object-fit: contain; border-radius: 4px; border: 1px solid #cbd5e1;">
+                        <div>
+                            <div style="font-size: 0.85rem; font-weight: 500; color: #1e293b;">Current poster active</div>
+                            <div style="font-size: 0.75rem; color: #64748b;">{{ quiz.settings.helpline.image_path }}</div>
+                            <small style="color: #64748b; font-size: 0.75rem;">Upload a new image above to replace it.</small>
+                        </div>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
 
         <button type="submit" class="btn btn-primary" style="padding: 10px 24px; font-size: 0.95rem;">
             {% if quiz %}Update Quiz Details{% else %}Save Quiz as Draft{% endif %}

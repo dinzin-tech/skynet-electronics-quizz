@@ -4,24 +4,98 @@
 
 {% block content %}
 <div style="margin-bottom: 24px;">
-    <h2 style="font-size: 1.15rem; font-weight: 600;">Reports & Data Exports</h2>
-    <p style="font-size: 0.85rem; color: #64748b;">
-        Asynchronous, streaming CSV generation protected against spreadsheet formula injection (=, +, -, @)
+    <h2 style="font-size: 1.25rem; font-weight: 700; color: #1e293b;">Reports & Data Exports</h2>
+    <p style="font-size: 0.875rem; color: #64748b;">
+        Export detailed quiz analytics, multi-sheet workbooks, and raw logs. Employee IDs (including leading zeros like <code>000026</code> and prefixes) are preserved as text in native XLSX downloads.
     </p>
 </div>
 
 {% if success %}
-    <div class="alert alert-success">{{ success }}</div>
+    <div class="alert alert-success" style="margin-bottom: 20px;">{{ success }}</div>
 {% endif %}
 {% if error %}
-    <div class="alert alert-danger">{{ error }}</div>
+    <div class="alert alert-danger" style="margin-bottom: 20px;">{{ error }}</div>
 {% endif %}
 
+<!-- Primary: Comprehensive Multi-Sheet Workbook Card -->
+<div class="card" style="margin-bottom: 32px; border-left: 4px solid #2563eb; background: linear-gradient(to right, #f8fafc, #ffffff);">
+    <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 16px; margin-bottom: 16px;">
+        <div>
+            <div style="display: flex; align-items: center; gap: 8px;">
+                <span class="badge badge-primary" style="font-size: 0.75rem; font-weight: 700; background: #2563eb; color: #fff;">RECOMMENDED</span>
+                <h3 style="font-size: 1.2rem; font-weight: 700; color: #1e293b; margin: 0;">Comprehensive Multi-Sheet Workbook (Week 2 Layout)</h3>
+            </div>
+            <p style="font-size: 0.875rem; color: #64748b; margin-top: 6px; max-width: 800px;">
+                Generates a formatted 6-sheet Excel workbook based on the Week 2 executive layout. Contains <strong>Overall Summary</strong>, <strong>Zone Summary</strong> (with consolidated totals), <strong>Question Analysis</strong> (Assigned vs Unanswered vs Not Assigned), <strong>Score Summary</strong> (50-point HR formula), <strong>Participant Results</strong> (Employee IDs preserved as text, formulas for Sales Achievement & CRM), and <strong>Written Responses</strong>.
+            </p>
+        </div>
+        <div style="text-align: right;">
+            <span style="font-size: 0.8rem; background: #e0e7ff; color: #3730a3; padding: 4px 10px; border-radius: 9999px; font-weight: 600;">Multi-Sheet .XLSX</span>
+        </div>
+    </div>
+
+    <form action="/admin/reports/export" method="POST" style="background: #ffffff; border: 1px solid var(--border-color); border-radius: 8px; padding: 20px;">
+        <input type="hidden" name="report_type" value="comprehensive">
+
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin-bottom: 16px;">
+            <div class="form-group" style="margin-bottom: 0;">
+                <label class="form-label" for="comp_quiz_id"><strong>Target Quiz *</strong></label>
+                <select id="comp_quiz_id" name="quiz_id" class="form-control" required>
+                    {% for q in quizzes %}
+                        <option value="{{ q.id }}">[{{ q.code }}] {{ q.title }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="form-group" style="margin-bottom: 0;">
+                <label class="form-label" for="comp_zone">Zone / Region Filter</label>
+                <select id="comp_zone" name="zone" class="form-control">
+                    <option value="">-- All Zones --</option>
+                    {% for z in zones|default([]) %}
+                        <option value="{{ z }}">{{ z }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="form-group" style="margin-bottom: 0;">
+                <label class="form-label" for="comp_designation">Designation Filter</label>
+                <select id="comp_designation" name="designation" class="form-control">
+                    <option value="">-- All Designations --</option>
+                    {% for d in designations|default([]) %}
+                        <option value="{{ d }}">{{ d }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="form-group" style="margin-bottom: 0;">
+                <label class="form-label" for="comp_format">Export Format</label>
+                <select id="comp_format" name="format" class="form-control">
+                    <option value="xlsx" selected>Native Excel Workbook (.xlsx)</option>
+                    <option value="csv">Combined CSV (.csv)</option>
+                </select>
+            </div>
+        </div>
+
+        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px; pt: 8px; border-top: 1px solid #f1f5f9; padding-top: 16px;">
+            <label style="display: flex; align-items: center; gap: 8px; font-size: 0.875rem; cursor: pointer; color: #475569;">
+                <input type="checkbox" name="exclude_test" value="1" checked>
+                <span><strong>Exclude Test Accounts</strong> (filters out usernames containing <code>test_</code> or <code>demo_</code>)</span>
+            </label>
+
+            <button type="submit" class="btn btn-primary" style="padding: 10px 24px; font-weight: 600; display: inline-flex; align-items: center; gap: 8px;">
+                <span>📊</span> Generate 6-Sheet Executive Report
+            </button>
+        </div>
+    </form>
+</div>
+
+<!-- Secondary Single-Purpose Reports Grid -->
 <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 24px; margin-bottom: 32px;">
+    <!-- Submissions Report -->
     <div class="card">
-        <h3 style="font-size: 1.05rem; font-weight: 600; margin-bottom: 8px;">Submissions Report</h3>
-        <p style="font-size: 0.85rem; color: #64748b; margin-bottom: 20px;">
-            Question-level log sorted by rank: Candidate details, rank, quiz questions, employee answers, correct/wrong results, timing, and feedback.
+        <h3 style="font-size: 1.05rem; font-weight: 600; margin-bottom: 8px;">Submissions & Logs</h3>
+        <p style="font-size: 0.85rem; color: #64748b; margin-bottom: 16px;">
+            Question-level log sorted by rank: Candidate details, question, selected answer, score, timing, and feedback.
         </p>
 
         <form action="/admin/reports/export" method="POST">
@@ -35,14 +109,38 @@
                     {% endfor %}
                 </select>
             </div>
-            <button type="submit" class="btn btn-primary">Generate Submissions CSV</button>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 14px;">
+                <div class="form-group" style="margin-bottom: 0;">
+                    <label class="form-label" for="sub_zone">Zone</label>
+                    <select id="sub_zone" name="zone" class="form-control">
+                        <option value="">All Zones</option>
+                        {% for z in zones|default([]) %}
+                            <option value="{{ z }}">{{ z }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="form-group" style="margin-bottom: 0;">
+                    <label class="form-label" for="sub_format">Format</label>
+                    <select id="sub_format" name="format" class="form-control">
+                        <option value="xlsx" selected>XLSX (Text IDs)</option>
+                        <option value="csv">CSV</option>
+                    </select>
+                </div>
+            </div>
+            <div style="margin-bottom: 16px;">
+                <label style="display: flex; align-items: center; gap: 6px; font-size: 0.825rem; color: #475569;">
+                    <input type="checkbox" name="exclude_test" value="1" checked> Exclude test accounts
+                </label>
+            </div>
+            <button type="submit" class="btn btn-secondary" style="width: 100%;">Generate Submissions Export</button>
         </form>
     </div>
 
+    <!-- Results Summary Report -->
     <div class="card">
-        <h3 style="font-size: 1.05rem; font-weight: 600; margin-bottom: 8px;">Results Summary Report</h3>
-        <p style="font-size: 0.85rem; color: #64748b; margin-bottom: 20px;">
-            Aggregated results per candidate with Pass / Fail classification based on quiz pass mark.
+        <h3 style="font-size: 1.05rem; font-weight: 600; margin-bottom: 8px;">Results Summary</h3>
+        <p style="font-size: 0.85rem; color: #64748b; margin-bottom: 16px;">
+            Participant summary: Total marks, percentage, Pass / Fail status, duration, and completion timestamps.
         </p>
 
         <form action="/admin/reports/export" method="POST">
@@ -56,34 +154,83 @@
                     {% endfor %}
                 </select>
             </div>
-            <button type="submit" class="btn btn-primary">Generate Results CSV</button>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 14px;">
+                <div class="form-group" style="margin-bottom: 0;">
+                    <label class="form-label" for="res_zone">Zone</label>
+                    <select id="res_zone" name="zone" class="form-control">
+                        <option value="">All Zones</option>
+                        {% for z in zones|default([]) %}
+                            <option value="{{ z }}">{{ z }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="form-group" style="margin-bottom: 0;">
+                    <label class="form-label" for="res_format">Format</label>
+                    <select id="res_format" name="format" class="form-control">
+                        <option value="xlsx" selected>XLSX (Text IDs)</option>
+                        <option value="csv">CSV</option>
+                    </select>
+                </div>
+            </div>
+            <div style="margin-bottom: 16px;">
+                <label style="display: flex; align-items: center; gap: 6px; font-size: 0.825rem; color: #475569;">
+                    <input type="checkbox" name="exclude_test" value="1" checked> Exclude test accounts
+                </label>
+            </div>
+            <button type="submit" class="btn btn-secondary" style="width: 100%;">Generate Results Export</button>
         </form>
     </div>
 
+    <!-- Question-Wise Analysis Report -->
     <div class="card">
-        <h3 style="font-size: 1.05rem; font-weight: 600; margin-bottom: 8px;">Question-Wise Report</h3>
-        <p style="font-size: 0.85rem; color: #64748b; margin-bottom: 20px;">
-            Question-level candidate breakdown for the selected quiz: Employee ID, employee name, quiz questions, answers, correct/wrong results, score, and timing.
+        <h3 style="font-size: 1.05rem; font-weight: 600; margin-bottom: 8px;">Question-Wise Detail</h3>
+        <p style="font-size: 0.85rem; color: #64748b; margin-bottom: 16px;">
+            Detailed question responses: Employee IDs, questions, selected options, correct/wrong flags, and scores.
         </p>
 
         <form action="/admin/reports/export" method="POST">
             <input type="hidden" name="report_type" value="question_summary">
             <div class="form-group">
-                <label class="form-label" for="qsum_quiz_id">Target Quiz</label>
+                <label class="form-label" for="qsum_quiz_id">Target Quiz *</label>
                 <select id="qsum_quiz_id" name="quiz_id" class="form-control" required>
                     {% for q in quizzes %}
                         <option value="{{ q.id }}">[{{ q.code }}] {{ q.title }}</option>
                     {% endfor %}
                 </select>
             </div>
-            <button type="submit" class="btn btn-primary">Generate Question-Wise CSV</button>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 14px;">
+                <div class="form-group" style="margin-bottom: 0;">
+                    <label class="form-label" for="qsum_zone">Zone</label>
+                    <select id="qsum_zone" name="zone" class="form-control">
+                        <option value="">All Zones</option>
+                        {% for z in zones|default([]) %}
+                            <option value="{{ z }}">{{ z }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="form-group" style="margin-bottom: 0;">
+                    <label class="form-label" for="qsum_format">Format</label>
+                    <select id="qsum_format" name="format" class="form-control">
+                        <option value="xlsx" selected>XLSX (Text IDs)</option>
+                        <option value="csv">CSV</option>
+                    </select>
+                </div>
+            </div>
+            <div style="margin-bottom: 16px;">
+                <label style="display: flex; align-items: center; gap: 6px; font-size: 0.825rem; color: #475569;">
+                    <input type="checkbox" name="exclude_test" value="1" checked> Exclude test accounts
+                </label>
+            </div>
+            <button type="submit" class="btn btn-secondary" style="width: 100%;">Generate Question Export</button>
         </form>
     </div>
 </div>
 
+<!-- Recent Export Jobs Table -->
 <div class="card" style="padding: 0;">
-    <div style="padding: 16px 20px; border-bottom: 1px solid var(--border-color);">
-        <h3 style="font-size: 1.05rem; font-weight: 600;">Recent Export Jobs</h3>
+    <div style="padding: 16px 20px; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center;">
+        <h3 style="font-size: 1.05rem; font-weight: 600; margin: 0;">Recent Export Jobs</h3>
+        <span style="font-size: 0.8125rem; color: #64748b;">Automated retention: 24 hours</span>
     </div>
     <div class="table-wrap">
         <table>
@@ -91,6 +238,7 @@
                 <tr>
                     <th>Job ID</th>
                     <th>Report Type</th>
+                    <th>Format</th>
                     <th>Status</th>
                     <th>Row Count</th>
                     <th>Expires At ({{ company_tz }})</th>
@@ -104,18 +252,27 @@
                     <td>
                         <div>
                             <strong>
-                                {% if job.report_type in ['question_summary', 'question_wise'] %}
-                                    QUESTION-WISE (CSV)
+                                {% if job.report_type in ['comprehensive', 'dashboard', 'full'] %}
+                                    COMPREHENSIVE WORKBOOK (6 SHEETS)
+                                {% elseif job.report_type in ['question_summary', 'question_wise'] %}
+                                    QUESTION-WISE DETAIL
                                 {% elseif job.report_type == 'results' %}
-                                    RESULTS SUMMARY (CSV)
+                                    RESULTS SUMMARY
                                 {% else %}
-                                    SUBMISSIONS (CSV)
+                                    SUBMISSIONS LOG
                                 {% endif %}
                             </strong>
                         </div>
                         <div style="font-size: 0.775rem; color: #64748b; margin-top: 2px;">
                             <span style="color: #94a3b8;">Quiz:</span> {{ job.target_quiz_label|default('All Quizzes') }}
                         </div>
+                    </td>
+                    <td>
+                        {% if job.format == 'xlsx' %}
+                            <span style="background: #dbeafe; color: #1e40af; font-size: 0.75rem; font-weight: 700; padding: 2px 8px; border-radius: 4px;">XLSX</span>
+                        {% else %}
+                            <span style="background: #f1f5f9; color: #475569; font-size: 0.75rem; font-weight: 700; padding: 2px 8px; border-radius: 4px;">CSV</span>
+                        {% endif %}
                     </td>
                     <td>
                         {% if job.status == 'completed' %}
@@ -132,7 +289,9 @@
                     <td>{{ job.expires_at ? job.expires_at|company_date('d M Y, h:i A') : '—' }}</td>
                     <td>
                         {% if job.status == 'completed' %}
-                            <a href="/admin/reports/download/{{ job.id }}" class="btn btn-secondary" style="padding: 4px 10px; font-size: 0.775rem;">Download CSV</a>
+                            <a href="/admin/reports/download/{{ job.id }}" class="btn btn-primary" style="padding: 4px 12px; font-size: 0.775rem; text-decoration: none;">
+                                Download {{ job.format|default('csv')|upper }}
+                            </a>
                         {% else %}
                             <span style="color: #94a3b8; font-size: 0.85rem;">Unavailable</span>
                         {% endif %}
@@ -140,7 +299,7 @@
                 </tr>
                 {% else %}
                 <tr>
-                    <td colspan="6" style="text-align: center; color: #64748b; padding: 32px;">No export jobs created yet.</td>
+                    <td colspan="7" style="text-align: center; color: #64748b; padding: 32px;">No export jobs created yet.</td>
                 </tr>
                 {% endfor %}
             </tbody>

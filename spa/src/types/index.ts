@@ -99,6 +99,14 @@ export interface StartAttemptResponse {
   server_now_ms: number;
 }
 
+export interface HelplineConfig {
+  enabled?: boolean;
+  phone?: string;
+  email?: string;
+  text?: string;
+  image_path?: string | null;
+}
+
 export interface AttemptStateResponse {
   attempt_id: string;
   quiz_code?: string;
@@ -114,6 +122,7 @@ export interface AttemptStateResponse {
   layout: AttemptLayout | null;
   answers: Record<string, { selected_option_id: number; text_answer?: string | null; seq: number }>;
   feedback?: string | null;
+  helpline?: HelplineConfig | null;
   server_now_ms: number;
   result?: {
     score: number;

@@ -604,7 +604,8 @@ $router->get('/api/attempts/{aid}', function (array $params, array $config, mixe
     $weekNum = isset($qMeta['week_number']) && $qMeta['week_number'] !== '' ? max(1, (int) $qMeta['week_number']) : null;
     $weekLabel = !empty($qMeta['week_label']) ? (string) $qMeta['week_label'] : ($weekNum !== null ? "WEEK - {$weekNum}" : null);
     $quizTitle = !empty($qMeta['title']) ? (string) $qMeta['title'] : null;
-    $quizCode = !empty($att['code']) ? (string) $att['code'] : (!empty($qMeta['code']) ? (string) $qMeta['code'] : null);
+    $quizSettings = !empty($qMeta['settings']) ? json_decode((string) $qMeta['settings'], true) : [];
+    $helpline = $quizSettings['helpline'] ?? null;
 
     $status = $att['status'] ?? 'NOT_STARTED';
     $data = [
@@ -622,6 +623,7 @@ $router->get('/api/attempts/{aid}', function (array $params, array $config, mixe
         'layout' => !empty($att['layout']) ? json_decode($att['layout'], true) : null,
         'answers' => $answers,
         'feedback' => $feedback,
+        'helpline' => $helpline,
         'server_now_ms' => $nowMs,
     ];
 
