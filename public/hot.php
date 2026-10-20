@@ -601,11 +601,50 @@ $router->get('/api/attempts/{aid}', function (array $params, array $config, mixe
         }
     }
 
+    $quizCode = !empty($att['code']) ? (string) $att['code'] : null;
     $weekNum = isset($qMeta['week_number']) && $qMeta['week_number'] !== '' ? max(1, (int) $qMeta['week_number']) : null;
     $weekLabel = !empty($qMeta['week_label']) ? (string) $qMeta['week_label'] : ($weekNum !== null ? "WEEK - {$weekNum}" : null);
     $quizTitle = !empty($qMeta['title']) ? (string) $qMeta['title'] : null;
     $quizSettings = !empty($qMeta['settings']) ? json_decode((string) $qMeta['settings'], true) : [];
     $helpline = $quizSettings['helpline'] ?? null;
+
+    // Database fallback if helpline is missing in Redis
+    if (empty($helpline)) {
+        $targetQid = (int) ($att['qid'] ?? $qMeta['id'] ?? 0);
+        $pdo = getHotPdo($config);
+        if ($pdo) {
+            try {
+                if ($targetQid > 0) {
+                    $sStmt = $pdo->prepare('SELECT title, settings FROM quizzes WHERE id = :id');
+                    $sStmt->execute(['id' => $targetQid]);
+                } elseif (!empty($quizCode)) {
+                    $sStmt = $pdo->prepare('SELECT title, settings FROM quizzes WHERE code = :code');
+                    $sStmt->execute(['code' => $quizCode]);
+                } else {
+                    $sStmt = null;
+                }
+                if ($sStmt) {
+                    $qRow = $sStmt->fetch(\PDO::FETCH_ASSOC);
+                    if ($qRow) {
+                        if (empty($quizTitle) && !empty($qRow['title'])) {
+                            $quizTitle = (string) $qRow['title'];
+                        }
+                        if (!empty($qRow['settings'])) {
+                            $dbSettings = json_decode((string) $qRow['settings'], true) ?: [];
+                            if (!empty($dbSettings['helpline'])) {
+                                $helpline = $dbSettings['helpline'];
+                                if (!empty($quizCode) && $redis) {
+                                    $redis->hSet("quiz:{$quizCode}", 'settings', (string) $qRow['settings']);
+                                }
+                            }
+                        }
+                    }
+                }
+            } catch (\Throwable $e) {
+                // Ignore DB fallback error
+            }
+        }
+    }
 
     $status = $att['status'] ?? 'NOT_STARTED';
     $data = [

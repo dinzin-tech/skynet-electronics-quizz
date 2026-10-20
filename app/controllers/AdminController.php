@@ -960,18 +960,36 @@ class AdminController extends Controller
                 if (!is_dir($uploadDir)) {
                     mkdir($uploadDir, 0755, true);
                 }
-                $existingSettings = json_decode((string) ($quiz['settings'] ?? '{}'), true) ?? [];
-                $helplineImagePath = $existingSettings['helpline']['image_path'] ?? '';
-                if (!empty($_POST['existing_helpline_image'])) {
-                    $helplineImagePath = (string) $_POST['existing_helpline_image'];
-                }
+                $existingSettings = is_array($quiz['settings'] ?? null)
+                    ? $quiz['settings']
+                    : (json_decode((string) ($quiz['settings'] ?? '{}'), true) ?? []);
+                $existingImagePath = (string) ($existingSettings['helpline']['image_path'] ?? $_POST['existing_helpline_image'] ?? '');
+                $shouldDeleteImage = !empty($_POST['delete_helpline_image']);
+
+                $helplineImagePath = $existingImagePath;
+
                 if (!empty($_FILES['helpline_image']['name']) && $_FILES['helpline_image']['error'] === UPLOAD_ERR_OK) {
                     $ext = strtolower(pathinfo($_FILES['helpline_image']['name'], PATHINFO_EXTENSION));
                     if (in_array($ext, ['png', 'jpg', 'jpeg', 'webp', 'svg'], true)) {
                         $filename = 'helpline_' . time() . '_' . bin2hex(random_bytes(4)) . '.' . $ext;
-                        move_uploaded_file($_FILES['helpline_image']['tmp_name'], $uploadDir . '/' . $filename);
-                        $helplineImagePath = '/uploads/helpline/' . $filename;
+                        if (move_uploaded_file($_FILES['helpline_image']['tmp_name'], $uploadDir . '/' . $filename)) {
+                            if ($existingImagePath !== '') {
+                                $oldDiskFile = dirname(__DIR__, 2) . '/public' . $existingImagePath;
+                                if (is_file($oldDiskFile)) {
+                                    @unlink($oldDiskFile);
+                                }
+                            }
+                            $helplineImagePath = '/uploads/helpline/' . $filename;
+                        }
                     }
+                } elseif ($shouldDeleteImage) {
+                    if ($existingImagePath !== '') {
+                        $oldDiskFile = dirname(__DIR__, 2) . '/public' . $existingImagePath;
+                        if (is_file($oldDiskFile)) {
+                            @unlink($oldDiskFile);
+                        }
+                    }
+                    $helplineImagePath = '';
                 }
                 $helpline = [
                     'enabled' => true,
