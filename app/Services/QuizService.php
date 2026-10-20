@@ -366,6 +366,12 @@ class QuizService
             if (array_key_exists('target_zones', $data['settings'])) {
                 $mergedSettings['target_zones'] = $data['settings']['target_zones'];
             }
+            if (array_key_exists('target_designations', $data['settings'])) {
+                $mergedSettings['target_designations'] = $data['settings']['target_designations'];
+            }
+            if (array_key_exists('helpline', $data['settings'])) {
+                $mergedSettings['helpline'] = $data['settings']['helpline'];
+            }
             $normalized = $this->normalizeSettings($mergedSettings);
             $fields[] = 'settings = :settings';
             $params['settings'] = json_encode($normalized, JSON_THROW_ON_ERROR);
@@ -630,8 +636,9 @@ class QuizService
         $targetDepartments = $settings['target_departments'] ?? [];
         $targetZones = $settings['target_zones'] ?? [];
         $targetDesignations = $settings['target_designations'] ?? [];
+        $helpline = $settings['helpline'] ?? null;
 
-        return [
+        $normalized = [
             'scoring' => [
                 'marks_per_correct' => (float) ($scoring['marks_per_correct'] ?? 1.0),
                 'negative_marks_per_wrong' => (float) ($scoring['negative_marks_per_wrong'] ?? 0.0),
@@ -652,6 +659,18 @@ class QuizService
             'target_zones' => is_array($targetZones) ? array_values(array_filter(array_map('trim', $targetZones), fn($z) => $z !== '')) : [],
             'target_designations' => is_array($targetDesignations) ? array_values(array_filter(array_map('trim', $targetDesignations), fn($des) => $des !== '')) : [],
         ];
+
+        if (is_array($helpline)) {
+            $normalized['helpline'] = [
+                'enabled' => (bool) ($helpline['enabled'] ?? true),
+                'phone' => trim((string) ($helpline['phone'] ?? '')),
+                'email' => trim((string) ($helpline['email'] ?? '')),
+                'text' => trim((string) ($helpline['text'] ?? '')),
+                'image_path' => trim((string) ($helpline['image_path'] ?? '')),
+            ];
+        }
+
+        return $normalized;
     }
 
     private function generateUniqueCode(): string
