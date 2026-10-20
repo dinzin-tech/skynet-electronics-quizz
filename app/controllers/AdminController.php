@@ -1089,9 +1089,9 @@ class AdminController extends Controller
         $writtenQuestions = $this->questionService->getWrittenQuestionsByQuiz($quizId);
 
         $flashSuccess = Session::get('flash_success');
-        Session::remove('flash_success');
+        Session::delete('flash_success');
         $flashError = Session::get('flash_error');
-        Session::remove('flash_error');
+        Session::delete('flash_error');
 
         return $this->render('admin/quizzes/questions.html.twig', [
             'admin' => $this->getAdminUser(),

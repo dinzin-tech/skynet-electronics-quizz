@@ -155,4 +155,37 @@ class AdminQuizCreateTest extends TestCase
         $this->assertEquals(['NORTH', 'SOUTH'], $settings['target_zones']);
         $this->assertEquals([1, 2], $settings['target_groups']);
     }
+
+    public function test_quiz_questions_renders_without_500_error(): void
+    {
+        // 1. Create a dummy quiz
+        $now = gmdate('Y-m-d H:i:s');
+        $publicId = '01JTESTQZ' . rand(1000, 9999);
+        $stmt = $this->db->prepare(
+            "INSERT INTO quizzes (public_id, code, title, duration_seconds, start_at, end_at, status, settings, created_by, created_at, updated_at) " .
+            "VALUES (:pub, 'TESTQZQNS', 'Test Quiz Questions Page', 1800, :start, :end, 'draft', '{}', 1, :cat, :uat)"
+        );
+        $stmt->execute([
+            'pub' => $publicId,
+            'start' => $now,
+            'end' => gmdate('Y-m-d H:i:s', time() + 3600),
+            'cat' => $now,
+            'uat' => $now,
+        ]);
+        $quizId = (int) $this->db->lastInsertId();
+
+        // Simulate session flash messages
+        Session::set('flash_success', 'Initial message');
+
+        $_SERVER['REQUEST_METHOD'] = 'GET';
+        $request = new Request();
+        $response = $this->controller->quizQuestions($request, (string) $quizId);
+
+        $this->assertSame(200, $response->getStatusCode());
+        $body = $this->getResponseBody($response);
+        $this->assertStringContainsString('Manage Questions - Test Quiz Questions Page', $body);
+        $this->assertStringContainsString('Initial message', $body);
+        // Ensure flash was cleared
+        $this->assertNull(Session::get('flash_success'));
+    }
 }
