@@ -85,6 +85,16 @@ class ReportExportService
     }
 
     /**
+     * Alias for processExportJob.
+     *
+     * @return array{file_path: string, row_count: int}
+     */
+    public function processJob(int $jobId): array
+    {
+        return $this->processExportJob($jobId);
+    }
+
+    /**
      * Process an export job synchronously and stream CSV output to storage.
      *
      * @return array{file_path: string, row_count: int}
