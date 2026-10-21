@@ -177,7 +177,30 @@ class AdminController extends Controller
 
         $selectedZone = trim((string) $request->get('zone', ''));
         $selectedDesignation = trim((string) $request->get('designation', ''));
-        $excludeTest = $request->get('exclude_test', '1') !== '0';
+
+        // Find selected quiz details to determine default exclude_test
+        $selectedQuiz = null;
+        foreach ($quizzes as $q) {
+            if ((int) $q['id'] === $selectedQuizId) {
+                $selectedQuiz = $q;
+                break;
+            }
+        }
+        $isTestQuiz = $selectedQuiz && (
+            stripos($selectedQuiz['code'] ?? '', 'TEST') !== false ||
+            stripos($selectedQuiz['title'] ?? '', 'Test') !== false
+        );
+
+        $filterApplied = $request->get('filter_applied', null) !== null;
+        if ($filterApplied) {
+            $excludeTest = $request->get('exclude_test') === '1';
+        } else {
+            if ($request->has('exclude_test')) {
+                $excludeTest = $request->get('exclude_test') === '1' || $request->get('exclude_test') === 'true';
+            } else {
+                $excludeTest = !$isTestQuiz;
+            }
+        }
 
         $dashFilters = [
             'zone' => $selectedZone !== '' ? $selectedZone : null,
@@ -2103,10 +2126,16 @@ class AdminController extends Controller
 
         // Process immediately for synchronous response
         try {
+            $this->exportService->processJob($jobId);
             $fmtUpper = strtoupper($format);
             Session::set('flash_success', "Export job #{$jobId} generated successfully in {$fmtUpper} format.");
+
+            $directDownload = $request->input('direct_download') === '1' || $request->get('direct_download') === '1';
+            if ($directDownload) {
+                return $this->redirect("/admin/reports/download/{$jobId}");
+            }
         } catch (\Throwable $e) {
-            Session::set('flash_success', "Export job #{$jobId} created and queued.");
+            Session::set('flash_error', "Export job #{$jobId} processing error: " . $e->getMessage());
         }
 
         return $this->redirect('/admin/reports');
