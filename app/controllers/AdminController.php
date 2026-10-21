@@ -195,8 +195,9 @@ class AdminController extends Controller
         if ($filterApplied) {
             $excludeTest = $request->get('exclude_test') === '1';
         } else {
-            if ($request->has('exclude_test')) {
-                $excludeTest = $request->get('exclude_test') === '1' || $request->get('exclude_test') === 'true';
+            $excludeParam = $request->get('exclude_test', null);
+            if ($excludeParam !== null) {
+                $excludeTest = $excludeParam === '1' || $excludeParam === 'true';
             } else {
                 $excludeTest = !$isTestQuiz;
             }
@@ -2126,7 +2127,7 @@ class AdminController extends Controller
 
         // Process immediately for synchronous response
         try {
-            $this->exportService->processJob($jobId);
+            $this->exportService->processExportJob($jobId);
             $fmtUpper = strtoupper($format);
             Session::set('flash_success', "Export job #{$jobId} generated successfully in {$fmtUpper} format.");
 
