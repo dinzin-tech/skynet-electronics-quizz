@@ -867,7 +867,14 @@ class ReportExportService
         $bHeadRow = $sr;
         $sr++;
 
-        foreach ($scoreData['brackets'] as $bracket => $cnt) {
+        $exportBrackets = [
+            '< 20 Marks' => $scoreData['brackets']['< 20 Marks'] ?? ($scoreData['brackets']['lt_20'] ?? 0),
+            '20 - 29 Marks' => $scoreData['brackets']['20 - 29 Marks'] ?? ($scoreData['brackets']['b_20_29'] ?? 0),
+            '30 - 39 Marks' => $scoreData['brackets']['30 - 39 Marks'] ?? ($scoreData['brackets']['b_30_39'] ?? 0),
+            '40 - 50 Marks' => $scoreData['brackets']['40 - 50 Marks'] ?? ($scoreData['brackets']['b_40_50'] ?? 0),
+        ];
+
+        foreach ($exportBrackets as $bracket => $cnt) {
             $sheet4->setCellValue("A{$sr}", $bracket);
             $sheet4->setCellValue("B{$sr}", $cnt);
             $sheet4->setCellValue("C{$sr}", "=IF(B2>0, ROUND((B{$sr}/B2)*100, 1), 0)");

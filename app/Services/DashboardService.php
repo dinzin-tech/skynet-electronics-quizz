@@ -348,6 +348,14 @@ class DashboardService
         $notStarted = (int) ($row['not_started_count'] ?? 0);
         $absent = (int) ($row['absent_count'] ?? 0);
 
+        if ($eligible === 0) {
+            // Fallback: If attempts not yet materialized for this quiz, check active eligible employees
+            $empSql = "SELECT COUNT(*) FROM employees e WHERE e.status = 'active' AND {$whereSql}";
+            $empStmt = $this->db->prepare($empSql);
+            $empStmt->execute($cond['params']);
+            $eligible = (int) $empStmt->fetchColumn();
+        }
+
         $participationPct = $eligible > 0 ? round(($completed / $eligible) * 100, 1) : 0.0;
         $startedPct = $eligible > 0 ? round(($started / $eligible) * 100, 1) : 0.0;
         $avgScore = round((float) ($row['avg_score'] ?? 0.0), 2);
@@ -360,16 +368,22 @@ class DashboardService
         return [
             'quiz_id' => $quizId,
             'eligible_count' => $eligible,
+            'eligible_employees' => $eligible,
             'started_count' => $started,
+            'started_quiz' => $started,
             'started_pct' => $startedPct,
             'completed_count' => $completed,
+            'completed_attempts' => $completed,
             'participation_pct' => $participationPct,
             'in_progress_count' => $inProgress,
+            'in_progress_attempts' => $inProgress,
             'not_started_count' => $notStarted,
             'absent_count' => $absent,
+            'absent_employees' => $absent,
             'avg_score' => $avgScore,
             'avg_accuracy' => $avgAccuracy,
             'avg_time_s' => $avgTimeS,
+            'avg_completion_time_s' => $avgTimeS,
             'pass_rate' => $passRate,
         ];
     }
@@ -426,11 +440,17 @@ class DashboardService
             $partPct = $el > 0 ? round(($comp / $el) * 100, 1) : 0.0;
 
             $zones[] = [
+                'zone' => (string) $r['zone_name'],
                 'zone_name' => (string) $r['zone_name'],
+                'eligible' => $el,
                 'eligible_count' => $el,
+                'not_started' => $ns,
                 'not_started_count' => $ns,
+                'in_progress' => $ip,
                 'in_progress_count' => $ip,
+                'completed' => $comp,
                 'completed_count' => $comp,
+                'absent' => $ab,
                 'absent_count' => $ab,
                 'participation_pct' => $partPct,
                 'avg_score' => $sc,
@@ -451,11 +471,17 @@ class DashboardService
         $overallAvgAccuracy = $totCompleted > 0 ? round($sumAccuracyWeighted / $totCompleted, 1) : 0.0;
 
         $total = [
+            'zone' => 'Consolidated Total',
             'zone_name' => 'Consolidated Total',
+            'eligible' => $totEligible,
             'eligible_count' => $totEligible,
+            'not_started' => $totNotStarted,
             'not_started_count' => $totNotStarted,
+            'in_progress' => $totInProgress,
             'in_progress_count' => $totInProgress,
+            'completed' => $totCompleted,
             'completed_count' => $totCompleted,
+            'absent' => $totAbsent,
             'absent_count' => $totAbsent,
             'participation_pct' => $overallPartPct,
             'avg_score' => $overallAvgScore,
@@ -482,16 +508,18 @@ class DashboardService
         $whereSql = $cond['where_sql'];
         $params = array_merge(['qid' => $quizId], $cond['params']);
 
-        // 1. Fetch completed attempts for the quiz
+        // 1. Fetch completed attempts and enrolled attempts for the quiz
         $attStmt = $this->db->prepare(
-            "SELECT a.id, a.layout, COALESCE(NULLIF(TRIM(e.zone_region), ''), 'Unassigned') AS zone_region "
+            "SELECT a.id, a.layout, a.status, COALESCE(NULLIF(TRIM(e.zone_region), ''), 'Unassigned') AS zone_region "
             . "FROM attempts a "
             . "JOIN employees e ON e.id = a.employee_id "
-            . "WHERE a.quiz_id = :qid AND a.status = 'COMPLETED' AND {$whereSql}"
+            . "WHERE a.quiz_id = :qid AND {$whereSql}"
         );
         $attStmt->execute($params);
-        $completedAttempts = $attStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        $allAttempts = $attStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        $completedAttempts = array_values(array_filter($allAttempts, fn($a) => $a['status'] === 'COMPLETED'));
         $totalCompleted = count($completedAttempts);
+        $totalEnrolled = count($allAttempts);
 
         // 2. Fetch all questions for this quiz (direct or via question bank)
         $qStmt = $this->db->prepare(
@@ -520,10 +548,12 @@ class DashboardService
         }
 
         // 3. Map assignment counts using layout['q']
+        // If completed attempts exist, map against completed; otherwise map against enrolled attempts
         $assignedMap = [];
         $allQuestionIds = array_map(fn($q) => (int) $q['id'], $questions);
+        $attemptsToMap = $totalCompleted > 0 ? $completedAttempts : $allAttempts;
 
-        foreach ($completedAttempts as $att) {
+        foreach ($attemptsToMap as $att) {
             $layoutRaw = $att['layout'] ?? null;
             $layout = is_string($layoutRaw) ? json_decode($layoutRaw, true) : $layoutRaw;
 
@@ -559,17 +589,19 @@ class DashboardService
             $ansStats[(int) $row['question_id']] = $row;
         }
 
+        $baseAttempts = $totalCompleted > 0 ? $totalCompleted : $totalEnrolled;
+
         $summary = [];
         foreach ($questions as $q) {
             $qid = (int) $q['id'];
             $stat = $ansStats[$qid] ?? null;
 
             $assigned = $assignedMap[$qid] ?? 0;
-            // If quiz has no randomized bank or 0 assigned recorded, fallback to total completed
+            // If quiz has no randomized bank or 0 assigned recorded, fallback to base attempts
             if ($assigned === 0 && empty($assignedMap)) {
-                $assigned = $totalCompleted;
+                $assigned = $baseAttempts;
             }
-            $notAssigned = max(0, $totalCompleted - $assigned);
+            $notAssigned = max(0, $baseAttempts - $assigned);
 
             $answered = $stat ? (int) ($stat['answered_count'] ?? 0) : 0;
             $correct = $stat ? (int) ($stat['correct_count'] ?? 0) : 0;
@@ -593,14 +625,18 @@ class DashboardService
                 'question_type' => $qType,
                 'image_path' => $q['image_path'] ?? null,
                 'correct_answer' => $correctOptions[$qid] ?? '—',
+                'correct_answer_text' => $correctOptions[$qid] ?? '—',
                 'total_attempts' => $totalCompleted,
                 'assigned_count' => $assigned,
+                'not_assigned' => $notAssigned,
                 'not_assigned_count' => $notAssigned,
                 'answered_count' => $answered,
                 'correct_count' => $correct,
                 'correct_pct' => $correctPct,
+                'accuracy_pct' => $correctPct,
                 'incorrect_count' => $incorrect,
                 'incorrect_pct' => $incorrectPct,
+                'assigned_unanswered' => $assignedUnanswered,
                 'unanswered_count' => $assignedUnanswered,
                 'unanswered_pct' => $unansweredPct,
             ];
@@ -642,11 +678,12 @@ class DashboardService
 
         $sql = "SELECT "
             . "COUNT(CASE WHEN a.score <= 0 THEN 1 END) AS zero_scored_count, "
+            . "COUNT(CASE WHEN a.score < 20 THEN 1 END) AS bracket_lt_20, "
+            . "COUNT(CASE WHEN a.score >= 20 AND a.score < 30 THEN 1 END) AS bracket_20_29, "
+            . "COUNT(CASE WHEN a.score >= 30 AND a.score < 40 THEN 1 END) AS bracket_30_39, "
+            . "COUNT(CASE WHEN a.score >= 40 THEN 1 END) AS bracket_40_50, "
             . "COUNT(CASE WHEN a.score > 0 AND a.score <= 10 THEN 1 END) AS bracket_0_10, "
-            . "COUNT(CASE WHEN a.score > 10 AND a.score <= 20 THEN 1 END) AS bracket_10_20, "
-            . "COUNT(CASE WHEN a.score > 20 AND a.score <= 30 THEN 1 END) AS bracket_20_30, "
-            . "COUNT(CASE WHEN a.score > 30 AND a.score <= 40 THEN 1 END) AS bracket_30_40, "
-            . "COUNT(CASE WHEN a.score > 40 THEN 1 END) AS bracket_40_50 "
+            . "COUNT(CASE WHEN a.score > 10 AND a.score <= 20 THEN 1 END) AS bracket_10_20 "
             . "FROM attempts a "
             . "JOIN employees e ON e.id = a.employee_id "
             . "WHERE a.quiz_id = :qid AND a.status = 'COMPLETED' AND {$whereSql}";
@@ -658,19 +695,37 @@ class DashboardService
         $avgRaw = $overall['avg_score'];
         $avgWeighted50 = round(($avgRaw / $maxMarks) * 50.0, 2);
 
+        $lt20 = (int) ($dist['bracket_lt_20'] ?? 0);
+        $b20_29 = (int) ($dist['bracket_20_29'] ?? 0);
+        $b30_39 = (int) ($dist['bracket_30_39'] ?? 0);
+        $b40_50 = (int) ($dist['bracket_40_50'] ?? 0);
+        $zeroCount = (int) ($dist['zero_scored_count'] ?? 0);
+
         return [
             'total_completed' => $totalCompleted,
             'max_marks' => $maxMarks,
+            'max_possible_score' => $maxMarks,
             'avg_raw_score' => $avgRaw,
+            'avg_score_raw' => $avgRaw,
             'avg_weighted_50' => $avgWeighted50,
-            'zero_scored_count' => (int) ($dist['zero_scored_count'] ?? 0),
+            'weighted_score_50' => $avgWeighted50,
+            'zero_scored_count' => $zeroCount,
+            'zero_scored_attempts' => $zeroCount,
             'scoring_formula' => 'Weighted Score = (Raw Score / ' . $maxMarks . ') × 50',
             'brackets' => [
+                'lt_20' => $lt20,
+                'b_20_29' => $b20_29,
+                'b_30_39' => $b30_39,
+                'b_40_50' => $b40_50,
+                '< 20 Marks' => $lt20,
+                '20 - 29 Marks' => $b20_29,
+                '30 - 39 Marks' => $b30_39,
+                '40 - 50 Marks' => $b40_50,
                 '0-10' => (int) ($dist['bracket_0_10'] ?? 0),
                 '11-20' => (int) ($dist['bracket_10_20'] ?? 0),
-                '21-30' => (int) ($dist['bracket_20_30'] ?? 0),
-                '31-40' => (int) ($dist['bracket_30_40'] ?? 0),
-                '41-50' => (int) ($dist['bracket_40_50'] ?? 0),
+                '21-30' => $b20_29,
+                '31-40' => $b30_39,
+                '41-50' => $b40_50,
             ],
         ];
     }

@@ -17,6 +17,7 @@
                 <input type="hidden" name="zone" value="{{ selected_zone }}">
                 <input type="hidden" name="designation" value="{{ selected_designation }}">
                 <input type="hidden" name="exclude_test" value="{% if exclude_test %}1{% else %}0{% endif %}">
+                <input type="hidden" name="direct_download" value="1">
                 <button type="submit" class="btn btn-primary" style="font-size: 0.85rem; padding: 7px 16px; display: flex; align-items: center; gap: 6px;">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
                     Download Week 2 XLSX
@@ -33,6 +34,7 @@
 <!-- Assessment Filter Bar -->
 <div class="card" style="margin-bottom: 24px; padding: 16px 20px; background: #ffffff;">
     <form method="GET" action="/admin/dashboard" id="dashFilterForm" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)) auto; gap: 14px; align-items: flex-end;">
+        <input type="hidden" name="filter_applied" value="1">
         <div class="form-group" style="margin-bottom: 0;">
             <label class="form-label" for="filter_quiz_id"><strong>Quiz / Week</strong></label>
             <select id="filter_quiz_id" name="quiz_id" class="form-control" onchange="document.getElementById('dashFilterForm').submit()">
@@ -72,7 +74,7 @@
         </div>
 
         <div>
-            <a href="/admin/dashboard?quiz_id={{ selected_quiz_id }}" class="btn btn-secondary" style="font-size: 0.8rem; padding: 8px 12px;">Reset Filters</a>
+            <a href="/admin/dashboard?quiz_id={{ selected_quiz_id }}&filter_applied=1" class="btn btn-secondary" style="font-size: 0.8rem; padding: 8px 12px;">Reset Filters</a>
         </div>
     </form>
 </div>
@@ -87,39 +89,39 @@
     <div class="kpi-grid">
         <div class="kpi-card">
             <div class="kpi-title">Active Eligible OECs</div>
-            <div class="kpi-val">{{ overall_summary.eligible_employees|number_format }}</div>
+            <div class="kpi-val">{{ (overall_summary.eligible_employees|default(overall_summary.eligible_count)|default(0))|number_format }}</div>
         </div>
         <div class="kpi-card">
             <div class="kpi-title">Started Quiz</div>
-            <div class="kpi-val" style="color: #2563eb;">{{ overall_summary.started_quiz|number_format }}</div>
+            <div class="kpi-val" style="color: #2563eb;">{{ (overall_summary.started_quiz|default(overall_summary.started_count)|default(0))|number_format }}</div>
         </div>
         <div class="kpi-card">
             <div class="kpi-title">Completed Attempts</div>
-            <div class="kpi-val" style="color: #16a34a;">{{ overall_summary.completed_attempts|number_format }}</div>
+            <div class="kpi-val" style="color: #16a34a;">{{ (overall_summary.completed_attempts|default(overall_summary.completed_count)|default(0))|number_format }}</div>
         </div>
         <div class="kpi-card">
             <div class="kpi-title">In Progress</div>
-            <div class="kpi-val" style="color: #d97706;">{{ overall_summary.in_progress_attempts|number_format }}</div>
+            <div class="kpi-val" style="color: #d97706;">{{ (overall_summary.in_progress_attempts|default(overall_summary.in_progress_count)|default(0))|number_format }}</div>
         </div>
         <div class="kpi-card">
             <div class="kpi-title">Absent Employees</div>
-            <div class="kpi-val" style="color: #dc2626;">{{ overall_summary.absent_employees|number_format }}</div>
+            <div class="kpi-val" style="color: #dc2626;">{{ (overall_summary.absent_employees|default(overall_summary.absent_count)|default(0))|number_format }}</div>
         </div>
         <div class="kpi-card">
             <div class="kpi-title">Participation Rate</div>
-            <div class="kpi-val" style="color: #0284c7;">{{ overall_summary.participation_pct }}%</div>
+            <div class="kpi-val" style="color: #0284c7;">{{ overall_summary.participation_pct|default(0) }}%</div>
         </div>
         <div class="kpi-card">
             <div class="kpi-title">Average Quiz Score</div>
-            <div class="kpi-val">{{ overall_summary.avg_score }}</div>
+            <div class="kpi-val">{{ overall_summary.avg_score|default(0) }}</div>
         </div>
         <div class="kpi-card">
             <div class="kpi-title">Average Accuracy</div>
-            <div class="kpi-val">{{ overall_summary.avg_accuracy }}%</div>
+            <div class="kpi-val">{{ overall_summary.avg_accuracy|default(0) }}%</div>
         </div>
         <div class="kpi-card">
             <div class="kpi-title">Avg Completion Time</div>
-            <div class="kpi-val">{{ overall_summary.avg_completion_time_s }}s</div>
+            <div class="kpi-val">{{ overall_summary.avg_completion_time_s|default(overall_summary.avg_time_s|default(0)) }}s</div>
         </div>
     </div>
 </div>
@@ -152,16 +154,16 @@
             <tbody>
                 {% for z in zone_summary.zones %}
                 <tr>
-                    <td><strong>{{ z.zone }}</strong></td>
-                    <td style="text-align: right;">{{ z.eligible|number_format }}</td>
-                    <td style="text-align: right; color: #64748b;">{{ z.not_started|number_format }}</td>
-                    <td style="text-align: right; color: #d97706;">{{ z.in_progress|number_format }}</td>
-                    <td style="text-align: right; color: #16a34a; font-weight: 600;">{{ z.completed|number_format }}</td>
-                    <td style="text-align: right; color: #dc2626;">{{ z.absent|number_format }}</td>
+                    <td><strong>{{ z.zone|default(z.zone_name) }}</strong></td>
+                    <td style="text-align: right;">{{ (z.eligible|default(z.eligible_count)|default(0))|number_format }}</td>
+                    <td style="text-align: right; color: #64748b;">{{ (z.not_started|default(z.not_started_count)|default(0))|number_format }}</td>
+                    <td style="text-align: right; color: #d97706;">{{ (z.in_progress|default(z.in_progress_count)|default(0))|number_format }}</td>
+                    <td style="text-align: right; color: #16a34a; font-weight: 600;">{{ (z.completed|default(z.completed_count)|default(0))|number_format }}</td>
+                    <td style="text-align: right; color: #dc2626;">{{ (z.absent|default(z.absent_count)|default(0))|number_format }}</td>
                     <td style="text-align: right;">
-                        <span style="font-weight: 700; color: #0284c7;">{{ z.participation_pct }}%</span>
+                        <span style="font-weight: 700; color: #0284c7;">{{ z.participation_pct|default(0) }}%</span>
                     </td>
-                    <td style="text-align: right;"><strong>{{ z.avg_score }}</strong></td>
+                    <td style="text-align: right;"><strong>{{ z.avg_score|default(0) }}</strong></td>
                 </tr>
                 {% endfor %}
             </tbody>
@@ -169,13 +171,13 @@
             <tfoot>
                 <tr style="background: #f8fafc; font-weight: 700; border-top: 2px solid var(--border-color);">
                     <td><strong>Total (Consolidated)</strong></td>
-                    <td style="text-align: right;">{{ zone_summary.total.eligible|number_format }}</td>
-                    <td style="text-align: right;">{{ zone_summary.total.not_started|number_format }}</td>
-                    <td style="text-align: right;">{{ zone_summary.total.in_progress|number_format }}</td>
-                    <td style="text-align: right; color: #16a34a;">{{ zone_summary.total.completed|number_format }}</td>
-                    <td style="text-align: right; color: #dc2626;">{{ zone_summary.total.absent|number_format }}</td>
-                    <td style="text-align: right; color: #0284c7;">{{ zone_summary.total.participation_pct }}%</td>
-                    <td style="text-align: right;">{{ zone_summary.total.avg_score }}</td>
+                    <td style="text-align: right;">{{ (zone_summary.total.eligible|default(zone_summary.total.eligible_count)|default(0))|number_format }}</td>
+                    <td style="text-align: right;">{{ (zone_summary.total.not_started|default(zone_summary.total.not_started_count)|default(0))|number_format }}</td>
+                    <td style="text-align: right;">{{ (zone_summary.total.in_progress|default(zone_summary.total.in_progress_count)|default(0))|number_format }}</td>
+                    <td style="text-align: right; color: #16a34a;">{{ (zone_summary.total.completed|default(zone_summary.total.completed_count)|default(0))|number_format }}</td>
+                    <td style="text-align: right; color: #dc2626;">{{ (zone_summary.total.absent|default(zone_summary.total.absent_count)|default(0))|number_format }}</td>
+                    <td style="text-align: right; color: #0284c7;">{{ zone_summary.total.participation_pct|default(0) }}%</td>
+                    <td style="text-align: right;">{{ zone_summary.total.avg_score|default(0) }}</td>
                 </tr>
             </tfoot>
             {% endif %}
@@ -193,22 +195,22 @@
     <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 20px;">
         <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px;">
             <div style="font-size: 0.75rem; text-transform: uppercase; color: #64748b; font-weight: 600;">Max Possible Score</div>
-            <div style="font-size: 1.5rem; font-weight: 700; color: #1e293b; margin-top: 4px;">{{ score_summary.max_possible_score }}</div>
+            <div style="font-size: 1.5rem; font-weight: 700; color: #1e293b; margin-top: 4px;">{{ score_summary.max_possible_score|default(score_summary.max_marks)|default(0) }}</div>
             <div style="font-size: 0.75rem; color: #94a3b8; margin-top: 2px;">Configured in quiz settings</div>
         </div>
         <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px;">
             <div style="font-size: 0.75rem; text-transform: uppercase; color: #64748b; font-weight: 600;">Raw Average Score</div>
-            <div style="font-size: 1.5rem; font-weight: 700; color: #2563eb; margin-top: 4px;">{{ score_summary.avg_score_raw }}</div>
+            <div style="font-size: 1.5rem; font-weight: 700; color: #2563eb; margin-top: 4px;">{{ score_summary.avg_score_raw|default(score_summary.avg_raw_score)|default(0) }}</div>
             <div style="font-size: 0.75rem; color: #94a3b8; margin-top: 2px;">Across completed attempts</div>
         </div>
         <div style="background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 14px;">
             <div style="font-size: 0.75rem; text-transform: uppercase; color: #1e40af; font-weight: 700;">Weighted Score (Out of 50)</div>
-            <div style="font-size: 1.5rem; font-weight: 800; color: #1d4ed8; margin-top: 4px;">{{ score_summary.weighted_score_50 }} / 50</div>
+            <div style="font-size: 1.5rem; font-weight: 800; color: #1d4ed8; margin-top: 4px;">{{ score_summary.weighted_score_50|default(score_summary.avg_weighted_50)|default(0) }} / 50</div>
             <div style="font-size: 0.75rem; color: #3b82f6; margin-top: 2px;">HR Formula: (Raw / Max) * 50</div>
         </div>
         <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px;">
             <div style="font-size: 0.75rem; text-transform: uppercase; color: #64748b; font-weight: 600;">Zero-Scored Attempts</div>
-            <div style="font-size: 1.5rem; font-weight: 700; color: #dc2626; margin-top: 4px;">{{ score_summary.zero_scored_attempts }}</div>
+            <div style="font-size: 1.5rem; font-weight: 700; color: #dc2626; margin-top: 4px;">{{ score_summary.zero_scored_attempts|default(score_summary.zero_scored_count)|default(0) }}</div>
             <div style="font-size: 0.75rem; color: #94a3b8; margin-top: 2px;">Submitted with 0 marks</div>
         </div>
     </div>
@@ -219,19 +221,19 @@
     <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px;">
         <div style="background: #fef2f2; border: 1px solid #fecaca; border-radius: 6px; padding: 10px; text-align: center;">
             <div style="font-size: 0.75rem; color: #991b1b; font-weight: 600;">&lt; 20 Marks</div>
-            <div style="font-size: 1.15rem; font-weight: 700; color: #dc2626; margin-top: 2px;">{{ score_summary.brackets.lt_20|number_format }}</div>
+            <div style="font-size: 1.15rem; font-weight: 700; color: #dc2626; margin-top: 2px;">{{ (score_summary.brackets.lt_20|default(score_summary.brackets['< 20 Marks'])|default(score_summary.brackets['0-10'])|default(0))|number_format }}</div>
         </div>
         <div style="background: #fffbeb; border: 1px solid #fde68a; border-radius: 6px; padding: 10px; text-align: center;">
             <div style="font-size: 0.75rem; color: #92400e; font-weight: 600;">20 - 29 Marks</div>
-            <div style="font-size: 1.15rem; font-weight: 700; color: #d97706; margin-top: 2px;">{{ score_summary.brackets.b_20_29|number_format }}</div>
+            <div style="font-size: 1.15rem; font-weight: 700; color: #d97706; margin-top: 2px;">{{ (score_summary.brackets.b_20_29|default(score_summary.brackets['20 - 29 Marks'])|default(score_summary.brackets['21-30'])|default(0))|number_format }}</div>
         </div>
         <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 6px; padding: 10px; text-align: center;">
             <div style="font-size: 0.75rem; color: #166534; font-weight: 600;">30 - 39 Marks</div>
-            <div style="font-size: 1.15rem; font-weight: 700; color: #16a34a; margin-top: 2px;">{{ score_summary.brackets.b_30_39|number_format }}</div>
+            <div style="font-size: 1.15rem; font-weight: 700; color: #16a34a; margin-top: 2px;">{{ (score_summary.brackets.b_30_39|default(score_summary.brackets['30 - 39 Marks'])|default(score_summary.brackets['31-40'])|default(0))|number_format }}</div>
         </div>
         <div style="background: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 6px; padding: 10px; text-align: center;">
             <div style="font-size: 0.75rem; color: #065f46; font-weight: 600;">40 - 50 Marks</div>
-            <div style="font-size: 1.15rem; font-weight: 700; color: #059669; margin-top: 2px;">{{ score_summary.brackets.b_40_50|number_format }}</div>
+            <div style="font-size: 1.15rem; font-weight: 700; color: #059669; margin-top: 2px;">{{ (score_summary.brackets.b_40_50|default(score_summary.brackets['40 - 50 Marks'])|default(score_summary.brackets['41-50'])|default(0))|number_format }}</div>
         </div>
     </div>
     {% endif %}
@@ -259,6 +261,7 @@
                 <input type="hidden" name="zone" value="{{ selected_zone }}">
                 <input type="hidden" name="designation" value="{{ selected_designation }}">
                 <input type="hidden" name="exclude_test" value="{% if exclude_test %}1{% else %}0{% endif %}">
+                <input type="hidden" name="direct_download" value="1">
                 <button type="submit" class="btn btn-secondary" style="font-size: 0.8rem; padding: 6px 14px; display: flex; align-items: center; gap: 6px;">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
                     Download Question XLSX
@@ -284,15 +287,19 @@
             </thead>
             <tbody>
                 {% for q in question_summary %}
+                {% set q_acc = q.accuracy_pct is defined ? q.accuracy_pct : (q.correct_pct|default(0)) %}
+                {% set q_key = q.correct_answer_text|default(q.correct_answer|default('')) %}
+                {% set q_unans = q.assigned_unanswered is defined ? q.assigned_unanswered : (q.unanswered_count|default(0)) %}
+                {% set q_not_assigned = q.not_assigned is defined ? q.not_assigned : (q.not_assigned_count|default(0)) %}
                 <tr>
                     <td><strong>{{ loop.index }}</strong></td>
                     <td>
                         <div style="font-weight: 600; color: #1e293b; max-width: 440px; white-space: normal; line-height: 1.4;">
                             {{ q.question_text }}
                         </div>
-                        {% if q.correct_answer_text %}
+                        {% if q_key %}
                             <div style="font-size: 0.775rem; color: #16a34a; margin-top: 4px; display: flex; align-items: center; gap: 4px;">
-                                <span style="font-weight: 700;">Key:</span> {{ q.correct_answer_text }}
+                                <span style="font-weight: 700;">Key:</span> {{ q_key }}
                             </div>
                         {% endif %}
                     </td>
@@ -314,17 +321,17 @@
                         {{ q.incorrect_count }}
                     </td>
                     <td style="text-align: right; color: #64748b;">
-                        {{ q.assigned_unanswered }}
+                        {{ q_unans }}
                     </td>
                     <td style="text-align: right; color: #94a3b8;">
-                        {{ q.not_assigned }}
+                        {{ q_not_assigned }}
                     </td>
                     <td style="text-align: right;">
                         {% if q.question_type == 'written' %}
                             <span style="color: #64748b; font-size: 0.75rem;">Manual HR</span>
                         {% else %}
-                            <span style="font-weight: 700; color: {% if q.accuracy_pct >= 70 %}#16a34a{% elseif q.accuracy_pct >= 40 %}#d97706{% else %}#dc2626{% endif %};">
-                                {{ q.accuracy_pct }}%
+                            <span style="font-weight: 700; color: {% if q_acc >= 70 %}#16a34a{% elseif q_acc >= 40 %}#d97706{% else %}#dc2626{% endif %};">
+                                {{ q_acc }}%
                             </span>
                             <div style="font-size: 0.7rem; color: #94a3b8;">{{ q.correct_count }}/{{ q.answered_count }}</div>
                         {% endif %}
