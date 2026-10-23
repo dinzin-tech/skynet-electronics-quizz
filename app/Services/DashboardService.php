@@ -290,19 +290,19 @@ class DashboardService
         // Exclude test accounts if requested
         $excludeTest = !empty($filters['exclude_test_accounts']);
         if ($excludeTest) {
-            $where[] = "(e.employee_code NOT LIKE 'TEST%' AND e.email NOT LIKE 'test_%' AND e.email NOT LIKE 'test@%')";
+            $where[] = "(e.employee_code NOT LIKE 'TEST%' AND (e.email IS NULL OR (e.email NOT LIKE 'test_%' AND e.email NOT LIKE 'test@%')))";
         }
 
         // Zone filter
         if (!empty($filters['zone'])) {
-            $where[] = 'e.zone_region = :f_zone';
-            $params['f_zone'] = (string) $filters['zone'];
+            $where[] = 'TRIM(e.zone_region) = :f_zone';
+            $params['f_zone'] = trim((string) $filters['zone']);
         }
 
         // Designation filter
         if (!empty($filters['designation'])) {
-            $where[] = 'e.designation = :f_desig';
-            $params['f_desig'] = (string) $filters['designation'];
+            $where[] = 'TRIM(e.designation) = :f_desig';
+            $params['f_desig'] = trim((string) $filters['designation']);
         }
 
         return [
@@ -354,13 +354,50 @@ class DashboardService
             $empStmt = $this->db->prepare($empSql);
             $empStmt->execute($cond['params']);
             $eligible = (int) $empStmt->fetchColumn();
+            $notStarted = $eligible;
         }
 
-        $participationPct = $eligible > 0 ? round(($completed / $eligible) * 100, 1) : 0.0;
-        $startedPct = $eligible > 0 ? round(($started / $eligible) * 100, 1) : 0.0;
         $avgScore = round((float) ($row['avg_score'] ?? 0.0), 2);
         $avgAccuracy = round((float) ($row['avg_accuracy'] ?? 0.0), 1);
         $avgTimeS = (int) round((float) ($row['avg_time_s'] ?? 0.0));
+
+        // Check real-time Redis qstat if available and no zone/designation drill-down
+        $redis = $this->getRedis();
+        if ($redis && empty($filters['zone']) && empty($filters['designation'])) {
+            try {
+                $qstat = $redis->hGetAll("qstat:{$quizId}");
+                if (!empty($qstat) && isset($qstat['started'])) {
+                    $redisStarted = (int) ($qstat['started'] ?? 0);
+                    $redisCompleted = (int) ($qstat['completed'] ?? 0);
+                    $redisInProgress = (int) ($qstat['in_progress'] ?? 0);
+                    $redisAbsent = (int) ($qstat['absent'] ?? 0);
+
+                    if ($redisStarted > $started || $redisCompleted > $completed || $redisInProgress > $inProgress) {
+                        $started = max($started, $redisStarted);
+                        $completed = max($completed, $redisCompleted);
+                        $inProgress = max($inProgress, $redisInProgress);
+                        $absent = max($absent, $redisAbsent);
+                        $notStarted = max(0, $eligible - $started - $absent);
+
+                        if ($completed > 0 && isset($qstat['sum_score'])) {
+                            $avgScore = round((float) $qstat['sum_score'] / $completed, 2);
+                        }
+                        if ($completed > 0 && isset($qstat['sum_accuracy'])) {
+                            $avgAccuracy = round((float) $qstat['sum_accuracy'] / $completed, 1);
+                        }
+                        if ($completed > 0 && isset($qstat['sum_time_s'])) {
+                            $avgTimeS = (int) round((float) $qstat['sum_time_s'] / $completed);
+                        }
+                    }
+                }
+            } catch (\Throwable $e) {
+                // Ignore Redis errors, fallback to DB
+            }
+        }
+
+        // Compute percentages
+        $startedPct = $eligible > 0 ? round(($started / $eligible) * 100, 1) : 0.0;
+        $participationPct = $eligible > 0 ? round(($completed / $eligible) * 100, 1) : 0.0;
 
         // Pass / Fail breakdown
         $passRate = $this->calculatePassRate($quizId, $completed);
@@ -590,6 +627,17 @@ class DashboardService
         }
 
         $baseAttempts = $totalCompleted > 0 ? $totalCompleted : $totalEnrolled;
+        if ($baseAttempts === 0) {
+            $empSql = "SELECT COUNT(*) FROM employees e WHERE e.status = 'active' AND {$whereSql}";
+            $empStmt = $this->db->prepare($empSql);
+            $empStmt->execute($cond['params']);
+            $baseAttempts = (int) $empStmt->fetchColumn();
+            if ($baseAttempts > 0 && empty($assignedMap)) {
+                foreach ($allQuestionIds as $qidInt) {
+                    $assignedMap[$qidInt] = $baseAttempts;
+                }
+            }
+        }
 
         $summary = [];
         foreach ($questions as $q) {
@@ -678,12 +726,12 @@ class DashboardService
 
         $sql = "SELECT "
             . "COUNT(CASE WHEN a.score <= 0 THEN 1 END) AS zero_scored_count, "
-            . "COUNT(CASE WHEN a.score < 20 THEN 1 END) AS bracket_lt_20, "
-            . "COUNT(CASE WHEN a.score >= 20 AND a.score < 30 THEN 1 END) AS bracket_20_29, "
-            . "COUNT(CASE WHEN a.score >= 30 AND a.score < 40 THEN 1 END) AS bracket_30_39, "
-            . "COUNT(CASE WHEN a.score >= 40 THEN 1 END) AS bracket_40_50, "
-            . "COUNT(CASE WHEN a.score > 0 AND a.score <= 10 THEN 1 END) AS bracket_0_10, "
-            . "COUNT(CASE WHEN a.score > 10 AND a.score <= 20 THEN 1 END) AS bracket_10_20 "
+            . "COUNT(CASE WHEN (a.score * 50.0 / {$maxMarks}) < 20 THEN 1 END) AS bracket_lt_20, "
+            . "COUNT(CASE WHEN (a.score * 50.0 / {$maxMarks}) >= 20 AND (a.score * 50.0 / {$maxMarks}) < 30 THEN 1 END) AS bracket_20_29, "
+            . "COUNT(CASE WHEN (a.score * 50.0 / {$maxMarks}) >= 30 AND (a.score * 50.0 / {$maxMarks}) < 40 THEN 1 END) AS bracket_30_39, "
+            . "COUNT(CASE WHEN (a.score * 50.0 / {$maxMarks}) >= 40 THEN 1 END) AS bracket_40_50, "
+            . "COUNT(CASE WHEN a.score > 0 AND (a.score * 50.0 / {$maxMarks}) <= 10 THEN 1 END) AS bracket_0_10, "
+            . "COUNT(CASE WHEN (a.score * 50.0 / {$maxMarks}) > 10 AND (a.score * 50.0 / {$maxMarks}) <= 20 THEN 1 END) AS bracket_10_20 "
             . "FROM attempts a "
             . "JOIN employees e ON e.id = a.employee_id "
             . "WHERE a.quiz_id = :qid AND a.status = 'COMPLETED' AND {$whereSql}";
@@ -706,12 +754,20 @@ class DashboardService
             'max_marks' => $maxMarks,
             'max_possible_score' => $maxMarks,
             'avg_raw_score' => $avgRaw,
+            'raw_average' => $avgRaw,
             'avg_score_raw' => $avgRaw,
             'avg_weighted_50' => $avgWeighted50,
+            'weighted_average_50' => $avgWeighted50,
             'weighted_score_50' => $avgWeighted50,
             'zero_scored_count' => $zeroCount,
             'zero_scored_attempts' => $zeroCount,
             'scoring_formula' => 'Weighted Score = (Raw Score / ' . $maxMarks . ') × 50',
+            'distribution' => [
+                'bracket_lt_20' => $lt20,
+                'bracket_20_29' => $b20_29,
+                'bracket_30_39' => $b30_39,
+                'bracket_40_50' => $b40_50,
+            ],
             'brackets' => [
                 'lt_20' => $lt20,
                 'b_20_29' => $b20_29,

@@ -96,4 +96,68 @@ class DashboardServiceTest extends TestCase
         // Clean up
         $redis->del("qstat:{$fakeQuizId}");
     }
+
+    public function test_overall_summary_retains_employees_with_null_email_when_excluding_test(): void
+    {
+        $stmt = $this->db->query('SELECT id FROM quizzes LIMIT 1');
+        $quizId = (int) $stmt->fetchColumn();
+
+        if ($quizId === 0) {
+            $this->markTestSkipped('No quiz found in database.');
+        }
+
+        $summary = $this->service->getOverallSummary($quizId, ['exclude_test_accounts' => true]);
+
+        $this->assertNotNull($summary);
+        $this->assertArrayHasKey('eligible_employees', $summary);
+        $this->assertGreaterThan(0, $summary['eligible_employees'], 'Eligible employees must not be zero due to NULL email filter trap');
+    }
+
+    public function test_score_summary_weighted_benchmarks(): void
+    {
+        $stmt = $this->db->query('SELECT id FROM quizzes LIMIT 1');
+        $quizId = (int) $stmt->fetchColumn();
+
+        if ($quizId === 0) {
+            $this->markTestSkipped('No quiz found in database.');
+        }
+
+        $scoreSummary = $this->service->getScoreSummary($quizId, ['exclude_test_accounts' => true]);
+
+        $this->assertNotNull($scoreSummary);
+        $this->assertArrayHasKey('raw_average', $scoreSummary);
+        $this->assertArrayHasKey('weighted_average_50', $scoreSummary);
+        $this->assertArrayHasKey('max_possible_score', $scoreSummary);
+        $this->assertArrayHasKey('zero_scored_count', $scoreSummary);
+        $this->assertArrayHasKey('distribution', $scoreSummary);
+        $this->assertArrayHasKey('bracket_lt_20', $scoreSummary['distribution']);
+        $this->assertArrayHasKey('bracket_20_29', $scoreSummary['distribution']);
+        $this->assertArrayHasKey('bracket_30_39', $scoreSummary['distribution']);
+        $this->assertArrayHasKey('bracket_40_50', $scoreSummary['distribution']);
+    }
+
+    public function test_question_wise_summary_assignment_counts(): void
+    {
+        $stmt = $this->db->query('SELECT id FROM quizzes LIMIT 1');
+        $quizId = (int) $stmt->fetchColumn();
+
+        if ($quizId === 0) {
+            $this->markTestSkipped('No quiz found in database.');
+        }
+
+        $questions = $this->service->getQuestionWiseSummary($quizId, ['exclude_test_accounts' => true]);
+
+        if (empty($questions)) {
+            $this->markTestSkipped('No questions found for quiz.');
+        }
+
+        foreach ($questions as $q) {
+            $this->assertArrayHasKey('assigned_count', $q);
+            $this->assertArrayHasKey('answered_count', $q);
+            $this->assertArrayHasKey('correct_count', $q);
+            $this->assertArrayHasKey('incorrect_count', $q);
+            $this->assertArrayHasKey('not_assigned', $q);
+            $this->assertGreaterThanOrEqual(0, $q['assigned_count']);
+        }
+    }
 }
