@@ -191,6 +191,25 @@ class AdminController extends Controller
             stripos($selectedQuiz['title'] ?? '', 'Test') !== false
         );
 
+        // Auto-heal: If quiz is published but has 0 attempts in roster, sync roster now
+        if ($selectedQuiz && ($selectedQuiz['status'] ?? '') === 'published') {
+            $chkStmt = $this->db->prepare('SELECT COUNT(*) FROM attempts WHERE quiz_id = :qid');
+            $chkStmt->execute(['qid' => $selectedQuizId]);
+            $hasAttempts = (int) $chkStmt->fetchColumn() > 0;
+            if (!$hasAttempts) {
+                try {
+                    $ver = (int) ($selectedQuiz['version'] ?? 1);
+                    $qCountStmt = $this->db->prepare('SELECT COUNT(*) FROM quiz_questions WHERE quiz_id = :qid');
+                    $qCountStmt->execute(['qid' => $selectedQuizId]);
+                    $qCount = (int) $qCountStmt->fetchColumn();
+                    $this->quizPublisher->syncRoster($selectedQuizId, $ver, $qCount);
+                    $this->quizWarmer->warmQuiz($selectedQuizId);
+                } catch (\Throwable $e) {
+                    error_log("Dashboard auto-heal syncRoster failed for quiz {$selectedQuizId}: " . $e->getMessage());
+                }
+            }
+        }
+
         $filterApplied = $request->get('filter_applied', null) !== null;
         if ($filterApplied) {
             $excludeTest = $request->get('exclude_test') === '1';
@@ -220,6 +239,7 @@ class AdminController extends Controller
             'current_route' => 'dashboard',
             'global_kpis' => $globalKpis,
             'quizzes' => $quizzes,
+            'selected_quiz' => $selectedQuiz,
             'selected_quiz_id' => $selectedQuizId,
             'selected_zone' => $selectedZone,
             'selected_designation' => $selectedDesignation,
